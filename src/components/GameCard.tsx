@@ -7,7 +7,7 @@ type GameCardProps = {
 
 export function GameCard({ children, className = "" }: GameCardProps) {
   return (
-    <section className={`rounded-2xl border border-white/65 bg-white/78 p-4 shadow-game ${className}`}>
+    <section className={`min-w-0 rounded-2xl border border-white/70 bg-white/82 p-4 shadow-game backdrop-blur-sm sm:p-5 ${className}`}>
       {children}
     </section>
   );

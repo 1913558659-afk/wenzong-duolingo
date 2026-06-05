@@ -32,34 +32,48 @@ export function QuizCard({ question, currentNumber, total, onAnswer, onNext, nex
   }
 
   return (
-    <GameCard className="space-y-4">
+    <GameCard className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         <SubjectPill subject={question.subject} />
         <span className="text-xs font-black text-ink/52">{currentNumber} / {total}</span>
       </div>
-      <h2 className="text-xl font-black leading-snug text-ink">{question.question}</h2>
-      <div className="space-y-2">
+      <h2 className="text-xl font-black leading-snug text-ink sm:text-2xl">{question.question}</h2>
+      <div className="space-y-3">
         {question.options.map((option, index) => {
-          const answerClass = isAnswered && option === question.answer ? "border-leaf bg-leaf text-white" : "";
-          const wrongClass = isAnswered && selectedAnswer === index && option !== question.answer ? "border-coral bg-coral text-white" : "";
+          const isRightAnswer = option === question.answer;
+          const isSelectedWrong = isAnswered && selectedAnswer === index && !isRightAnswer;
+          const answerClass = isAnswered && isRightAnswer ? "border-leaf/55 bg-leaf/12 text-ink ring-2 ring-leaf/25" : "";
+          const wrongClass = isSelectedWrong ? "border-coral/55 bg-coral/12 text-ink ring-2 ring-coral/25" : "";
+          const mutedClass = isAnswered && !isRightAnswer && selectedAnswer !== index ? "opacity-70" : "";
 
           return (
             <button
-              className={`w-full rounded-2xl border border-ink/10 bg-white p-3 text-left text-sm font-bold text-ink shadow-insetGame transition hover:-translate-y-0.5 ${answerClass} ${wrongClass}`}
+              className={`flex min-h-[60px] w-full items-center justify-between gap-3 rounded-2xl border border-ink/10 bg-white p-4 text-left text-base font-bold text-ink shadow-insetGame transition hover:-translate-y-0.5 disabled:cursor-default sm:min-h-[64px] ${answerClass} ${wrongClass} ${mutedClass}`}
+              disabled={isAnswered}
               key={option}
               onClick={() => choose(index)}
               type="button"
             >
-              {String.fromCharCode(65 + index)}. {option}
+              <span className="leading-6">{String.fromCharCode(65 + index)}. {option}</span>
+              {isAnswered && isRightAnswer && (
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-leaf text-sm font-black text-white" aria-label="正确答案">
+                  ✓
+                </span>
+              )}
+              {isSelectedWrong && (
+                <span className="grid size-7 shrink-0 place-items-center rounded-full bg-coral text-sm font-black text-white" aria-label="错误答案">
+                  ×
+                </span>
+              )}
             </button>
           );
         })}
       </div>
       {isAnswered && (
-        <div className={`rounded-2xl p-4 ${isCorrect ? "bg-leaf/14" : "bg-coral/12"}`}>
+        <div className={`rounded-2xl border p-4 ${isCorrect ? "border-leaf/20 bg-leaf/14" : "border-coral/20 bg-coral/12"}`}>
           <p className={`text-sm font-black ${isCorrect ? "text-leaf" : "text-coral"}`}>{isCorrect ? "回答正确" : "先别急，这题再看一遍"}</p>
-          <p className="mt-1 text-sm font-semibold text-ink/70">{question.explanation}</p>
-          <button className="mt-3 rounded-2xl bg-ink px-4 py-2 text-sm font-black text-white shadow-insetGame" onClick={nextQuestion} type="button">
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/72">{question.explanation}</p>
+          <button className="sticky bottom-24 mt-4 w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide sm:static sm:w-auto" onClick={nextQuestion} type="button">
             {nextLabel}
           </button>
         </div>

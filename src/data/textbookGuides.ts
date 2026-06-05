@@ -1,12 +1,28 @@
 import type { TextbookArticle } from "@/types";
 
 /*
-  以后添加新章节：
-  1. 复制 textbookGuides 数组里任意一个章节对象。
-  2. 修改 id，保证唯一，建议格式：guide-学科-章节名拼音或英文。
-  3. subject 只能填 history / politics / geography。
-  4. relatedQuizId 填这个章节对应的练习入口，目前建议写成：subject:chapter，例如 history:新航路开辟。
-  5. relatedPromptId 填 aiPrompts.ts 里某个提示词的 id，用来跳转到合适的 AI 提示词。
+  文件用途：
+  这里维护“教材解读页”的章节卡片。
+  每个大括号就是一个章节，内容用自己的复习语言改写，不要复制教材原文。
+
+  字段说明：
+  - id：章节卡片唯一编号，不能重复
+  - subject：所属学科，只能填 history / politics / geography
+  - book：教材或模块名称，例如“历史必修：中外历史纲要相关单元”
+  - chapter：章节名，建议和 questions.ts 里的关卡 name 保持一致
+  - coreQuestion：本章最核心的问题，帮助学生抓主线
+  - keyPoints：关键知识点，建议 3-5 个
+  - examFocus：高频考点，建议 3-5 个
+  - commonMistakes：易错点，建议 2-4 个
+  - relatedQuizId：跳转练习用，格式为“subject:章节名”，例如 "history:新航路开辟"
+  - relatedPromptId：跳转 AI 提示词用，填 aiPrompts.ts 里某个提示词的 id
+
+  如何新增一个教材章节：
+  1. 复制 textbookGuides 数组里任意一个完整大括号。
+  2. 修改 id、subject、book、chapter、coreQuestion 等文字。
+  3. 如果希望“跳转练习”能打开对应题目，relatedQuizId 要和 questions.ts 里的关卡 id 一致。
+  4. 如果希望“跳转 AI 提示词”更精准，relatedPromptId 要填 aiPrompts.ts 里已有的 id。
+  5. 如果希望章节卡片推荐教辅，studyAids.ts 里的 relatedChapters 要包含这个 chapter。
 */
 
 export const textbookGuides: TextbookArticle[] = [
@@ -23,18 +39,6 @@ export const textbookGuides: TextbookArticle[] = [
     relatedPromptId: "history-timeline"
   },
   {
-    id: "guide-history-reform",
-    subject: "history",
-    book: "历史必修：近代中国相关单元",
-    chapter: "戊戌变法",
-    coreQuestion: "民族危机加深后，维新派为什么要变法？变法为什么没能成功？",
-    keyPoints: ["甲午战败后的民族危机", "维新思想传播", "变法措施", "顽固势力阻挠"],
-    examFocus: ["变法背景", "失败原因", "思想启蒙作用"],
-    commonMistakes: ["把戊戌变法和洋务运动混在一起", "只记失败，不写思想影响", "忽略维新派自身局限"],
-    relatedQuizId: "history:戊戌变法",
-    relatedPromptId: "history-compare"
-  },
-  {
     id: "guide-politics-economy",
     subject: "politics",
     book: "政治必修：经济与社会",
@@ -47,18 +51,6 @@ export const textbookGuides: TextbookArticle[] = [
     relatedPromptId: "politics-material"
   },
   {
-    id: "guide-politics-market",
-    subject: "politics",
-    book: "政治必修：经济与社会",
-    chapter: "市场与政府",
-    coreQuestion: "市场怎样配置资源？为什么还需要政府更好发挥作用？",
-    keyPoints: ["价格机制", "供求关系", "竞争机制", "宏观调控"],
-    examFocus: ["市场决定性作用", "市场调节局限", "有效市场和有为政府"],
-    commonMistakes: ["把市场局限理解成市场无用", "只写政府作用，忘记市场机制", "看见价格波动却想不到供求关系"],
-    relatedQuizId: "politics:市场与政府",
-    relatedPromptId: "politics-keywords"
-  },
-  {
     id: "guide-geography-atmosphere",
     subject: "geography",
     book: "地理必修：自然地理基础",
@@ -69,18 +61,6 @@ export const textbookGuides: TextbookArticle[] = [
     commonMistakes: ["把太阳辐射和地面辐射混淆", "只背结论，不会解释过程", "不会用大气逆辐射解释夜间保温"],
     relatedQuizId: "geography:大气受热过程",
     relatedPromptId: "geo-process"
-  },
-  {
-    id: "guide-geography-water",
-    subject: "geography",
-    book: "地理必修：自然地理基础",
-    chapter: "水循环",
-    coreQuestion: "水怎样在海洋、陆地和大气之间循环？人类活动会改变哪些环节？",
-    keyPoints: ["蒸发", "水汽输送", "降水", "径流", "下渗"],
-    examFocus: ["海陆间循环环节", "植被破坏对径流的影响", "城市内涝与下渗减少"],
-    commonMistakes: ["环节写不全", "把水循环能量来源说错", "分析城市内涝时忘记硬化地面"],
-    relatedQuizId: "geography:水循环",
-    relatedPromptId: "geo-map"
   }
 ];
 

@@ -11,6 +11,13 @@
   box-sizing: border-box;
 }
 
+html,
+body,
+#root {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   min-height: 100vh;
   margin: 0;
@@ -19,11 +26,45 @@ body {
     radial-gradient(circle at 90% 5%, rgba(31, 138, 158, 0.18), transparent 22rem),
     linear-gradient(180deg, #fbf4df 0%, #eaf7f2 48%, #fbf4df 100%);
   color: #172033;
+  overflow-wrap: anywhere;
 }
 
 button,
-input {
+input,
+select {
   font: inherit;
+}
+
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button,
+a {
+  touch-action: manipulation;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 3px solid rgba(31, 138, 158, 0.32);
+  outline-offset: 2px;
+}
+
+button:active,
+a:active {
+  transform: translateY(1px);
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
 }
 
 .map-path {

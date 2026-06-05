@@ -48,8 +48,8 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen pb-24">
-      <main className="mx-auto w-full max-w-5xl px-4 py-5">
+    <div className="min-h-screen overflow-x-hidden pb-36 md:pb-24">
+      <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-5 sm:py-7 lg:px-6">
         {page === "home" && <Home navigate={navigate} scheduleItems={scheduleItems} stats={stats} wrongCount={records.length} />}
         {page === "map" && <ChallengeMap startPractice={startPractice} />}
         {page === "quiz" && <Quiz goMap={() => setPage("map")} onComplete={addQuizResult} onWrongAnswer={addWrongAnswer} selectedLevelId={selectedLevelId} />}

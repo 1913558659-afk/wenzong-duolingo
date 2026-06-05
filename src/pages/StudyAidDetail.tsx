@@ -17,9 +17,9 @@ export function StudyAidDetail({ aidId, backToList }: StudyAidDetailProps) {
   return (
     <div>
       <PageHeader title={aid.title} subtitle="从适合阶段、使用场景和注意事项来判断这本资料是否适合你。" />
-      <div className="grid gap-4 lg:grid-cols-[1fr_1.4fr]">
+      <div className="grid gap-4 lg:grid-cols-[0.95fr_1.45fr]">
         <GameCard>
-          <div className={`h-48 rounded-2xl ${aid.coverColor} p-5 text-white shadow-insetGame`}>
+          <div className={`min-h-48 rounded-2xl ${aid.coverColor} p-5 text-white shadow-insetGame`}>
             <p className="text-sm font-black opacity-80">{aid.grade} · {aid.type}</p>
             <h1 className="mt-3 text-3xl font-black leading-tight">{aid.title}</h1>
           </div>
@@ -28,28 +28,28 @@ export function StudyAidDetail({ aidId, backToList }: StudyAidDetailProps) {
             <span className="rounded-full bg-ink/6 px-3 py-1 text-xs font-black text-ink/58">{difficultyLabels[aid.difficulty]}</span>
             <span className="rounded-full bg-gold/24 px-3 py-1 text-xs font-black text-ink/70">{aid.priceRange}</span>
           </div>
-          <div className="mt-4 rounded-2xl bg-gold/18 p-3">
+          <div className="mt-4 rounded-2xl border border-gold/20 bg-gold/18 p-3">
             <p className="text-xs font-black text-ink/52">价格说明</p>
-            <p className="mt-1 text-sm font-bold leading-6 text-ink/70">{aid.priceRange}，仅供参考；实际价格、版本和库存以购买页面为准。</p>
+            <p className="mt-1 text-sm font-bold leading-6 text-ink/70">{aid.priceRange}，仅供参考，实际以平台为准；版本和库存以购买页面为准。</p>
           </div>
           <div className="mt-4 grid gap-2 sm:grid-cols-3">
             {buyLinks.map((link) => (
-              <a className="rounded-2xl bg-coral px-4 py-3 text-center text-sm font-black text-white shadow-insetGame" href={link.url} key={link.label} rel="noreferrer" target="_blank">
+              <a className="rounded-2xl bg-coral px-4 py-3 text-center text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" href={link.url} key={link.label} rel="noreferrer" target="_blank">
                 {link.label}
               </a>
             ))}
           </div>
           <div className="mt-2 grid gap-2">
-            <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame" onClick={backToList} type="button">
+            <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide" onClick={backToList} type="button">
               返回教辅雷达
             </button>
           </div>
         </GameCard>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           <GameCard>
             <p className="text-xs font-black text-tide">适合谁</p>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/70">{aid.fitFor}</p>
+            <p className="mt-2 text-base font-semibold leading-7 text-ink/70">{aid.fitFor}</p>
           </GameCard>
           <GameCard>
             <p className="text-xs font-black text-leaf">亮点</p>
@@ -63,7 +63,7 @@ export function StudyAidDetail({ aidId, backToList }: StudyAidDetailProps) {
             <p className="text-xs font-black text-coral">使用前提醒</p>
             <ul className="mt-2 space-y-1">
               {aid.cautions.map((item) => (
-                <li className="text-sm font-semibold leading-6 text-ink/68" key={item}>· {item}</li>
+                <li className="rounded-2xl bg-coral/8 px-3 py-2 text-sm font-semibold leading-6 text-ink/68" key={item}>{item}</li>
               ))}
             </ul>
           </GameCard>

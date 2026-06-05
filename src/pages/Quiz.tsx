@@ -6,6 +6,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { challengeLevels, quizQuestions } from "@/data/questions";
 import { subjectLabels } from "@/lib/labels";
 import type { QuizQuestion } from "@/types";
+import { markQuestionsCompleted } from "@/utils/progress";
 
 type QuizProps = {
   selectedLevelId: string | null;
@@ -42,7 +43,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap }: Quiz
         <PageHeader title="题目待补充" subtitle={`${subjectLabels[level.island]}岛 · ${level.name}`} />
         <GameCard className="space-y-3 text-center">
           <p className="text-sm font-semibold leading-6 text-ink/68">这个章节的数据结构已经准备好，题目内容还可以继续在 `src/data/questions.ts` 里添加。</p>
-          <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame" onClick={goMap} type="button">
+          <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide" onClick={goMap} type="button">
             返回闯关地图
           </button>
         </GameCard>
@@ -73,6 +74,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap }: Quiz
     if (saved) {
       return;
     }
+    markQuestionsCompleted(questions.map((item) => item.id));
     onComplete(correctAnswers, questions.length, earnedXp);
     setSaved(true);
   }
@@ -81,17 +83,17 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap }: Quiz
     return (
       <div>
         <PageHeader title="本关完成" subtitle={`${subjectLabels[level.island]}岛 · ${level.name}`} />
-        <GameCard className="space-y-4 text-center">
+        <GameCard className="space-y-5 text-center">
           <p className="text-sm font-black text-tide">你的得分</p>
           <p className="text-5xl font-black text-ink">{correctAnswers} / {questions.length}</p>
           <ProgressBar value={(correctAnswers / questions.length) * 100} />
           <p className="text-lg font-black text-coral">经验值 +{earnedXp}</p>
           <p className="text-sm font-semibold leading-6 text-ink/68">{getEncouragement(correctAnswers, questions.length)}</p>
           <div className="grid gap-2 sm:grid-cols-2">
-            <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame" onClick={saveResult} type="button">
+            <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink disabled:cursor-not-allowed disabled:opacity-70" disabled={saved} onClick={saveResult} type="button">
               {saved ? "经验值已保存" : "保存经验值"}
             </button>
-            <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame" onClick={goMap} type="button">
+            <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-coral" onClick={goMap} type="button">
               返回闯关地图
             </button>
           </div>

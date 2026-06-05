@@ -24,25 +24,25 @@ export function TextbookGuide({ startPractice, openPrompts, openStudyAid }: Text
 
           return (
             <section key={subject}>
-              <div className="mb-3 flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between gap-3">
                 <h2 className="text-xl font-black text-ink">{subjectLabels[subject]}</h2>
                 <SubjectPill subject={subject} />
               </div>
-              <div className="grid gap-3 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-2">
                 {articles.map((article) => {
                   const recommendedAids = studyAids
                     .filter((aid) => aid.subject === article.subject && aid.relatedChapters.includes(article.chapter))
                     .slice(0, 2);
 
                   return (
-                  <GameCard key={article.id}>
+                  <GameCard className="h-full" key={article.id}>
                     <h3 className="text-xl font-black text-ink">{article.chapter}</h3>
                     <p className="mt-1 text-xs font-bold text-ink/48">{article.book}</p>
-                    <div className="mt-3 rounded-2xl bg-gold/18 p-3">
+                    <div className="mt-4 rounded-2xl border border-gold/20 bg-gold/18 p-3">
                       <p className="text-xs font-black text-ink/52">核心问题</p>
                       <p className="mt-1 text-sm font-bold leading-6 text-ink">{article.coreQuestion}</p>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-4">
                       <p className="text-xs font-black text-leaf">关键知识</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {article.keyPoints.map((point) => (
@@ -50,24 +50,24 @@ export function TextbookGuide({ startPractice, openPrompts, openStudyAid }: Text
                         ))}
                       </div>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-4 rounded-2xl bg-tide/8 p-3">
                       <p className="text-xs font-black text-tide">高频考点</p>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {article.examFocus.map((point) => (
-                          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink/66" key={point}>{point}</span>
+                          <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink/66 shadow-sm" key={point}>{point}</span>
                         ))}
                       </div>
                     </div>
-                    <div className="mt-3">
+                    <div className="mt-4 rounded-2xl bg-coral/8 p-3">
                       <p className="text-xs font-black text-coral">易错点</p>
                       <ul className="mt-2 space-y-1">
                         {article.commonMistakes.map((mistake) => (
-                          <li className="text-sm font-semibold leading-6 text-ink/68" key={mistake}>· {mistake}</li>
+                          <li className="rounded-xl bg-white/70 px-3 py-2 text-sm font-semibold leading-6 text-ink/68" key={mistake}>{mistake}</li>
                         ))}
                       </ul>
                     </div>
                     {recommendedAids.length > 0 && (
-                      <div className="mt-3">
+                      <div className="mt-4">
                         <p className="text-xs font-black text-gold">推荐教辅</p>
                         <div className="mt-2 grid gap-2">
                           {recommendedAids.map((aid) => (
@@ -85,10 +85,10 @@ export function TextbookGuide({ startPractice, openPrompts, openStudyAid }: Text
                       </div>
                     )}
                     <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                      <button className="rounded-2xl bg-coral px-4 py-3 text-sm font-black text-white shadow-insetGame" onClick={() => startPractice(article.relatedQuizId)} type="button">
+                      <button className="rounded-2xl bg-coral px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={() => startPractice(article.relatedQuizId)} type="button">
                         跳转练习
                       </button>
-                      <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame" onClick={() => openPrompts(article.subject, article.relatedPromptId)} type="button">
+                      <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={() => openPrompts(article.subject, article.relatedPromptId)} type="button">
                         跳转 AI 提示词
                       </button>
                     </div>

@@ -15,14 +15,19 @@ export function WrongBook({ records, removeWrongAnswer, clearWrongAnswers }: Wro
     <div>
       <PageHeader title="错题本" subtitle="选择题答错后会自动加入这里，先看错因，再回去重做同类题。" />
 
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <p className="text-sm font-black text-ink/60">共 {records.length} 道错题</p>
-        <button className="rounded-2xl bg-ink px-4 py-2 text-sm font-black text-white shadow-insetGame" onClick={clearWrongAnswers} type="button">
+        <button
+          className="min-h-11 rounded-2xl bg-ink px-4 py-2 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-coral disabled:cursor-not-allowed disabled:opacity-45"
+          disabled={records.length === 0}
+          onClick={clearWrongAnswers}
+          type="button"
+        >
           清空错题本
         </button>
       </div>
 
-      <div className="space-y-3">
+      <div className="space-y-4">
         {records.map((record) => (
           <GameCard key={record.id}>
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -30,7 +35,7 @@ export function WrongBook({ records, removeWrongAnswer, clearWrongAnswers }: Wro
                 <SubjectPill subject={record.subject} />
                 <span className="text-xs font-black text-ink/52">{record.chapter}</span>
               </div>
-              <button className="rounded-full bg-coral/12 px-3 py-1 text-xs font-black text-coral" onClick={() => removeWrongAnswer(record.id)} type="button">
+              <button className="min-h-10 rounded-full bg-ink/5 px-4 py-2 text-xs font-black text-ink/50 transition hover:bg-coral/12 hover:text-coral" onClick={() => removeWrongAnswer(record.id)} type="button">
                 移除
               </button>
             </div>
@@ -45,7 +50,10 @@ export function WrongBook({ records, removeWrongAnswer, clearWrongAnswers }: Wro
                 <p className="mt-1 text-sm font-bold text-ink">{record.correctAnswer}</p>
               </div>
             </div>
-            <p className="mt-3 text-sm font-semibold leading-6 text-ink/68">{record.explanation}</p>
+            <div className="mt-3 rounded-2xl bg-gold/14 p-3">
+              <p className="text-xs font-black text-ink/52">解析</p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-ink/72">{record.explanation}</p>
+            </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {record.tags.map((tag) => (
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink/52" key={tag}>{tag}</span>
@@ -56,8 +64,9 @@ export function WrongBook({ records, removeWrongAnswer, clearWrongAnswers }: Wro
       </div>
 
       {records.length === 0 && (
-        <GameCard className="text-center">
-          <p className="text-sm font-bold text-ink/58">现在还没有错题。去做一关选择题，答错的题会自动出现在这里。</p>
+        <GameCard className="py-8 text-center">
+          <p className="text-xl font-black text-ink">还没有错题，去闯一关吧</p>
+          <p className="mt-2 text-sm font-bold leading-6 text-ink/58">选择题答错后会自动加入这里，之后可以集中复习。</p>
         </GameCard>
       )}
     </div>

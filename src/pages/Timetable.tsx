@@ -37,22 +37,22 @@ export function Timetable({ items, addItem, toggleDone, quickAdd }: TimetablePro
     <div>
       <PageHeader title="课程表页" subtitle="安排一周学习任务，完成后点一下打勾，刷新页面也会保留。" />
 
-      <GameCard className="mb-4">
-        <form className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_1.3fr_2fr_auto]" onSubmit={submitTask}>
-          <select className="rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setDay(event.target.value)} value={day}>
+      <GameCard className="mb-5">
+        <form className="grid gap-3 lg:grid-cols-[1fr_1fr_1fr_1.3fr_2fr_auto]" onSubmit={submitTask}>
+          <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setDay(event.target.value)} value={day}>
             {days.map((item) => <option key={item}>{item}</option>)}
           </select>
-          <input className="rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setTime(event.target.value)} type="time" value={time} />
-          <select className="rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setSubject(event.target.value as Subject)} value={subject}>
+          <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setTime(event.target.value)} type="time" value={time} />
+          <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setSubject(event.target.value as Subject)} value={subject}>
             {subjects.map((item) => <option key={item} value={item}>{subjectLabels[item]}</option>)}
           </select>
-          <input className="rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setTitle(event.target.value)} placeholder="任务标题" value={title} />
-          <input className="rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setTask(event.target.value)} placeholder="具体要做什么" value={task} />
-          <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame" type="submit">添加</button>
+          <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setTitle(event.target.value)} placeholder="任务标题" value={title} />
+          <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-3 py-3 text-sm font-bold text-ink" onChange={(event) => setTask(event.target.value)} placeholder="具体要做什么" value={task} />
+          <button className="min-h-12 rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" type="submit">添加</button>
         </form>
         <div className="mt-3 flex flex-wrap gap-2">
           {subjects.map((item) => (
-            <button className="rounded-full bg-ink/6 px-3 py-2 text-xs font-black text-ink/64" key={item} onClick={() => quickAdd(item)} type="button">
+            <button className="min-h-10 rounded-full bg-ink/6 px-4 py-2 text-xs font-black text-ink/64 transition hover:bg-white hover:text-ink" key={item} onClick={() => quickAdd(item)} type="button">
               快速加一个{subjectLabels[item]}自习
             </button>
           ))}
@@ -64,7 +64,7 @@ export function Timetable({ items, addItem, toggleDone, quickAdd }: TimetablePro
           const dayItems = items.filter((item) => item.day === dayName);
 
           return (
-            <section className="rounded-[1.4rem] border border-white/70 bg-white/45 p-3" key={dayName}>
+            <section className="rounded-[1.4rem] border border-white/70 bg-white/52 p-3 shadow-soft" key={dayName}>
               <h2 className="mb-3 text-center text-sm font-black text-ink">{dayName}</h2>
               <div className="space-y-2">
                 {dayItems.map((item) => (
