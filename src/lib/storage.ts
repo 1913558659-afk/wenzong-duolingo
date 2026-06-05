@@ -10,8 +10,8 @@ const wrongBookKey = "wenzong-island-wrong-book";
 const today = () => new Date().toISOString().slice(0, 10);
 
 export const defaultStats: StudyStats = {
-  xp: 120,
-  streakDays: 3,
+  xp: 0,
+  streakDays: 0,
   answeredToday: 0,
   correctCount: 0,
   lastStudyDate: today()
