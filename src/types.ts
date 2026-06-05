@@ -1,4 +1,4 @@
-export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "about";
+export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "auth" | "about";
 
 export type Subject = "history" | "politics" | "geography";
 
@@ -95,4 +95,10 @@ export type WrongAnswerRecord = {
   explanation: string;
   tags: string[];
   createdAt: string;
+};
+
+export type AuthUser = {
+  id: string;
+  email: string;
+  name?: string | null;
 };

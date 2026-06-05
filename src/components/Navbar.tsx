@@ -1,5 +1,5 @@
 import { useState } from "react";
-import type { PageId } from "@/types";
+import type { AuthUser, PageId } from "@/types";
 
 const items: { id: PageId; label: string; icon: string }[] = [
   { id: "home", label: "首页", icon: "I" },
@@ -10,17 +10,21 @@ const items: { id: PageId; label: string; icon: string }[] = [
   { id: "textbook", label: "教材", icon: "B" },
   { id: "studyAids", label: "教辅", icon: "R" },
   { id: "wrongBook", label: "错题", icon: "W" },
+  { id: "auth", label: "登录", icon: "U" },
   { id: "about", label: "关于", icon: "?" }
 ];
 
 type NavbarProps = {
   currentPage: PageId;
   onNavigate: (page: PageId) => void;
+  onLogout: () => void;
+  user: AuthUser | null;
 };
 
-export function Navbar({ currentPage, onNavigate }: NavbarProps) {
+export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const currentItem = items.find((item) => item.id === currentPage) ?? items[0];
+  const navItems = items.map((item) => (item.id === "auth" && user ? { ...item, label: user.name || user.email.slice(0, 6) } : item));
+  const currentItem = navItems.find((item) => item.id === currentPage) ?? navItems[0];
 
   function go(page: PageId) {
     onNavigate(page);
@@ -32,7 +36,7 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
       <div className="mx-auto max-w-5xl md:hidden">
         {isOpen && (
           <div className="mb-2 grid grid-cols-3 gap-2 rounded-2xl border border-white/70 bg-white/88 p-2 shadow-game">
-            {items.map((item) => {
+            {navItems.map((item) => {
               const active = currentPage === item.id;
 
               return (
@@ -52,7 +56,7 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
             })}
           </div>
         )}
-        <div className="grid grid-cols-[1fr_auto] gap-2">
+        <div className={`grid gap-2 ${user ? "grid-cols-[1fr_auto_auto]" : "grid-cols-[1fr_auto]"}`}>
           <button
             className="flex min-h-14 items-center justify-center rounded-2xl bg-ink px-4 text-sm font-black text-white shadow-insetGame"
             onClick={() => setIsOpen((open) => !open)}
@@ -60,6 +64,15 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
           >
             {isOpen ? "收起导航" : `当前：${currentItem.label}`}
           </button>
+          {user && (
+            <button
+              className="min-h-14 rounded-2xl bg-coral px-5 text-sm font-black text-white shadow-insetGame"
+              onClick={onLogout}
+              type="button"
+            >
+              退出
+            </button>
+          )}
           <button
             className="min-h-14 rounded-2xl bg-tide px-5 text-sm font-black text-white shadow-insetGame"
             onClick={() => setIsOpen((open) => !open)}
@@ -70,8 +83,8 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
         </div>
       </div>
 
-      <div className="mx-auto hidden max-w-5xl gap-1 md:grid md:grid-cols-9">
-        {items.map((item) => {
+      <div className="mx-auto hidden max-w-5xl gap-1 md:grid md:grid-cols-10">
+        {navItems.map((item) => {
           const active = currentPage === item.id;
 
           return (
@@ -90,6 +103,13 @@ export function Navbar({ currentPage, onNavigate }: NavbarProps) {
           );
         })}
       </div>
+      {user && (
+        <div className="mx-auto mt-2 hidden max-w-5xl justify-end md:flex">
+          <button className="rounded-full bg-white/72 px-3 py-1 text-xs font-black text-ink/58 transition hover:bg-coral/12 hover:text-coral" onClick={onLogout} type="button">
+            当前用户：{user.name || user.email} · 退出
+          </button>
+        </div>
+      )}
     </nav>
   );
 }

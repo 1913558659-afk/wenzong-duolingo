@@ -35,6 +35,14 @@ export function markQuestionsCompleted(questionIds: string[]) {
   window.localStorage.setItem(completedQuestionsKey, JSON.stringify([...completed]));
 }
 
+export function replaceCompletedQuestionIds(questionIds: string[]) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(completedQuestionsKey, JSON.stringify([...new Set(questionIds)]));
+}
+
 function countCompleted(questions: QuizQuestion[], completedIds = getCompletedQuestionIds()) {
   return questions.filter((question) => completedIds.has(question.id)).length;
 }

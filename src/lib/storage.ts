@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { defaultScheduleItems } from "@/data/timetable";
+import { fetchProgressMe } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
 import type { QuizQuestion, ScheduleItem, StudyStats, Subject, WrongAnswerRecord } from "@/types";
+import { replaceCompletedQuestionIds } from "@/utils/progress";
 
 const statsKey = "wenzong-island-study-stats";
 const scheduleKey = "wenzong-island-schedule";
@@ -26,12 +28,32 @@ function loadStats() {
   return saved ? ({ ...defaultStats, ...JSON.parse(saved) } as StudyStats) : defaultStats;
 }
 
-export function useStudyStats() {
+export function useStudyStats(token?: string | null) {
   const [stats, setStats] = useState<StudyStats>(defaultStats);
 
   useEffect(() => {
     setStats(loadStats());
   }, []);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    fetchProgressMe(token)
+      .then((progress) => {
+        if (progress.stats) {
+          setStats(progress.stats);
+          window.localStorage.setItem(statsKey, JSON.stringify(progress.stats));
+        }
+        if (progress.completedQuestionIds) {
+          replaceCompletedQuestionIds(progress.completedQuestionIds);
+        }
+      })
+      .catch(() => {
+        // 后端暂时不可用时，保留游客本地进度。
+      });
+  }, [token]);
 
   function addQuizResult(correctAnswers: number, totalQuestions: number, earnedXp: number) {
     setStats((current) => {
@@ -113,12 +135,32 @@ function loadWrongAnswers() {
   return saved ? (JSON.parse(saved) as WrongAnswerRecord[]) : [];
 }
 
-export function useWrongAnswers() {
+export function useWrongAnswers(token?: string | null) {
   const [records, setRecords] = useState<WrongAnswerRecord[]>([]);
 
   useEffect(() => {
     setRecords(loadWrongAnswers());
   }, []);
+
+  useEffect(() => {
+    if (!token) {
+      return;
+    }
+
+    fetchProgressMe(token)
+      .then((progress) => {
+        if (progress.wrongQuestions) {
+          setRecords(progress.wrongQuestions);
+          window.localStorage.setItem(wrongBookKey, JSON.stringify(progress.wrongQuestions));
+        }
+        if (progress.completedQuestionIds) {
+          replaceCompletedQuestionIds(progress.completedQuestionIds);
+        }
+      })
+      .catch(() => {
+        // 后端暂时不可用时，保留游客本地错题本。
+      });
+  }, [token]);
 
   function save(next: WrongAnswerRecord[]) {
     setRecords(next);

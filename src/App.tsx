@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { About } from "@/pages/About";
 import { AIPrompts } from "@/pages/AIPrompts";
+import { Auth } from "@/pages/Auth";
 import { ChallengeMap } from "@/pages/ChallengeMap";
 import { Home } from "@/pages/Home";
 import { Quiz } from "@/pages/Quiz";
@@ -10,6 +11,7 @@ import { StudyAidList } from "@/pages/StudyAidList";
 import { TextbookGuide } from "@/pages/TextbookGuide";
 import { Timetable } from "@/pages/Timetable";
 import { WrongBook } from "@/pages/WrongBook";
+import { useAuth } from "@/lib/auth";
 import { useScheduleItems, useStudyStats, useWrongAnswers } from "@/lib/storage";
 import type { PageId, PromptCategory } from "@/types";
 
@@ -19,8 +21,9 @@ export default function App() {
   const [activePromptCategory, setActivePromptCategory] = useState<PromptCategory | undefined>();
   const [activePromptId, setActivePromptId] = useState<string | undefined>();
   const [selectedStudyAidId, setSelectedStudyAidId] = useState<string | null>(null);
-  const { stats, addQuizResult, resetStats } = useStudyStats();
-  const { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers } = useWrongAnswers();
+  const auth = useAuth();
+  const { stats, addQuizResult, resetStats } = useStudyStats(auth.token);
+  const { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers } = useWrongAnswers(auth.token);
   const { items: scheduleItems, addItem, toggleDone, quickAdd } = useScheduleItems();
 
   function startPractice(levelId: string) {
@@ -52,16 +55,17 @@ export default function App() {
       <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-5 sm:py-7 lg:px-6">
         {page === "home" && <Home navigate={navigate} scheduleItems={scheduleItems} stats={stats} wrongCount={records.length} />}
         {page === "map" && <ChallengeMap startPractice={startPractice} />}
-        {page === "quiz" && <Quiz goMap={() => setPage("map")} onComplete={addQuizResult} onWrongAnswer={addWrongAnswer} selectedLevelId={selectedLevelId} />}
+        {page === "quiz" && <Quiz goMap={() => setPage("map")} onComplete={addQuizResult} onWrongAnswer={addWrongAnswer} selectedLevelId={selectedLevelId} token={auth.token} />}
         {page === "schedule" && <Timetable addItem={addItem} items={scheduleItems} quickAdd={quickAdd} toggleDone={toggleDone} />}
         {page === "prompts" && <AIPrompts activeCategory={activePromptCategory} activePromptId={activePromptId} />}
         {page === "textbook" && <TextbookGuide openPrompts={openPrompts} openStudyAid={openStudyAid} startPractice={startPractice} />}
         {page === "studyAids" && <StudyAidList openDetail={openStudyAid} />}
         {page === "studyAidDetail" && <StudyAidDetail aidId={selectedStudyAidId} backToList={() => setPage("studyAids")} />}
         {page === "wrongBook" && <WrongBook clearWrongAnswers={clearWrongAnswers} records={records} removeWrongAnswer={removeWrongAnswer} />}
+        {page === "auth" && <Auth login={auth.login} onDone={() => setPage("home")} register={auth.register} />}
         {page === "about" && <About resetStats={resetStats} />}
       </main>
-      <Navbar currentPage={page} onNavigate={navigate} />
+      <Navbar currentPage={page} onLogout={auth.logout} onNavigate={navigate} user={auth.user} />
     </div>
   );
 }

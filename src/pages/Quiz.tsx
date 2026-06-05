@@ -4,6 +4,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { QuizCard } from "@/components/QuizCard";
 import { ProgressBar } from "@/components/ProgressBar";
 import { challengeLevels, quizQuestions } from "@/data/questions";
+import { sendAnswerAttempt } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
 import type { QuizQuestion } from "@/types";
 import { markQuestionsCompleted } from "@/utils/progress";
@@ -13,6 +14,7 @@ type QuizProps = {
   onComplete: (correctAnswers: number, totalQuestions: number, earnedXp: number) => void;
   onWrongAnswer: (question: QuizQuestion, selectedAnswer: string) => void;
   goMap: () => void;
+  token?: string | null;
 };
 
 function getEncouragement(score: number, total: number) {
@@ -25,7 +27,7 @@ function getEncouragement(score: number, total: number) {
   return "没关系，先把解析读懂，再回教材卡片看核心问题。";
 }
 
-export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap }: QuizProps) {
+export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, token }: QuizProps) {
   const level = challengeLevels.find((item) => item.id === selectedLevelId) ?? challengeLevels.find((item) => item.unlocked) ?? challengeLevels[0];
   const [levelSubject, levelChapter] = level.id.split(":");
   const questions = useMemo(
@@ -55,6 +57,12 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap }: Quiz
   const earnedXp = correctAnswers * 10 + (questions.length - correctAnswers) * 2;
 
   function recordAnswer(isCorrect: boolean, selectedAnswer: string) {
+    if (token) {
+      sendAnswerAttempt({ isCorrect, question, selectedAnswer, token }).catch(() => {
+        // 后端暂时不可用时，不影响本地游客模式记录。
+      });
+    }
+
     if (isCorrect) {
       setCorrectAnswers((current) => current + 1);
       return;
