@@ -12,7 +12,7 @@ export type ProgressMeResponse = {
   wrongQuestions?: WrongAnswerRecord[];
 };
 
-type BackendQuestion = {
+export type BackendQuestion = {
   questionCode?: string;
   id?: string;
   subject?: {
@@ -34,6 +34,49 @@ type BackendQuestion = {
   tags?: string[] | string | null;
 };
 
+export type AdminQuestionPayload = {
+  questionCode: string;
+  subjectCode: string;
+  subjectName: string;
+  chapterCode: string;
+  chapterTitle: string;
+  stem: string;
+  optionA: string;
+  optionB: string;
+  optionC: string;
+  optionD: string;
+  correctAnswer: "A" | "B" | "C" | "D";
+  explanation: string;
+  difficulty: Difficulty;
+  tags: string[];
+};
+
+export type ImportQuestionIssue = {
+  index?: number;
+  questionIndex?: number;
+  row?: number;
+  message?: string;
+  reason?: string;
+  error?: string;
+};
+
+export type ImportPreviewResponse = {
+  total?: number;
+  validCount?: number;
+  invalidCount?: number;
+  errors?: ImportQuestionIssue[];
+  issues?: ImportQuestionIssue[];
+  items?: unknown[];
+  parsedQuestions?: unknown[];
+};
+
+export type ImportConfirmResponse = {
+  importedCount?: number;
+  failedCount?: number;
+  errors?: ImportQuestionIssue[];
+  issues?: ImportQuestionIssue[];
+};
+
 export type BackendSubject = {
   code: string;
   name: string;
@@ -45,6 +88,7 @@ type QuestionsResponse = {
     page: number;
     limit: number;
     total: number;
+    totalPages?: number;
   };
 };
 
@@ -66,7 +110,7 @@ async function apiRequest<T>(path: string, options: ApiOptions = {}) {
   if (!response.ok) {
     const message =
       data && typeof data === "object" && "message" in data && typeof data.message === "string" ? data.message : "请求失败";
-    throw new Error(message);
+    throw new Error(`${response.status} ${message}`);
   }
 
   return data as T;
@@ -132,30 +176,112 @@ export function mapBackendQuestion(question: BackendQuestion): QuizQuestion {
   };
 }
 
-export async function fetchQuestions(subject?: Subject) {
-  const params = new URLSearchParams({ limit: "1000" });
-  if (subject) {
-    params.set("subject", subject);
+function validQuestionsResponse(data: QuestionsResponse) {
+  return Array.isArray(data.questions) && data.questions.length > 0;
+}
+
+function pageCount(data: QuestionsResponse) {
+  if (typeof data.pagination?.totalPages === "number") {
+    return data.pagination.totalPages;
   }
 
-  const data = await apiRequest<QuestionsResponse>(`/api/questions?${params.toString()}`);
+  if (typeof data.pagination?.total === "number" && typeof data.pagination.limit === "number" && data.pagination.limit > 0) {
+    return Math.ceil(data.pagination.total / data.pagination.limit);
+  }
+
+  return 1;
+}
+
+export async function fetchAllBackendQuestions(subject?: Subject) {
+  const limit = "100";
+  const firstParams = new URLSearchParams({ page: "1", limit });
+  if (subject) {
+    firstParams.set("subject", subject);
+  }
+
+  const firstPage = await apiRequest<QuestionsResponse>(`/api/questions?${firstParams.toString()}`);
 
   if (import.meta.env.DEV) {
     console.log("[wenzong-api] API_BASE_URL:", apiBaseUrl);
-    console.log("[wenzong-api] /api/questions response:", data);
+    console.log("[wenzong-api] /api/questions page 1 response:", firstPage);
   }
 
-  if (!Array.isArray(data.questions) || data.questions.length === 0) {
+  if (!validQuestionsResponse(firstPage)) {
     throw new Error("题库接口返回格式不正确或题目为空");
   }
 
-  return data.questions
+  const totalPages = pageCount(firstPage);
+  const allQuestions = [...firstPage.questions!];
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const params = new URLSearchParams({ page: String(page), limit });
+    if (subject) {
+      params.set("subject", subject);
+    }
+
+    const data = await apiRequest<QuestionsResponse>(`/api/questions?${params.toString()}`);
+    if (!Array.isArray(data.questions)) {
+      throw new Error(`第 ${page} 页题库接口返回格式不正确`);
+    }
+    allQuestions.push(...data.questions);
+  }
+
+  return allQuestions;
+}
+
+export async function fetchAllQuestions(subject?: Subject) {
+  const questions = await fetchAllBackendQuestions(subject);
+
+  return questions
     .map(mapBackendQuestion)
     .filter((question) => question.id && question.question && question.options.length >= 4 && question.answer);
 }
 
+export function fetchQuestions(subject?: Subject) {
+  return fetchAllQuestions(subject);
+}
+
 export function fetchSubjects() {
   return apiRequest<BackendSubject[]>("/api/subjects");
+}
+
+export function createAdminQuestion(payload: AdminQuestionPayload, token: string) {
+  return apiRequest<BackendQuestion>("/api/admin/questions", {
+    method: "POST",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export function updateAdminQuestion(id: string, payload: AdminQuestionPayload, token: string) {
+  return apiRequest<BackendQuestion>(`/api/admin/questions/${encodeURIComponent(id)}`, {
+    method: "PUT",
+    token,
+    body: JSON.stringify(payload)
+  });
+}
+
+export function deleteAdminQuestion(id: string, token: string) {
+  return apiRequest<{ ok: boolean }>(`/api/admin/questions/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    token
+  });
+}
+
+export function previewImportQuestions(text: string, token: string) {
+  return apiRequest<ImportPreviewResponse>("/api/admin/questions/import/preview", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ format: "markdown", text })
+  });
+}
+
+export function confirmImportQuestions(text: string, token: string) {
+  return apiRequest<ImportConfirmResponse>("/api/admin/questions/import/confirm", {
+    method: "POST",
+    token,
+    body: JSON.stringify({ format: "markdown", text })
+  });
 }
 
 export function sendAnswerAttempt({

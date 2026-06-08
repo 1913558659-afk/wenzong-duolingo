@@ -11,6 +11,7 @@ const items: { id: PageId; label: string; icon: string }[] = [
   { id: "studyAids", label: "教辅", icon: "R" },
   { id: "wrongBook", label: "错题", icon: "W" },
   { id: "profile", label: "我的", icon: "P" },
+  { id: "adminQuestions", label: "题库", icon: "D" },
   { id: "auth", label: "登录", icon: "U" },
   { id: "about", label: "关于", icon: "?" }
 ];
@@ -24,7 +25,12 @@ type NavbarProps = {
 
 export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps) {
   const [isOpen, setIsOpen] = useState(false);
-  const navItems = items.filter((item) => (user ? item.id !== "auth" : item.id !== "profile"));
+  const navItems = items.filter((item) => {
+    if (!user && item.id === "profile") return false;
+    if (user && item.id === "auth") return false;
+    if (item.id === "adminQuestions" && user?.role !== "admin") return false;
+    return true;
+  });
   const currentItem = navItems.find((item) => item.id === currentPage) ?? navItems[0];
 
   function go(page: PageId) {

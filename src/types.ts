@@ -1,4 +1,4 @@
-export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "profile" | "auth" | "about";
+export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "profile" | "adminQuestions" | "auth" | "about";
 
 export type Subject = "history" | "politics" | "geography";
 
@@ -103,4 +103,5 @@ export type AuthUser = {
   id: string;
   email: string;
   name?: string | null;
+  role?: "admin" | "student" | string | null;
 };

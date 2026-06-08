@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Navbar } from "@/components/Navbar";
 import { quizQuestions as localQuizQuestions } from "@/data/questions";
 import { About } from "@/pages/About";
+import { AdminQuestionBank } from "@/pages/AdminQuestionBank";
 import { AIPrompts } from "@/pages/AIPrompts";
 import { Auth } from "@/pages/Auth";
 import { ChallengeMap } from "@/pages/ChallengeMap";
@@ -95,6 +96,7 @@ export default function App() {
         {page === "studyAidDetail" && <StudyAidDetail aidId={selectedStudyAidId} backToList={() => setPage("studyAids")} />}
         {page === "wrongBook" && <WrongBook clearWrongAnswers={clearWrongAnswers} questions={questions} records={records} removeWrongAnswer={removeWrongAnswer} syncError={wrongSyncError} token={auth.token} />}
         {page === "profile" && <Profile navigate={navigate} stats={stats} syncError={statsSyncError} user={auth.user} />}
+        {page === "adminQuestions" && <AdminQuestionBank token={auth.token} user={auth.user} />}
         {page === "auth" && <Auth login={auth.login} onDone={() => setPage("home")} register={auth.register} />}
         {page === "about" && <About resetStats={resetStats} />}
       </main>
