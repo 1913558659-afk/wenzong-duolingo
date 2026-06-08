@@ -7,8 +7,10 @@ import { defaultScheduleItems } from "@/data/timetable";
 import type { PageId, ScheduleItem, StudyStats } from "@/types";
 
 type HomeProps = {
+  isLoggedIn?: boolean;
   navigate: (page: PageId) => void;
   stats: StudyStats;
+  syncError?: boolean;
   wrongCount: number;
   scheduleItems?: ScheduleItem[];
 };
@@ -22,8 +24,9 @@ const entryCards: { title: string; desc: string; page: PageId; accent: string }[
   { title: "教材解读", desc: "抓核心问题和易错点", page: "textbook", accent: "bg-leaf" }
 ];
 
-export function Home({ navigate, stats, wrongCount, scheduleItems = defaultScheduleItems }: HomeProps) {
-  const accuracy = stats.answeredToday === 0 ? 0 : Math.round((stats.correctCount / stats.answeredToday) * 100);
+export function Home({ isLoggedIn = false, navigate, stats, syncError = false, wrongCount, scheduleItems = defaultScheduleItems }: HomeProps) {
+  const totalAnswered = stats.totalAnswered ?? stats.answeredToday;
+  const accuracy = totalAnswered === 0 ? 0 : Math.round((stats.correctCount / totalAnswered) * 100);
   const completedLevels = challengeLevels.filter((level) => level.unlocked).length;
   const todayTask = scheduleItems.find((item) => !item.done) ?? scheduleItems[0];
   const recommendedLevel = challengeLevels.find((level) => level.unlocked) ?? challengeLevels[0];
@@ -37,8 +40,9 @@ export function Home({ navigate, stats, wrongCount, scheduleItems = defaultSched
           <div>
             <p className="text-sm font-black text-gold">文综岛</p>
             <h1 className="mt-2 text-3xl font-black leading-tight tracking-normal sm:text-4xl">欢迎回来，今天也上岛学习</h1>
-            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/76">
-              建议先完成一个小关卡，再复盘错题本。每天一点点，文综会变得越来越可控。
+            <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/76">建议先完成一个小关卡，再复盘错题本。每天一点点，文综会变得越来越可控。</p>
+            <p className="mt-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/72">
+              {isLoggedIn ? (syncError ? "暂时无法同步，已使用本地进度" : "已登录，学习数据优先同步后端") : "游客模式：登录后可同步进度"}
             </p>
           </div>
           <div className="w-full rounded-2xl bg-white/10 px-4 py-3 text-left sm:w-auto sm:text-right">
@@ -65,12 +69,12 @@ export function Home({ navigate, stats, wrongCount, scheduleItems = defaultSched
           <p className="text-xs font-bold text-ink/62">已开关卡</p>
         </GameCard>
         <GameCard className="p-3 text-center">
-          <p className="text-2xl font-black text-leaf">{wrongCount}</p>
-          <p className="text-xs font-bold text-ink/62">错题数量</p>
-        </GameCard>
-        <GameCard className="p-3 text-center">
           <p className="text-2xl font-black text-gold">{scheduleItems.filter((item) => !item.done).length}</p>
           <p className="text-xs font-bold text-ink/62">课程任务</p>
+        </GameCard>
+        <GameCard className="p-3 text-center">
+          <p className="text-2xl font-black text-leaf">{wrongCount}</p>
+          <p className="text-xs font-bold text-ink/62">错题数量</p>
         </GameCard>
       </div>
 

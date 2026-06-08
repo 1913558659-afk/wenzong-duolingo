@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { quizQuestions } from "@/data/questions";
 import { defaultScheduleItems } from "@/data/timetable";
 import { fetchProgressMe } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
@@ -30,6 +31,7 @@ function loadStats() {
 
 export function useStudyStats(token?: string | null) {
   const [stats, setStats] = useState<StudyStats>(defaultStats);
+  const [syncError, setSyncError] = useState(false);
 
   useEffect(() => {
     setStats(loadStats());
@@ -42,6 +44,7 @@ export function useStudyStats(token?: string | null) {
 
     fetchProgressMe(token)
       .then((progress) => {
+        setSyncError(false);
         if (progress.stats) {
           setStats(progress.stats);
           window.localStorage.setItem(statsKey, JSON.stringify(progress.stats));
@@ -51,6 +54,7 @@ export function useStudyStats(token?: string | null) {
         }
       })
       .catch(() => {
+        setSyncError(true);
         // 后端暂时不可用时，保留游客本地进度。
       });
   }, [token]);
@@ -74,7 +78,7 @@ export function useStudyStats(token?: string | null) {
     setStats(defaultStats);
   }
 
-  return { stats, addQuizResult, resetStats };
+  return { stats, addQuizResult, resetStats, syncError };
 }
 
 function loadSchedule() {
@@ -137,6 +141,7 @@ function loadWrongAnswers() {
 
 export function useWrongAnswers(token?: string | null) {
   const [records, setRecords] = useState<WrongAnswerRecord[]>([]);
+  const [syncError, setSyncError] = useState(false);
 
   useEffect(() => {
     setRecords(loadWrongAnswers());
@@ -149,15 +154,18 @@ export function useWrongAnswers(token?: string | null) {
 
     fetchProgressMe(token)
       .then((progress) => {
+        setSyncError(false);
         if (progress.wrongQuestions) {
-          setRecords(progress.wrongQuestions);
-          window.localStorage.setItem(wrongBookKey, JSON.stringify(progress.wrongQuestions));
+          const next = progress.wrongQuestions.map(normalizeWrongAnswer);
+          setRecords(next);
+          window.localStorage.setItem(wrongBookKey, JSON.stringify(next));
         }
         if (progress.completedQuestionIds) {
           replaceCompletedQuestionIds(progress.completedQuestionIds);
         }
       })
       .catch(() => {
+        setSyncError(true);
         // 后端暂时不可用时，保留游客本地错题本。
       });
   }, [token]);
@@ -199,5 +207,22 @@ export function useWrongAnswers(token?: string | null) {
     save([]);
   }
 
-  return { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers };
+  return { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers, syncError };
+}
+
+function normalizeWrongAnswer(record: WrongAnswerRecord) {
+  const question = quizQuestions.find((item) => item.id === record.questionId);
+
+  return {
+    ...record,
+    id: record.id || `wrong-${record.questionId}`,
+    subject: record.subject || question?.subject || "history",
+    chapter: record.chapter || question?.chapter || "未匹配章节",
+    question: record.question || question?.question || "题目数据暂未匹配",
+    options: record.options?.length ? record.options : question?.options ?? [],
+    correctAnswer: record.correctAnswer || question?.answer || "题目数据暂未匹配",
+    explanation: record.explanation || question?.explanation || "题目数据暂未匹配",
+    tags: record.tags?.length ? record.tags : question?.tags ?? [],
+    createdAt: record.createdAt || new Date().toISOString()
+  } satisfies WrongAnswerRecord;
 }

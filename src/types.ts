@@ -1,4 +1,4 @@
-export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "auth" | "about";
+export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "profile" | "auth" | "about";
 
 export type Subject = "history" | "politics" | "geography";
 
@@ -32,6 +32,7 @@ export type StudyStats = {
   streakDays: number;
   answeredToday: number;
   correctCount: number;
+  totalAnswered?: number;
   lastStudyDate: string;
 };
 
@@ -95,6 +96,7 @@ export type WrongAnswerRecord = {
   explanation: string;
   tags: string[];
   createdAt: string;
+  wrongCount?: number;
 };
 
 export type AuthUser = {
