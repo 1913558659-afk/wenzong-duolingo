@@ -1,14 +1,15 @@
 import { GameCard } from "@/components/GameCard";
 import { ProgressBar } from "@/components/ProgressBar";
 import { aiPrompts } from "@/data/aiPrompts";
-import { challengeLevels } from "@/data/questions";
 import { studyAids } from "@/data/studyAids";
 import { defaultScheduleItems } from "@/data/timetable";
-import type { PageId, ScheduleItem, StudyStats } from "@/types";
+import type { PageId, QuizQuestion, ScheduleItem, StudyStats } from "@/types";
 
 type HomeProps = {
   isLoggedIn?: boolean;
   navigate: (page: PageId) => void;
+  questionSourceStatus?: "loading" | "cloud" | "local";
+  questions?: QuizQuestion[];
   stats: StudyStats;
   syncError?: boolean;
   wrongCount: number;
@@ -24,12 +25,12 @@ const entryCards: { title: string; desc: string; page: PageId; accent: string }[
   { title: "教材解读", desc: "抓核心问题和易错点", page: "textbook", accent: "bg-leaf" }
 ];
 
-export function Home({ isLoggedIn = false, navigate, stats, syncError = false, wrongCount, scheduleItems = defaultScheduleItems }: HomeProps) {
+export function Home({ isLoggedIn = false, navigate, questionSourceStatus = "local", questions = [], stats, syncError = false, wrongCount, scheduleItems = defaultScheduleItems }: HomeProps) {
   const totalAnswered = stats.totalAnswered ?? stats.answeredToday;
   const accuracy = totalAnswered === 0 ? 0 : Math.round((stats.correctCount / totalAnswered) * 100);
-  const completedLevels = challengeLevels.filter((level) => level.unlocked).length;
+  const completedLevels = new Set(questions.map((question) => `${question.subject}:${question.chapter}`)).size;
   const todayTask = scheduleItems.find((item) => !item.done) ?? scheduleItems[0];
-  const recommendedLevel = challengeLevels.find((level) => level.unlocked) ?? challengeLevels[0];
+  const recommendedLevel = questions[0];
   const recommendedAid = studyAids[0];
   const recommendedPrompt = aiPrompts[0];
 
@@ -43,6 +44,9 @@ export function Home({ isLoggedIn = false, navigate, stats, syncError = false, w
             <p className="mt-3 max-w-2xl text-sm font-semibold leading-6 text-white/76">建议先完成一个小关卡，再复盘错题本。每天一点点，文综会变得越来越可控。</p>
             <p className="mt-3 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/72">
               {isLoggedIn ? (syncError ? "暂时无法同步，已使用本地进度" : "已登录，学习数据优先同步后端") : "游客模式：登录后可同步进度"}
+            </p>
+            <p className="mt-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/72">
+              {questionSourceStatus === "cloud" ? "使用云端题库" : questionSourceStatus === "loading" ? "正在加载题库" : "后端暂不可用，已使用本地题库"}
             </p>
           </div>
           <div className="w-full rounded-2xl bg-white/10 px-4 py-3 text-left sm:w-auto sm:text-right">
@@ -96,7 +100,7 @@ export function Home({ isLoggedIn = false, navigate, stats, syncError = false, w
           <button className="group min-w-0 text-left" onClick={() => navigate("map")} type="button">
           <GameCard className="h-full border-tide/20 transition group-hover:-translate-y-0.5">
             <p className="text-xs font-black text-tide">推荐练习</p>
-            <h2 className="mt-2 text-lg font-black text-ink">{recommendedLevel.name}</h2>
+            <h2 className="mt-2 text-lg font-black text-ink">{recommendedLevel?.chapter ?? "文综闯关"}</h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink/64">先从已解锁关卡热身，做完再看解析和错题。</p>
             <p className="mt-3 text-sm font-black text-coral">去闯关</p>
           </GameCard>

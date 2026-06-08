@@ -2,19 +2,19 @@ import { useState } from "react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { SubjectPill } from "@/components/SubjectPill";
-import { quizQuestions } from "@/data/questions";
 import { resolveWrongQuestion } from "@/lib/api";
-import type { WrongAnswerRecord } from "@/types";
+import type { QuizQuestion, WrongAnswerRecord } from "@/types";
 
 type WrongBookProps = {
   records: WrongAnswerRecord[];
+  questions: QuizQuestion[];
   removeWrongAnswer: (id: string) => void;
   clearWrongAnswers: () => void;
   syncError?: boolean;
   token?: string | null;
 };
 
-export function WrongBook({ records, removeWrongAnswer, clearWrongAnswers, syncError = false, token }: WrongBookProps) {
+export function WrongBook({ records, questions, removeWrongAnswer, clearWrongAnswers, syncError = false, token }: WrongBookProps) {
   const [resolvingId, setResolvingId] = useState<string | null>(null);
   const [message, setMessage] = useState("");
 
@@ -59,7 +59,7 @@ export function WrongBook({ records, removeWrongAnswer, clearWrongAnswers, syncE
 
       <div className="space-y-4">
         {records.map((record) => {
-          const matchedQuestion = quizQuestions.find((question) => question.id === record.questionId);
+          const matchedQuestion = questions.find((question) => question.id === record.questionId);
           const questionText = matchedQuestion?.question ?? record.question ?? "题目数据暂未匹配";
           const options = matchedQuestion?.options ?? record.options ?? [];
           const correctAnswer = matchedQuestion?.answer ?? record.correctAnswer ?? "题目数据暂未匹配";

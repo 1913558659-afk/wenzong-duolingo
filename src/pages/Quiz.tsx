@@ -3,10 +3,9 @@ import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { QuizCard } from "@/components/QuizCard";
 import { ProgressBar } from "@/components/ProgressBar";
-import { challengeLevels, quizQuestions } from "@/data/questions";
 import { sendAnswerAttempt } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
-import type { QuizQuestion } from "@/types";
+import type { QuizQuestion, Subject } from "@/types";
 import { markQuestionsCompleted } from "@/utils/progress";
 
 type QuizProps = {
@@ -14,6 +13,7 @@ type QuizProps = {
   onComplete: (correctAnswers: number, totalQuestions: number, earnedXp: number) => void;
   onWrongAnswer: (question: QuizQuestion, selectedAnswer: string) => void;
   goMap: () => void;
+  questions: QuizQuestion[];
   token?: string | null;
 };
 
@@ -27,12 +27,21 @@ function getEncouragement(score: number, total: number) {
   return "没关系，先把解析读懂，再回教材卡片看核心问题。";
 }
 
-export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, token }: QuizProps) {
-  const level = challengeLevels.find((item) => item.id === selectedLevelId) ?? challengeLevels.find((item) => item.unlocked) ?? challengeLevels[0];
-  const [levelSubject, levelChapter] = level.id.split(":");
+function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
+  if (selectedLevelId?.includes(":")) {
+    const [subject, ...chapterParts] = selectedLevelId.split(":");
+    return { subject: subject as Subject, chapter: chapterParts.join(":") };
+  }
+
+  const fallback = questions[0];
+  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "" };
+}
+
+export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questions: allQuestions, token }: QuizProps) {
+  const level = parseLevel(selectedLevelId, allQuestions);
   const questions = useMemo(
-    () => quizQuestions.filter((question) => question.subject === levelSubject && question.chapter === levelChapter).slice(0, 5),
-    [levelChapter, levelSubject]
+    () => allQuestions.filter((question) => question.subject === level.subject && question.chapter === level.chapter).slice(0, 5),
+    [allQuestions, level.chapter, level.subject]
   );
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
@@ -42,7 +51,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, token 
   if (questions.length === 0) {
     return (
       <div>
-        <PageHeader title="题目待补充" subtitle={`${subjectLabels[level.island]}岛 · ${level.name}`} />
+        <PageHeader title="题目待补充" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter || "未选择章节"}`} />
         <GameCard className="space-y-3 text-center">
           <p className="text-sm font-semibold leading-6 text-ink/68">这个章节的数据结构已经准备好，题目内容还可以继续在 `src/data/questions.ts` 里添加。</p>
           <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide" onClick={goMap} type="button">
@@ -90,7 +99,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, token 
   if (finished) {
     return (
       <div>
-        <PageHeader title="本关完成" subtitle={`${subjectLabels[level.island]}岛 · ${level.name}`} />
+      <PageHeader title="本关完成" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter}`} />
         <GameCard className="space-y-5 text-center">
           <p className="text-sm font-black text-tide">你的得分</p>
           <p className="text-5xl font-black text-ink">{correctAnswers} / {questions.length}</p>
@@ -112,7 +121,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, token 
 
   return (
     <div>
-      <PageHeader title="选择题练习页" subtitle={`${subjectLabels[level.island]}岛 · ${level.name} · 每关 5 道单选题`} />
+      <PageHeader title="选择题练习页" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · 每关 5 道单选题`} />
       <QuizCard
         currentNumber={questionIndex + 1}
         nextLabel={questionIndex + 1 >= questions.length ? "查看成绩" : "下一题"}

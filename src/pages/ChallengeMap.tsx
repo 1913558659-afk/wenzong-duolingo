@@ -2,7 +2,6 @@ import { useMemo, useState } from "react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { ProgressBar } from "@/components/ProgressBar";
-import { quizQuestions } from "@/data/questions";
 import { subjectLabels } from "@/lib/labels";
 import type { Difficulty, QuizQuestion, Subject } from "@/types";
 import {
@@ -14,6 +13,8 @@ import {
 } from "@/utils/progress";
 
 type ChallengeMapProps = {
+  questionSourceStatus: "loading" | "cloud" | "local";
+  questions: QuizQuestion[];
   startPractice: (levelId: string) => void;
 };
 
@@ -55,16 +56,16 @@ const difficultyLabels: Record<Difficulty, string> = {
   hard: "hard"
 };
 
-function getSubjectQuestions(subject: Subject) {
-  return quizQuestions.filter((question) => question.subject === subject);
+function getSubjectQuestions(subject: Subject, questions: QuizQuestion[]) {
+  return questions.filter((question) => question.subject === subject);
 }
 
-function getSubjectChapters(subject: Subject) {
-  return [...new Set(getSubjectQuestions(subject).map((question) => question.chapter))];
+function getSubjectChapters(subject: Subject, questions: QuizQuestion[]) {
+  return [...new Set(getSubjectQuestions(subject, questions).map((question) => question.chapter))];
 }
 
-function buildModules(subject: Subject): ChallengeModule[] {
-  const chapters = getSubjectChapters(subject);
+function buildModules(subject: Subject, questions: QuizQuestion[]): ChallengeModule[] {
+  const chapters = getSubjectChapters(subject, questions);
 
   if (subject !== "history") {
     return chapters.map((chapter) => ({ name: chapter, chapters: [chapter] }));
@@ -120,11 +121,11 @@ function getChapterStatus(done: number, total: number) {
   return "开始练习";
 }
 
-export function ChallengeMap({ startPractice }: ChallengeMapProps) {
+export function ChallengeMap({ questionSourceStatus, questions, startPractice }: ChallengeMapProps) {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const [openModules, setOpenModules] = useState<string[]>([]);
   const completedIds = getCompletedQuestionIds();
-  const totalProgress = getTotalProgress(completedIds);
+  const totalProgress = getTotalProgress(completedIds, questions);
 
   function openSubject(subject: Subject) {
     setSelectedSubject(subject);
@@ -141,6 +142,8 @@ export function ChallengeMap({ startPractice }: ChallengeMapProps) {
     return (
       <SubjectDetail
         completedIds={completedIds}
+        questionSourceStatus={questionSourceStatus}
+        questions={questions}
         onBack={() => setSelectedSubject(null)}
         openModules={openModules}
         startPractice={startPractice}
@@ -153,6 +156,9 @@ export function ChallengeMap({ startPractice }: ChallengeMapProps) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <PageHeader title="文综闯关" subtitle="按学科和章节闯关，逐步完成高频考点训练" />
+      <p className="rounded-2xl bg-white/72 px-4 py-3 text-sm font-black text-ink/58">
+        {questionSourceStatus === "cloud" ? "使用云端题库" : questionSourceStatus === "loading" ? "正在加载题库" : "后端暂不可用，已使用本地题库"}
+      </p>
 
       <GameCard className="bg-ink text-white">
         <div className="grid gap-4 lg:grid-cols-[1.1fr_1fr] lg:items-center">
@@ -174,7 +180,7 @@ export function ChallengeMap({ startPractice }: ChallengeMapProps) {
 
       <section className="grid gap-4 lg:grid-cols-3">
         {subjectCards.map((card) => {
-          const progress = getSubjectProgress(card.subject, completedIds);
+          const progress = getSubjectProgress(card.subject, completedIds, questions);
 
           return (
             <button className="group min-w-0 text-left" key={card.subject} onClick={() => openSubject(card.subject)} type="button">
@@ -212,6 +218,8 @@ export function ChallengeMap({ startPractice }: ChallengeMapProps) {
 
 function SubjectDetail({
   completedIds,
+  questionSourceStatus,
+  questions,
   onBack,
   openModules,
   startPractice,
@@ -219,14 +227,16 @@ function SubjectDetail({
   toggleModule
 }: {
   completedIds: Set<string>;
+  questionSourceStatus: "loading" | "cloud" | "local";
+  questions: QuizQuestion[];
   onBack: () => void;
   openModules: string[];
   startPractice: (levelId: string) => void;
   subject: Subject;
   toggleModule: (moduleName: string) => void;
 }) {
-  const modules = useMemo(() => buildModules(subject), [subject]);
-  const progress = getSubjectProgress(subject, completedIds);
+  const modules = useMemo(() => buildModules(subject, questions), [questions, subject]);
+  const progress = getSubjectProgress(subject, completedIds, questions);
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -237,6 +247,9 @@ function SubjectDetail({
             <h1 className="mt-1 text-3xl font-black leading-tight sm:text-4xl">{subjectLabels[subject]}闯关</h1>
             <p className="mt-2 text-sm font-semibold leading-6 text-white/72">
               已完成 {progress.done} / {progress.total}，完成百分比 {progress.percent}%
+            </p>
+            <p className="mt-2 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs font-black text-white/72">
+              {questionSourceStatus === "cloud" ? "使用云端题库" : questionSourceStatus === "loading" ? "正在加载题库" : "后端暂不可用，已使用本地题库"}
             </p>
           </div>
           <button
@@ -261,7 +274,7 @@ function SubjectDetail({
         )}
 
         {modules.map((module) => {
-          const moduleProgress = getModuleProgress(subject, module.chapters, completedIds);
+          const moduleProgress = getModuleProgress(subject, module.chapters, completedIds, questions);
           const isOpen = openModules.includes(module.name);
 
           return (
@@ -294,6 +307,7 @@ function SubjectDetail({
                     <ChapterCard
                       chapter={chapter}
                       completedIds={completedIds}
+                      questions={questions}
                       key={chapter}
                       startPractice={startPractice}
                       subject={subject}
@@ -312,18 +326,20 @@ function SubjectDetail({
 function ChapterCard({
   chapter,
   completedIds,
+  questions,
   startPractice,
   subject
 }: {
   chapter: string;
   completedIds: Set<string>;
+  questions: QuizQuestion[];
   startPractice: (levelId: string) => void;
   subject: Subject;
 }) {
-  const questions = quizQuestions.filter((question) => question.subject === subject && question.chapter === chapter);
-  const progress = getChapterProgress(subject, chapter, completedIds);
-  const difficultyCounts = getDifficultyCounts(questions);
-  const topTags = getTopTags(questions);
+  const chapterQuestions = questions.filter((question) => question.subject === subject && question.chapter === chapter);
+  const progress = getChapterProgress(subject, chapter, completedIds, questions);
+  const difficultyCounts = getDifficultyCounts(chapterQuestions);
+  const topTags = getTopTags(chapterQuestions);
   const status = getChapterStatus(progress.done, progress.total);
   const isDone = progress.total > 0 && progress.done >= progress.total;
   const isStarted = progress.done > 0 && !isDone;
@@ -333,7 +349,7 @@ function ChapterCard({
       className={`min-w-0 rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-game disabled:cursor-not-allowed disabled:opacity-65 ${
         isDone ? "border-leaf/30 bg-leaf/12" : isStarted ? "border-coral/24 bg-coral/8" : "border-white/80 bg-white/86"
       }`}
-      disabled={questions.length === 0}
+      disabled={chapterQuestions.length === 0}
       onClick={() => startPractice(`${subject}:${chapter}`)}
       type="button"
     >
@@ -345,7 +361,7 @@ function ChapterCard({
         {isDone && <span className="grid size-8 shrink-0 place-items-center rounded-full bg-leaf text-sm font-black text-white">✓</span>}
       </div>
 
-      {questions.length === 0 ? (
+      {chapterQuestions.length === 0 ? (
         <p className="mt-4 rounded-2xl bg-white/72 p-3 text-sm font-bold text-ink/52">这个章节还没有题目，稍后补充。</p>
       ) : (
         <>

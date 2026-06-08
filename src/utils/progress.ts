@@ -47,8 +47,8 @@ function countCompleted(questions: QuizQuestion[], completedIds = getCompletedQu
   return questions.filter((question) => completedIds.has(question.id)).length;
 }
 
-export function getSubjectProgress(subject: Subject, completedIds = getCompletedQuestionIds()) {
-  const questions = quizQuestions.filter((question) => question.subject === subject);
+export function getSubjectProgress(subject: Subject, completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+  const questions = sourceQuestions.filter((question) => question.subject === subject);
   const done = countCompleted(questions, completedIds);
 
   return {
@@ -58,8 +58,8 @@ export function getSubjectProgress(subject: Subject, completedIds = getCompleted
   };
 }
 
-export function getChapterProgress(subject: Subject, chapter: string, completedIds = getCompletedQuestionIds()) {
-  const questions = quizQuestions.filter((question) => question.subject === subject && question.chapter === chapter);
+export function getChapterProgress(subject: Subject, chapter: string, completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+  const questions = sourceQuestions.filter((question) => question.subject === subject && question.chapter === chapter);
   const done = countCompleted(questions, completedIds);
 
   return {
@@ -69,9 +69,9 @@ export function getChapterProgress(subject: Subject, chapter: string, completedI
   };
 }
 
-export function getModuleProgress(subject: Subject, chapters: string[], completedIds = getCompletedQuestionIds()) {
+export function getModuleProgress(subject: Subject, chapters: string[], completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
   const chapterSet = new Set(chapters);
-  const questions = quizQuestions.filter((question) => question.subject === subject && chapterSet.has(question.chapter));
+  const questions = sourceQuestions.filter((question) => question.subject === subject && chapterSet.has(question.chapter));
   const done = countCompleted(questions, completedIds);
 
   return {
@@ -81,12 +81,12 @@ export function getModuleProgress(subject: Subject, chapters: string[], complete
   };
 }
 
-export function getTotalProgress(completedIds = getCompletedQuestionIds()) {
-  const done = countCompleted(quizQuestions, completedIds);
+export function getTotalProgress(completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+  const done = countCompleted(sourceQuestions, completedIds);
 
   return {
     done,
-    total: quizQuestions.length,
-    percent: getPercent(done, quizQuestions.length)
+    total: sourceQuestions.length,
+    percent: getPercent(done, sourceQuestions.length)
   };
 }
