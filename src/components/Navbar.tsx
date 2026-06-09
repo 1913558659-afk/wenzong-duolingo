@@ -1,30 +1,30 @@
 import { useState } from "react";
-import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Home, LibraryBig, LogIn, LogOut, Map, Menu, Shield, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Crown, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PenSquare, Shield, UserRound, X } from "lucide-react";
 import type { AuthUser, PageId } from "@/types";
 
 type NavItem = {
   id: PageId;
   label: string;
   icon: typeof Home;
-  secondary?: boolean;
   adminOnly?: boolean;
   authOnly?: boolean;
   guestOnly?: boolean;
+  mobilePrimary?: boolean;
 };
 
 const items: NavItem[] = [
-  { id: "home", label: "首页", icon: Home },
-  { id: "map", label: "闯关", icon: Map },
-  { id: "wrongBook", label: "错题", icon: ClipboardList },
-  { id: "prompts", label: "AI", icon: Brain },
-  { id: "profile", label: "我的", icon: UserRound, authOnly: true },
-  { id: "auth", label: "登录", icon: LogIn, guestOnly: true },
-  { id: "schedule", label: "课表", icon: CalendarDays, secondary: true },
-  { id: "textbook", label: "教材", icon: BookOpen, secondary: true },
-  { id: "studyAids", label: "教辅", icon: LibraryBig, secondary: true },
-  { id: "quiz", label: "练习", icon: Compass, secondary: true },
-  { id: "adminQuestions", label: "题库", icon: Shield, secondary: true, adminOnly: true },
-  { id: "about", label: "关于", icon: Compass, secondary: true }
+  { id: "home", label: "首页", icon: Home, mobilePrimary: true },
+  { id: "map", label: "闯关", icon: Map, mobilePrimary: true },
+  { id: "quiz", label: "练习", icon: PenSquare },
+  { id: "schedule", label: "课表", icon: CalendarDays },
+  { id: "prompts", label: "AI学习", icon: Brain, mobilePrimary: true },
+  { id: "textbook", label: "教材", icon: BookOpen },
+  { id: "studyAids", label: "教辅", icon: LibraryBig },
+  { id: "wrongBook", label: "错题本", icon: ClipboardList, mobilePrimary: true },
+  { id: "profile", label: "我的", icon: UserRound, authOnly: true, mobilePrimary: true },
+  { id: "auth", label: "登录", icon: LogIn, guestOnly: true, mobilePrimary: true },
+  { id: "adminQuestions", label: "题库管理", icon: Shield, adminOnly: true },
+  { id: "about", label: "关于", icon: Compass }
 ];
 
 type NavbarProps = {
@@ -42,9 +42,8 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
     if (item.adminOnly && user?.role !== "admin") return false;
     return true;
   });
-  const primaryItems = navItems.filter((item) => !item.secondary).slice(0, 5);
-  const secondaryItems = navItems.filter((item) => item.secondary);
-  const currentItem = navItems.find((item) => item.id === currentPage) ?? navItems[0];
+  const mobilePrimary = navItems.filter((item) => item.mobilePrimary).slice(0, 5);
+  const mobileMore = navItems.filter((item) => !item.mobilePrimary);
 
   function go(page: PageId) {
     onNavigate(page);
@@ -52,19 +51,75 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
   }
 
   return (
-    <nav className="fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pt-2 pointer-events-none">
-      <div className="mx-auto max-w-5xl pointer-events-auto">
-        <div className="md:hidden">
+    <>
+      <aside className="fixed bottom-3 left-3 top-3 z-50 hidden w-[240px] flex-col overflow-hidden rounded-[1.4rem] bg-[#0B1F3A] p-4 text-white shadow-[0_24px_60px_rgba(11,31,58,0.22)] md:flex">
+        <button className="flex items-center gap-3 rounded-2xl px-2 py-3 text-left" onClick={() => go("home")} type="button">
+          <div className="grid size-11 place-items-center rounded-2xl bg-[#F7F1E4]/10 text-[#F3B24A]">
+            <Palmtree className="size-6" />
+          </div>
+          <div>
+            <p className="text-lg font-black leading-none">文综岛</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">SayHiStudy</p>
+          </div>
+        </button>
+
+        <div className="mt-5 space-y-1.5">
+          {navItems.map((item) => {
+            const Icon = item.icon;
+            const active = currentPage === item.id;
+
+            return (
+              <button
+                aria-label={item.label}
+                className={`flex min-h-11 w-full items-center gap-3 rounded-2xl px-3 text-sm font-black transition ${
+                  active
+                    ? "bg-white/14 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]"
+                    : item.adminOnly
+                      ? "text-white/42 hover:bg-white/8 hover:text-white/72"
+                      : "text-white/68 hover:bg-white/8 hover:text-white"
+                }`}
+                key={item.id}
+                onClick={() => go(item.id)}
+                type="button"
+              >
+                <Icon className="size-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-auto rounded-[1.2rem] border border-white/8 bg-white/[0.06] p-4">
+          <div className="mb-3 flex items-center gap-2">
+            <span className="grid size-9 place-items-center rounded-2xl bg-[#F3B24A]/15 text-[#F3B24A]">
+              <Crown className="size-5" />
+            </span>
+            <div>
+              <p className="text-sm font-black">学习达人</p>
+              <p className="text-xs font-bold text-white/45">稳定输入，稳步提分</p>
+            </div>
+          </div>
+          <p className="text-xs font-bold leading-5 text-white/56">连续学习记录会保存在当前账号或浏览器中。</p>
+          {user && (
+            <button className="mt-3 inline-flex text-xs font-black text-[#E95B4F] hover:text-white" onClick={onLogout} type="button">
+              退出当前账号
+            </button>
+          )}
+        </div>
+      </aside>
+
+      <nav className="pointer-events-none fixed inset-x-0 bottom-0 z-50 px-3 pb-3 pt-2 md:hidden">
+        <div className="pointer-events-auto mx-auto max-w-md">
           {isOpen && (
-            <div className="mb-3 rounded-[1.5rem] border border-white/80 bg-white/94 p-3 shadow-[0_-18px_40px_rgba(16,24,40,0.12)] backdrop-blur">
+            <div className="mb-3 rounded-[1.35rem] border border-white/80 bg-white/95 p-3 shadow-[0_-18px_42px_rgba(16,36,63,0.14)] backdrop-blur">
               <div className="mb-2 flex items-center justify-between px-1">
                 <p className="text-xs font-black uppercase tracking-[0.18em] text-[#667085]">更多入口</p>
-                <button className="grid size-9 place-items-center rounded-full bg-[#101828]/6 text-[#667085]" onClick={() => setIsOpen(false)} type="button">
+                <button className="grid size-9 place-items-center rounded-full bg-[#0B1F3A]/6 text-[#667085]" onClick={() => setIsOpen(false)} type="button">
                   <X className="size-4" />
                 </button>
               </div>
               <div className="grid grid-cols-3 gap-2">
-                {secondaryItems.map((item) => {
+                {mobileMore.map((item) => {
                   const Icon = item.icon;
                   const active = currentPage === item.id;
 
@@ -72,23 +127,19 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
                     <button
                       aria-label={item.label}
                       className={`flex min-h-14 flex-col items-center justify-center rounded-2xl px-2 text-[12px] font-black transition ${
-                        active ? "bg-[#101828] text-white" : item.adminOnly ? "bg-[#101828]/5 text-[#667085]" : "bg-[#F7F3EA] text-[#101828]/72 hover:bg-[#E8F5F3]"
+                        active ? "bg-[#0B1F3A] text-white" : item.adminOnly ? "bg-[#0B1F3A]/5 text-[#667085]" : "bg-[#F7F1E4] text-[#10243F]/72"
                       }`}
                       key={item.id}
                       onClick={() => go(item.id)}
                       type="button"
                     >
                       <Icon className="size-4" />
-                      <span className="mt-1">{item.label}</span>
+                      <span className="mt-1 truncate">{item.label}</span>
                     </button>
                   );
                 })}
                 {user && (
-                  <button
-                    className="flex min-h-14 flex-col items-center justify-center rounded-2xl bg-[#E95B4F]/10 px-2 text-[12px] font-black text-[#E95B4F]"
-                    onClick={onLogout}
-                    type="button"
-                  >
+                  <button className="flex min-h-14 flex-col items-center justify-center rounded-2xl bg-[#E95B4F]/10 px-2 text-[12px] font-black text-[#E95B4F]" onClick={onLogout} type="button">
                     <LogOut className="size-4" />
                     <span className="mt-1">退出</span>
                   </button>
@@ -97,9 +148,9 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
             </div>
           )}
 
-          <div className="rounded-[1.55rem] border border-white/80 bg-white/96 px-2 py-2 shadow-[0_-16px_42px_rgba(16,24,40,0.14)] backdrop-blur">
+          <div className="rounded-[1.45rem] border border-white/80 bg-white/96 px-2 py-2 shadow-[0_-16px_42px_rgba(16,36,63,0.16)] backdrop-blur">
             <div className="grid grid-cols-6 gap-1">
-              {primaryItems.map((item) => {
+              {mobilePrimary.map((item) => {
                 const Icon = item.icon;
                 const active = currentPage === item.id;
 
@@ -107,21 +158,21 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
                   <button
                     aria-label={item.label}
                     className={`flex min-h-14 flex-col items-center justify-center rounded-2xl text-[11px] font-black transition ${
-                      active ? "bg-[#101828] text-white shadow-[inset_0_-3px_0_rgba(255,255,255,0.12)]" : "text-[#667085] hover:bg-[#E8F5F3] hover:text-[#101828]"
+                      active ? "bg-[#0B1F3A] text-white" : "text-[#667085] hover:bg-[#EAF5F2] hover:text-[#10243F]"
                     }`}
                     key={item.id}
                     onClick={() => go(item.id)}
                     type="button"
                   >
                     <Icon className="size-5" />
-                    <span className="mt-1">{item.label}</span>
+                    <span className="mt-1 truncate">{item.label}</span>
                   </button>
                 );
               })}
               <button
                 aria-label="更多"
                 className={`flex min-h-14 flex-col items-center justify-center rounded-2xl text-[11px] font-black transition ${
-                  isOpen || secondaryItems.some((item) => item.id === currentPage) ? "bg-[#1496A3] text-white" : "text-[#667085] hover:bg-[#E8F5F3] hover:text-[#101828]"
+                  isOpen || mobileMore.some((item) => item.id === currentPage) ? "bg-[#1496A3] text-white" : "text-[#667085] hover:bg-[#EAF5F2] hover:text-[#10243F]"
                 }`}
                 onClick={() => setIsOpen((open) => !open)}
                 type="button"
@@ -132,51 +183,7 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
             </div>
           </div>
         </div>
-
-        <div className="hidden rounded-[1.5rem] border border-white/80 bg-white/92 px-3 py-2 shadow-[0_-12px_34px_rgba(16,24,40,0.10)] backdrop-blur md:block">
-          <div className="flex items-center gap-1">
-            <div className="mr-2 hidden min-w-0 flex-1 items-center gap-2 px-2 lg:flex">
-              <div className="grid size-9 place-items-center rounded-xl bg-[#101828] text-white">
-                <Map className="size-4" />
-              </div>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-black text-[#101828]">文综岛</p>
-                <p className="truncate text-xs font-bold text-[#667085]">当前：{currentItem.label}</p>
-              </div>
-            </div>
-
-            {navItems.map((item) => {
-              const Icon = item.icon;
-              const active = currentPage === item.id;
-
-              return (
-                <button
-                  aria-label={item.label}
-                  className={`flex min-h-12 min-w-[58px] flex-col items-center justify-center rounded-2xl px-2 text-[11px] font-bold transition ${
-                    active
-                      ? "bg-[#101828] text-white"
-                      : item.adminOnly
-                        ? "text-[#667085]/76 hover:bg-[#101828]/5 hover:text-[#101828]"
-                        : "text-[#667085] hover:bg-[#E8F5F3] hover:text-[#101828]"
-                  }`}
-                  key={item.id}
-                  onClick={() => go(item.id)}
-                  type="button"
-                >
-                  <Icon className="size-4" />
-                  <span className="mt-0.5">{item.label}</span>
-                </button>
-              );
-            })}
-
-            {user && (
-              <button className="ml-auto hidden rounded-full bg-[#101828]/5 px-3 py-2 text-xs font-black text-[#667085] transition hover:bg-[#E95B4F]/10 hover:text-[#E95B4F] lg:block" onClick={onLogout} type="button">
-                {user.name || user.email} · 退出
-              </button>
-            )}
-          </div>
-        </div>
-      </div>
-    </nav>
+      </nav>
+    </>
   );
 }
