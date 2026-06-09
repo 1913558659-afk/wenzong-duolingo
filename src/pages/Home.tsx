@@ -1,4 +1,7 @@
-import { ArrowRight, Bell, BookOpen, Brain, CalendarDays, ClipboardList, Globe2, Landmark, LibraryBig, Map, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bell, BookOpen, Brain, CalendarDays, ClipboardList, Globe2, Landmark, LibraryBig, ScrollText, ShieldCheck } from "lucide-react";
+import geographyIllustration from "@/assets/subjects/geography.svg";
+import historyIllustration from "@/assets/subjects/history.svg";
+import politicsIllustration from "@/assets/subjects/politics.svg";
 import { aiPrompts } from "@/data/aiPrompts";
 import { defaultScheduleItems } from "@/data/timetable";
 import type { PageId, QuizQuestion, ScheduleItem, StudyStats, Subject } from "@/types";
@@ -21,12 +24,13 @@ type SubjectMeta = {
   icon: typeof Landmark;
   color: string;
   bg: string;
+  image: string;
 };
 
 const subjectMeta: SubjectMeta[] = [
-  { subject: "history", title: "历史", desc: "穿越历史长河，探索文明的源流", icon: Landmark, color: "#1496A3", bg: "bg-[#DFF6F1]" },
-  { subject: "politics", title: "政治", desc: "理解社会运行，掌握政治智慧", icon: ShieldCheck, color: "#E95B4F", bg: "bg-[#FBE5DF]" },
-  { subject: "geography", title: "地理", desc: "认识地理环境，辨析区域特征", icon: Globe2, color: "#F3B24A", bg: "bg-[#E8F4F5]" }
+  { subject: "history", title: "历史", desc: "穿越历史长河，探索文明的源流", icon: Landmark, color: "#1496A3", bg: "bg-[#DFF6F1]", image: historyIllustration },
+  { subject: "politics", title: "政治", desc: "理解社会运行，掌握政治智慧", icon: ShieldCheck, color: "#E95B4F", bg: "bg-[#FBE5DF]", image: politicsIllustration },
+  { subject: "geography", title: "地理", desc: "认识地理环境，辨析区域特征", icon: Globe2, color: "#F3B24A", bg: "bg-[#E8F4F5]", image: geographyIllustration }
 ];
 
 function percent(value: number) {
@@ -49,6 +53,16 @@ function ProgressLine({ color = "#1496A3", value }: { color?: string; value: num
   return (
     <div className="h-2 overflow-hidden rounded-full bg-[#10243F]/10">
       <div className="h-full rounded-full" style={{ backgroundColor: color, width: `${value}%` }} />
+    </div>
+  );
+}
+
+function StatBlock({ label, sub, value, accent = "#10243F" }: { label: string; sub: string; value: string; accent?: string }) {
+  return (
+    <div className="min-h-[78px] min-w-0 rounded-[1rem] border border-[#10243F]/5 bg-white/58 px-3 py-3 md:min-h-0 md:rounded-[1.25rem] md:px-4 md:py-4">
+      <p className="text-xs font-black text-[#667085]">{label}</p>
+      <p className="mt-1 truncate text-2xl font-black leading-none md:mt-2 md:text-3xl" style={{ color: accent }}>{value}</p>
+      <p className="mt-1 truncate text-[11px] font-bold text-[#667085] md:mt-2 md:text-xs">{sub}</p>
     </div>
   );
 }
@@ -78,19 +92,19 @@ export function Home({
 
   return (
     <div
-      className="min-h-screen overflow-hidden rounded-[1.6rem] px-4 pb-8 pt-4 text-[#10243F] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] md:px-6 md:pt-6"
+      className="min-h-screen overflow-hidden rounded-[1.6rem] px-4 pb-8 pt-3 text-[#10243F] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] md:px-6 md:pt-6"
       style={{
         backgroundImage:
           "radial-gradient(circle at 8% 2%, rgba(20,150,163,0.14), transparent 18rem), radial-gradient(circle at 92% 0%, rgba(233,91,79,0.08), transparent 20rem), linear-gradient(135deg,#F7F1E4 0%,#FAF6EC 44%,#EAF5F2 100%)"
       }}
     >
-      <div className="mx-auto max-w-[1180px] space-y-5">
+      <div className="mx-auto max-w-[1180px] space-y-4 md:space-y-5">
         <header className="flex items-center justify-between md:hidden">
           <div>
-            <p className="text-2xl font-black">文综岛</p>
+            <p className="text-xl font-black">文综岛</p>
             <p className="mt-1 text-xs font-bold text-[#667085]">SayHiStudy · 今日学习</p>
           </div>
-          <button className="grid size-11 place-items-center rounded-2xl bg-white text-[#10243F] shadow-[0_10px_28px_rgba(16,36,63,0.08)]" type="button">
+          <button className="grid size-10 place-items-center rounded-2xl bg-white text-[#10243F] shadow-[0_10px_28px_rgba(16,36,63,0.08)]" type="button">
             <Bell className="size-5" />
           </button>
         </header>
@@ -111,72 +125,45 @@ export function Home({
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-[1fr_0.78fr]">
-          <div className="relative overflow-hidden rounded-[1.8rem] bg-[#10243F] p-5 text-white shadow-[0_22px_54px_rgba(16,36,63,0.20)] md:p-6">
-            <div className="pointer-events-none absolute -right-12 -top-12 size-48 rounded-full bg-[#1496A3]/18 blur-2xl" />
-            <div className="pointer-events-none absolute bottom-0 right-0 h-36 w-64 rounded-tl-full bg-[#F7F1E4]/5" />
-            <div className="pointer-events-none absolute bottom-9 right-12 hidden text-white/8 md:block">
-              <Map className="size-32" />
+        <section className="relative overflow-hidden rounded-[1.25rem] border border-white/80 bg-white/78 p-3 shadow-[0_12px_30px_rgba(16,36,63,0.07)] backdrop-blur md:rounded-[1.75rem] md:p-5 md:shadow-[0_16px_44px_rgba(16,36,63,0.08)]">
+          <div className="pointer-events-none absolute -right-16 -top-16 size-44 rounded-full bg-[#1496A3]/10 blur-2xl" />
+          <div className="pointer-events-none absolute -bottom-20 left-1/4 size-48 rounded-full bg-[#E95B4F]/5 blur-2xl" />
+          <div className="relative mb-3 flex flex-col gap-2 md:mb-4 md:flex-row md:items-center md:justify-between md:gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#1496A3] md:text-xs md:tracking-[0.18em]">Learning Overview</p>
+              <h2 className="mt-0.5 text-xl font-black md:mt-1 md:text-2xl">今日学习统计</h2>
             </div>
-            <div className="relative flex items-start justify-between gap-4">
-              <div>
-                <p className="text-sm font-bold text-white/68">今天继续登岛学习</p>
-                <p className="mt-3 text-6xl font-black leading-none md:text-7xl">{learningProgress}%</p>
-                <p className="mt-3 text-sm font-semibold leading-6 text-white/68">已完成 {totalAnswered} / {totalQuestions} 题 · {sourceText}</p>
-              </div>
-              <div className="hidden rounded-[1.4rem] border border-white/10 bg-white/8 p-4 md:block">
-                <Map className="size-8 text-[#1496A3]" />
-              </div>
+            <div className="rounded-[1rem] bg-[#EAF5F2]/80 px-3 py-2 md:rounded-2xl md:px-4 md:py-3">
+              <p className="text-[11px] font-black text-[#1496A3] md:text-xs">今日推荐任务</p>
+              <p className="mt-0.5 line-clamp-1 text-xs font-bold text-[#10243F] md:mt-1 md:text-sm">{todayTask?.task ?? "完成一组文综闯关题，并复盘解析。"}</p>
             </div>
-            <div className="relative mt-6">
-              <ProgressLine value={learningProgress} />
-            </div>
-            <div className="relative mt-5 rounded-[1.35rem] border border-white/10 bg-white/[0.06] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9EE2E4]">今日推荐任务</p>
-              <p className="mt-2 text-sm font-bold leading-6 text-white/82">{todayTask?.task ?? "完成一组文综闯关题，并复盘解析。"}</p>
-            </div>
-            <div className="relative mt-4 grid grid-cols-4 gap-2">
-              {[
-                { label: "连续学习", value: `${stats.streakDays}`, sub: "天" },
-                { label: "正确率", value: `${accuracy}%`, sub: "较昨日稳步" },
-                { label: "完成关卡", value: `${completedLevels}`, sub: "个" },
-                { label: "学习时长", value: `${studyHours}`, sub: "小时" }
-              ].map((item) => (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3" key={item.label}>
-                  <p className="text-lg font-black md:text-2xl">{item.value}</p>
-                  <p className="mt-1 text-[11px] font-bold text-white/52">{item.label}</p>
-                  <p className="mt-0.5 hidden text-[10px] font-bold text-white/38 sm:block">{item.sub}</p>
+          </div>
+
+          <div className="relative grid gap-2 sm:grid-cols-2 md:gap-3 xl:grid-cols-[1.25fr_1fr_1fr_1fr_1fr]">
+            <div className="rounded-[1rem] border border-[#1496A3]/10 bg-[#F8FCFA] p-3 md:rounded-[1.35rem] md:p-4">
+              <div className="flex items-center gap-3 md:gap-4">
+                <div
+                  className="grid size-[76px] shrink-0 place-items-center rounded-full md:size-24"
+                  style={{
+                    background: `conic-gradient(#1496A3 ${learningProgress * 3.6}deg, #E5EEEA 0deg)`
+                  }}
+                >
+                  <div className="grid size-14 place-items-center rounded-full bg-white md:size-16">
+                    <span className="text-lg font-black text-[#10243F] md:text-xl">{learningProgress}%</span>
+                  </div>
                 </div>
-              ))}
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-[#667085]">总学习进度</p>
+                  <p className="mt-1 text-sm font-bold text-[#10243F] md:mt-2">已完成 {totalAnswered} / {totalQuestions} 题</p>
+                  <p className="mt-0.5 line-clamp-1 text-xs font-bold text-[#667085] md:mt-1">{sourceText}</p>
+                </div>
+              </div>
             </div>
+            <StatBlock label="连续学习" value={`${stats.streakDays} 天`} sub={`累计 ${stats.streakDays} 天`} accent="#10243F" />
+            <StatBlock label="总正确率" value={`${accuracy}%`} sub="较昨日 ↑8%" accent="#1496A3" />
+            <StatBlock label="完成关卡" value={`${completedLevels} 关`} sub={`共 ${completedLevels + wrongCount} 关`} accent="#E95B4F" />
+            <StatBlock label="总学习时长" value={`${studyHours} h`} sub="较昨日 ↑1.2h" accent="#10243F" />
           </div>
-
-          <div className="hidden rounded-[1.6rem] border border-white/70 bg-white/78 p-5 shadow-[0_16px_42px_rgba(16,36,63,0.08)] backdrop-blur lg:block">
-            <p className="text-sm font-black text-[#667085]">今日任务</p>
-            <h2 className="mt-3 text-2xl font-black">{todayTask?.title ?? "完成一组闯关练习"}</h2>
-            <p className="mt-3 text-sm font-semibold leading-6 text-[#667085]">{todayTask?.task ?? "建议先从历史高频章节开始，做完立刻复盘解析。"}</p>
-            <div className="mt-6 rounded-[1.2rem] border border-[#1496A3]/10 bg-[#EAF5F2] p-4">
-              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1496A3]">AI 建议</p>
-              <p className="mt-2 text-sm font-bold leading-6">{prompt.useCase}</p>
-            </div>
-            <button className="mt-5 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#E95B4F] px-4 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-[#10243F]" onClick={() => navigate("map")} type="button">
-              开始今天的练习 <ArrowRight className="size-4" />
-            </button>
-          </div>
-        </section>
-
-        <section className="grid grid-cols-4 gap-2 md:hidden">
-          {[
-            { label: "连续学习", value: stats.streakDays, unit: "天" },
-            { label: "正确率", value: accuracy, unit: "%" },
-            { label: "完成关卡", value: completedLevels, unit: "个" },
-            { label: "学习时长", value: studyHours, unit: "h" }
-          ].map((item) => (
-            <div className="rounded-[1.1rem] bg-white/82 p-3 text-center shadow-[0_10px_26px_rgba(16,36,63,0.06)]" key={item.label}>
-              <p className="text-xl font-black">{item.value}</p>
-              <p className="mt-1 text-[10px] font-bold text-[#667085]">{item.label}</p>
-            </div>
-          ))}
         </section>
 
         <section>
@@ -184,7 +171,7 @@ export function Home({
             <h2 className="text-xl font-black">学科入口</h2>
             <button className="text-xs font-black text-[#667085] md:hidden" onClick={() => navigate("map")} type="button">全部 &gt;</button>
           </div>
-          <div className="grid grid-cols-3 gap-3 md:gap-4">
+          <div className="grid gap-3 md:grid-cols-3 md:gap-4">
             {subjectMeta.map((item) => {
               const Icon = item.icon;
               const list = subjectQuestions(questions, item.subject);
@@ -194,23 +181,32 @@ export function Home({
 
               return (
                 <button className="group min-w-0 text-left" key={item.subject} onClick={() => navigate("map")} type="button">
-                  <div className="relative h-full overflow-hidden rounded-[1.35rem] border border-white/72 bg-white/84 p-3 shadow-[0_14px_34px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(16,36,63,0.10)] md:rounded-[1.65rem] md:p-5">
-                    <div className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full opacity-40 md:size-32" style={{ backgroundColor: item.color }} />
-                    <div className={`relative mx-auto grid size-14 place-items-center rounded-2xl ${item.bg} shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] md:mx-0 md:size-20`}>
-                      <Icon className="size-7 md:size-10" style={{ color: item.color }} />
+                  <div className="relative h-full overflow-hidden rounded-[1.55rem] border border-white/78 bg-white/86 p-4 shadow-[0_14px_34px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(16,36,63,0.10)] md:rounded-[1.65rem] md:p-5">
+                    <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-white to-transparent" />
+                    <div className="relative flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className={`grid size-12 place-items-center rounded-2xl ${item.bg} shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]`}>
+                          <Icon className="size-6" style={{ color: item.color }} />
+                        </div>
+                        <h3 className="mt-4 text-2xl font-black text-[#10243F]">{item.title}</h3>
+                        <p className="mt-2 text-sm font-semibold leading-6 text-[#667085]">{item.desc}</p>
+                      </div>
+                      <img
+                        alt={`${item.title}学科插画`}
+                        className="h-24 w-24 shrink-0 object-contain opacity-95 md:h-28 md:w-28"
+                        src={item.image}
+                      />
                     </div>
-                    <h3 className="relative mt-3 text-center text-sm font-black md:text-left md:text-xl">{item.title}</h3>
-                    <p className="relative mt-2 hidden min-h-10 text-sm font-semibold leading-5 text-[#667085] md:block">{item.desc}</p>
-                    <div className="relative mt-3 hidden md:block">
+                    <div className="relative mt-5">
                       <div className="mb-2 flex items-center justify-between text-xs font-black text-[#667085]">
                         <span>{done} / {count} 题</span>
                         <span>{progress}%</span>
                       </div>
                       <ProgressLine color={item.color} value={progress} />
                     </div>
-                    <button className="relative mt-4 hidden min-h-10 rounded-xl bg-[#10243F] px-4 text-sm font-black text-white transition group-hover:bg-[#1496A3] md:inline-flex md:items-center" type="button">
-                      开始学习
-                    </button>
+                    <span className="relative mt-5 inline-flex min-h-11 w-full items-center justify-center rounded-2xl bg-[#10243F] px-4 text-sm font-black text-white transition group-hover:bg-[#1496A3] md:w-auto">
+                      开始练习
+                    </span>
                   </div>
                 </button>
               );
