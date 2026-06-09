@@ -77,7 +77,13 @@ export function Home({
   const syncText = isLoggedIn ? (syncError ? "学习进度暂未同步" : "账号进度已连接") : "登录后可同步进度";
 
   return (
-    <div className="min-h-screen rounded-[1.6rem] bg-[linear-gradient(135deg,#F7F1E4_0%,#F7F1E4_48%,#EAF5F2_100%)] px-4 pb-8 pt-4 text-[#10243F] md:px-6 md:pt-6">
+    <div
+      className="min-h-screen overflow-hidden rounded-[1.6rem] px-4 pb-8 pt-4 text-[#10243F] shadow-[inset_0_1px_0_rgba(255,255,255,0.55)] md:px-6 md:pt-6"
+      style={{
+        backgroundImage:
+          "radial-gradient(circle at 8% 2%, rgba(20,150,163,0.14), transparent 18rem), radial-gradient(circle at 92% 0%, rgba(233,91,79,0.08), transparent 20rem), linear-gradient(135deg,#F7F1E4 0%,#FAF6EC 44%,#EAF5F2 100%)"
+      }}
+    >
       <div className="mx-auto max-w-[1180px] space-y-5">
         <header className="flex items-center justify-between md:hidden">
           <div>
@@ -106,28 +112,37 @@ export function Home({
         </section>
 
         <section className="grid gap-4 lg:grid-cols-[1fr_0.78fr]">
-          <div className="overflow-hidden rounded-[1.6rem] bg-[#10243F] p-5 text-white shadow-[0_20px_48px_rgba(16,36,63,0.18)] md:p-6">
-            <div className="flex items-start justify-between gap-4">
+          <div className="relative overflow-hidden rounded-[1.8rem] bg-[#10243F] p-5 text-white shadow-[0_22px_54px_rgba(16,36,63,0.20)] md:p-6">
+            <div className="pointer-events-none absolute -right-12 -top-12 size-48 rounded-full bg-[#1496A3]/18 blur-2xl" />
+            <div className="pointer-events-none absolute bottom-0 right-0 h-36 w-64 rounded-tl-full bg-[#F7F1E4]/5" />
+            <div className="pointer-events-none absolute bottom-9 right-12 hidden text-white/8 md:block">
+              <Map className="size-32" />
+            </div>
+            <div className="relative flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm font-bold text-white/68">今日学习进度</p>
+                <p className="text-sm font-bold text-white/68">今天继续登岛学习</p>
                 <p className="mt-3 text-6xl font-black leading-none md:text-7xl">{learningProgress}%</p>
-                <p className="mt-3 text-sm font-semibold text-white/68">已完成 {totalAnswered} / {totalQuestions} 题 · {sourceText}</p>
+                <p className="mt-3 text-sm font-semibold leading-6 text-white/68">已完成 {totalAnswered} / {totalQuestions} 题 · {sourceText}</p>
               </div>
-              <div className="hidden rounded-[1.4rem] bg-white/8 p-4 md:block">
+              <div className="hidden rounded-[1.4rem] border border-white/10 bg-white/8 p-4 md:block">
                 <Map className="size-8 text-[#1496A3]" />
               </div>
             </div>
-            <div className="mt-6">
+            <div className="relative mt-6">
               <ProgressLine value={learningProgress} />
             </div>
-            <div className="mt-6 grid grid-cols-4 gap-2">
+            <div className="relative mt-5 rounded-[1.35rem] border border-white/10 bg-white/[0.06] p-4">
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-[#9EE2E4]">今日推荐任务</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-white/82">{todayTask?.task ?? "完成一组文综闯关题，并复盘解析。"}</p>
+            </div>
+            <div className="relative mt-4 grid grid-cols-4 gap-2">
               {[
                 { label: "连续学习", value: `${stats.streakDays}`, sub: "天" },
                 { label: "正确率", value: `${accuracy}%`, sub: "较昨日稳步" },
                 { label: "完成关卡", value: `${completedLevels}`, sub: "个" },
                 { label: "学习时长", value: `${studyHours}`, sub: "小时" }
               ].map((item) => (
-                <div className="rounded-2xl bg-white/[0.07] p-3" key={item.label}>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.07] p-3" key={item.label}>
                   <p className="text-lg font-black md:text-2xl">{item.value}</p>
                   <p className="mt-1 text-[11px] font-bold text-white/52">{item.label}</p>
                   <p className="mt-0.5 hidden text-[10px] font-bold text-white/38 sm:block">{item.sub}</p>
@@ -136,11 +151,11 @@ export function Home({
             </div>
           </div>
 
-          <div className="hidden rounded-[1.6rem] border border-white/70 bg-white/78 p-5 shadow-[0_16px_42px_rgba(16,36,63,0.08)] lg:block">
+          <div className="hidden rounded-[1.6rem] border border-white/70 bg-white/78 p-5 shadow-[0_16px_42px_rgba(16,36,63,0.08)] backdrop-blur lg:block">
             <p className="text-sm font-black text-[#667085]">今日任务</p>
             <h2 className="mt-3 text-2xl font-black">{todayTask?.title ?? "完成一组闯关练习"}</h2>
             <p className="mt-3 text-sm font-semibold leading-6 text-[#667085]">{todayTask?.task ?? "建议先从历史高频章节开始，做完立刻复盘解析。"}</p>
-            <div className="mt-6 rounded-[1.2rem] bg-[#EAF5F2] p-4">
+            <div className="mt-6 rounded-[1.2rem] border border-[#1496A3]/10 bg-[#EAF5F2] p-4">
               <p className="text-xs font-black uppercase tracking-[0.16em] text-[#1496A3]">AI 建议</p>
               <p className="mt-2 text-sm font-bold leading-6">{prompt.useCase}</p>
             </div>
@@ -179,20 +194,21 @@ export function Home({
 
               return (
                 <button className="group min-w-0 text-left" key={item.subject} onClick={() => navigate("map")} type="button">
-                  <div className="h-full rounded-[1.35rem] border border-white/72 bg-white/82 p-3 shadow-[0_12px_32px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5 md:rounded-[1.6rem] md:p-5">
-                    <div className={`mx-auto grid size-14 place-items-center rounded-2xl ${item.bg} md:mx-0 md:size-20`}>
+                  <div className="relative h-full overflow-hidden rounded-[1.35rem] border border-white/72 bg-white/84 p-3 shadow-[0_14px_34px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(16,36,63,0.10)] md:rounded-[1.65rem] md:p-5">
+                    <div className="pointer-events-none absolute -right-8 -top-8 size-24 rounded-full opacity-40 md:size-32" style={{ backgroundColor: item.color }} />
+                    <div className={`relative mx-auto grid size-14 place-items-center rounded-2xl ${item.bg} shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] md:mx-0 md:size-20`}>
                       <Icon className="size-7 md:size-10" style={{ color: item.color }} />
                     </div>
-                    <h3 className="mt-3 text-center text-sm font-black md:text-left md:text-xl">{item.title}</h3>
-                    <p className="mt-2 hidden min-h-10 text-sm font-semibold leading-5 text-[#667085] md:block">{item.desc}</p>
-                    <div className="mt-3 hidden md:block">
+                    <h3 className="relative mt-3 text-center text-sm font-black md:text-left md:text-xl">{item.title}</h3>
+                    <p className="relative mt-2 hidden min-h-10 text-sm font-semibold leading-5 text-[#667085] md:block">{item.desc}</p>
+                    <div className="relative mt-3 hidden md:block">
                       <div className="mb-2 flex items-center justify-between text-xs font-black text-[#667085]">
                         <span>{done} / {count} 题</span>
                         <span>{progress}%</span>
                       </div>
                       <ProgressLine color={item.color} value={progress} />
                     </div>
-                    <button className="mt-4 hidden min-h-10 rounded-xl bg-[#10243F] px-4 text-sm font-black text-white transition group-hover:bg-[#1496A3] md:inline-flex md:items-center" type="button">
+                    <button className="relative mt-4 hidden min-h-10 rounded-xl bg-[#10243F] px-4 text-sm font-black text-white transition group-hover:bg-[#1496A3] md:inline-flex md:items-center" type="button">
                       开始学习
                     </button>
                   </div>
@@ -202,7 +218,7 @@ export function Home({
           </div>
         </section>
 
-        <section className="grid gap-4 lg:grid-cols-3">
+        <section className="grid gap-4 lg:grid-cols-4">
           <div className="rounded-[1.45rem] border border-white/72 bg-white/82 p-5 shadow-[0_14px_34px_rgba(16,36,63,0.07)]">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="font-black">最近练习</h2>
@@ -256,6 +272,25 @@ export function Home({
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="rounded-[1.45rem] border border-white/72 bg-white/82 p-5 shadow-[0_14px_34px_rgba(16,36,63,0.07)]">
+            <h2 className="font-black">学习数据概览</h2>
+            <div className="mt-4 space-y-3">
+              {[
+                { label: "题库总量", value: totalQuestions },
+                { label: "今日答题", value: stats.answeredToday },
+                { label: "经验值 XP", value: stats.xp }
+              ].map((item) => (
+                <div className="flex items-center justify-between rounded-2xl bg-[#F7F1E4]/70 px-3 py-3" key={item.label}>
+                  <span className="text-xs font-black text-[#667085]">{item.label}</span>
+                  <span className="text-lg font-black text-[#10243F]">{item.value}</span>
+                </div>
+              ))}
+            </div>
+            <button className="mt-4 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-2xl bg-[#1496A3] text-sm font-black text-white transition hover:bg-[#10243F]" onClick={() => navigate("profile")} type="button">
+              查看学习报告 <ArrowRight className="size-4" />
+            </button>
           </div>
         </section>
 
