@@ -67,6 +67,86 @@ function StatBlock({ label, sub, value, accent = "#10243F" }: { label: string; s
   );
 }
 
+function MobileProgressHero({
+  accuracy,
+  completedLevels,
+  learningProgress,
+  sourceText,
+  stats,
+  studyHours,
+  totalAnswered,
+  totalQuestions
+}: {
+  accuracy: number;
+  completedLevels: number;
+  learningProgress: number;
+  sourceText: string;
+  stats: StudyStats;
+  studyHours: number;
+  totalAnswered: number;
+  totalQuestions: number;
+}) {
+  const hour = new Date().getHours();
+  const isDay = hour >= 6 && hour < 18;
+  const cardClass = isDay
+    ? "bg-[linear-gradient(135deg,#DDF4F2_0%,#F8F1E4_58%,#CDE9ED_100%)] text-[#10243F]"
+    : "bg-[linear-gradient(135deg,#0B1F3A_0%,#10243F_56%,#203F68_100%)] text-white";
+  const mutedText = isDay ? "text-[#667085]" : "text-white/68";
+
+  return (
+    <section className="space-y-2.5 md:hidden">
+      <div className={`relative min-h-[162px] overflow-hidden rounded-[1.45rem] p-5 shadow-[0_16px_38px_rgba(16,36,63,0.14)] ${cardClass}`}>
+        <div className="relative z-10 max-w-[58%]">
+          <p className={`text-xs font-black ${isDay ? "text-[#1496A3]" : "text-[#9FE9E7]"}`}>今日学习进度</p>
+          <p className="mt-2 text-5xl font-black leading-none">{learningProgress}%</p>
+          <p className={`mt-3 text-xs font-bold ${mutedText}`}>已完成 {totalAnswered} / {totalQuestions} 题</p>
+          <p className={`mt-1 line-clamp-1 text-[11px] font-bold ${mutedText}`}>{sourceText}</p>
+        </div>
+
+        <div className="absolute right-4 top-5 h-32 w-36">
+          <svg className="h-full w-full" viewBox="0 0 160 140" fill="none" xmlns="http://www.w3.org/2000/svg">
+            {isDay ? (
+              <>
+                <circle cx="122" cy="24" r="14" fill="#F3B24A" opacity="0.85" />
+                <path d="M20 98C42 74 70 78 87 94C102 78 128 80 146 102C118 116 52 118 20 98Z" fill="#1496A3" opacity="0.25" />
+                <path d="M42 94C57 70 86 66 106 91C92 106 56 108 42 94Z" fill="#1496A3" opacity="0.42" />
+                <path d="M98 50h20l-4 52h-12l-4-52Z" fill="#F7F1E4" />
+                <path d="M95 48h26l-13-18-13 18Z" fill="#E95B4F" />
+                <path d="M104 63h8" stroke="#1496A3" strokeWidth="4" strokeLinecap="round" />
+              </>
+            ) : (
+              <>
+                <path d="M124 34c-14 2-23-9-21-23-12 6-18 21-12 34 7 15 26 21 41 11-5-4-8-11-8-22Z" fill="#F7F1E4" opacity="0.9" />
+                <circle cx="42" cy="24" r="2" fill="#F7F1E4" opacity="0.85" />
+                <circle cx="62" cy="42" r="1.8" fill="#F7F1E4" opacity="0.7" />
+                <circle cx="138" cy="72" r="1.8" fill="#F7F1E4" opacity="0.7" />
+                <path d="M20 102C44 78 72 80 88 96C104 80 130 82 148 104C120 118 50 120 20 102Z" fill="#1496A3" opacity="0.3" />
+                <path d="M96 54h22l-4 50h-14l-4-50Z" fill="#F7F1E4" opacity="0.92" />
+                <path d="M93 52h28l-14-18-14 18Z" fill="#E95B4F" />
+                <path d="M108 65L142 50" stroke="#F3B24A" strokeWidth="3" strokeLinecap="round" opacity="0.65" />
+              </>
+            )}
+          </svg>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-4 rounded-[1.2rem] border border-white/75 bg-white/80 px-2 py-3 shadow-[0_10px_28px_rgba(16,36,63,0.07)]">
+        {[
+          { label: "连续学习", value: stats.streakDays, sub: "天" },
+          { label: "正确率", value: accuracy, sub: "%" },
+          { label: "完成关卡", value: completedLevels, sub: "个" },
+          { label: "学习时长", value: studyHours, sub: "h" }
+        ].map((item) => (
+          <div className="min-w-0 text-center" key={item.label}>
+            <p className="text-xl font-black leading-none text-[#10243F]">{item.value}<span className="text-[11px] text-[#667085]">{item.sub}</span></p>
+            <p className="mt-1 truncate text-[10px] font-bold text-[#667085]">{item.label}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function Home({
   isLoggedIn = false,
   navigate,
@@ -125,7 +205,18 @@ export function Home({
           </div>
         </section>
 
-        <section className="relative overflow-hidden rounded-[1.25rem] border border-white/80 bg-white/78 p-3 shadow-[0_12px_30px_rgba(16,36,63,0.07)] backdrop-blur md:rounded-[1.75rem] md:p-5 md:shadow-[0_16px_44px_rgba(16,36,63,0.08)]">
+        <MobileProgressHero
+          accuracy={accuracy}
+          completedLevels={completedLevels}
+          learningProgress={learningProgress}
+          sourceText={sourceText}
+          stats={stats}
+          studyHours={studyHours}
+          totalAnswered={totalAnswered}
+          totalQuestions={totalQuestions}
+        />
+
+        <section className="relative hidden overflow-hidden rounded-[1.25rem] border border-white/80 bg-white/78 p-3 shadow-[0_12px_30px_rgba(16,36,63,0.07)] backdrop-blur md:block md:rounded-[1.75rem] md:p-5 md:shadow-[0_16px_44px_rgba(16,36,63,0.08)]">
           <div className="pointer-events-none absolute -right-16 -top-16 size-44 rounded-full bg-[#1496A3]/10 blur-2xl" />
           <div className="pointer-events-none absolute -bottom-20 left-1/4 size-48 rounded-full bg-[#E95B4F]/5 blur-2xl" />
           <div className="relative mb-3 flex flex-col gap-2 md:mb-4 md:flex-row md:items-center md:justify-between md:gap-3">
