@@ -58,8 +58,8 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
             <Palmtree className="size-6" />
           </div>
           <div>
-            <p className="text-lg font-black leading-none">文综岛</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">SayHiStudy</p>
+            <p className="text-lg font-black leading-none">SayHi 学习岛</p>
+            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">全科学习</p>
           </div>
         </button>
 

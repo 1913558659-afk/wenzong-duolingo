@@ -2,7 +2,7 @@ import type { ChallengeLevel, QuizQuestion, Subject } from "@/types";
 
 /*
   文件用途：
-  这里维护“文综闯关页”和“选择题练习页”的本地题库。
+  这里维护“学科闯关页”和“选择题练习页”的本地题库。
   你以后主要在这个文件里新增关卡和选择题，不需要改页面代码。
 
   固定写法：

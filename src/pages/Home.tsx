@@ -4,7 +4,7 @@ import historyIllustration from "@/assets/subjects/history.svg";
 import politicsIllustration from "@/assets/subjects/politics.svg";
 import { aiPrompts } from "@/data/aiPrompts";
 import { defaultScheduleItems } from "@/data/timetable";
-import type { PageId, QuizQuestion, ScheduleItem, StudyStats, Subject } from "@/types";
+import type { AuthUser, PageId, QuizQuestion, ScheduleItem, StudyStats, Subject } from "@/types";
 
 type HomeProps = {
   isLoggedIn?: boolean;
@@ -13,6 +13,7 @@ type HomeProps = {
   questions?: QuizQuestion[];
   stats: StudyStats;
   syncError?: boolean;
+  user?: AuthUser | null;
   wrongCount: number;
   scheduleItems?: ScheduleItem[];
 };
@@ -47,6 +48,68 @@ function todayText() {
     day: "numeric",
     weekday: "short"
   }).format(new Date());
+}
+
+const dailyQuotes: Record<number, string> = {
+  0: "这是好事啊。——周丽峰",
+  1: "宿命天成命中败，仙尊悔而我不悔。——古月方源",
+  2: "永远别放弃内心所热爱的东西。——利昂内尔・梅西",
+  3: "同学，你一定能考上！——张雪峰",
+  4: "在你想要放弃的时候，想想是什么让你当初坚持走到了这里。——科比・布莱恩特",
+  5: "超越昨天的自己，哪怕只变好一点点，这种感觉会上瘾。——谷爱凌",
+  6: "天生我材那就必定有用，只要你还有梦，不认输就有救。——马思唯"
+};
+
+function getDailyQuote() {
+  return dailyQuotes[new Date().getDay()];
+}
+
+type DisplayUser = AuthUser & {
+  nickname?: string | null;
+  username?: string | null;
+};
+
+function emailPrefix(email?: string | null) {
+  return email?.split("@")[0]?.trim() || "";
+}
+
+function getSavedDisplayName() {
+  if (typeof window === "undefined") {
+    return "";
+  }
+
+  const directValue = ["nickname", "username", "email"]
+    .map((key) => window.localStorage.getItem(key)?.trim())
+    .find(Boolean);
+
+  if (directValue) {
+    return directValue.includes("@") ? emailPrefix(directValue) : directValue;
+  }
+
+  const savedUser = window.localStorage.getItem("wenzong-island-auth-user");
+  if (!savedUser) {
+    return "";
+  }
+
+  try {
+    const parsedUser = JSON.parse(savedUser) as DisplayUser;
+    return parsedUser.nickname?.trim()
+      || parsedUser.name?.trim()
+      || parsedUser.username?.trim()
+      || emailPrefix(parsedUser.email);
+  } catch {
+    return "";
+  }
+}
+
+function getDisplayName(user?: AuthUser | null) {
+  const displayUser = user as DisplayUser | null | undefined;
+  return displayUser?.nickname?.trim()
+    || displayUser?.name?.trim()
+    || displayUser?.username?.trim()
+    || emailPrefix(displayUser?.email)
+    || getSavedDisplayName()
+    || "同学";
 }
 
 function ProgressLine({ color = "#1496A3", value }: { color?: string; value: number }) {
@@ -154,6 +217,7 @@ export function Home({
   questions = [],
   stats,
   syncError = false,
+  user = null,
   wrongCount,
   scheduleItems = defaultScheduleItems
 }: HomeProps) {
@@ -169,6 +233,8 @@ export function Home({
   const prompt = aiPrompts[0];
   const sourceText = questionSourceStatus === "cloud" ? "云端题库已同步" : questionSourceStatus === "loading" ? "正在同步题库" : "当前使用本地题库";
   const syncText = isLoggedIn ? (syncError ? "学习进度暂未同步" : "账号进度已连接") : "登录后可同步进度";
+  const displayName = getDisplayName(user);
+  const dailyQuote = getDailyQuote();
 
   return (
     <div
@@ -181,8 +247,8 @@ export function Home({
       <div className="mx-auto max-w-[1180px] space-y-4 md:space-y-5">
         <header className="flex items-center justify-between md:hidden">
           <div>
-            <p className="text-xl font-black">文综岛</p>
-            <p className="mt-1 text-xs font-bold text-[#667085]">SayHiStudy · 今日学习</p>
+            <p className="text-xl font-black">SayHi 学习岛</p>
+            <p className="mt-1 text-xs font-bold text-[#667085]">高中全科学习闯关平台</p>
           </div>
           <button className="grid size-10 place-items-center rounded-2xl bg-white text-[#10243F] shadow-[0_10px_28px_rgba(16,36,63,0.08)]" type="button">
             <Bell className="size-5" />
@@ -191,8 +257,11 @@ export function Home({
 
         <section className="hidden items-center justify-between md:flex">
           <div>
-            <h1 className="text-3xl font-black tracking-normal">你好，宋明龙 👋</h1>
-            <p className="mt-2 text-sm font-semibold text-[#667085]">今天也要加油学习呀！</p>
+            <h1 className="text-3xl font-black tracking-normal">你好，{displayName} 👋</h1>
+            <p className="mt-2 text-sm font-semibold text-[#667085]">把学习当成一场闯关游戏，SayHi 学习岛陪你稳步推进。</p>
+            <p className="mt-2 inline-flex max-w-3xl rounded-full bg-white/70 px-3 py-1 text-xs font-black leading-5 text-[#667085]">
+              {dailyQuote}
+            </p>
           </div>
           <div className="flex items-center gap-3">
             <div className="rounded-2xl bg-white/72 px-4 py-3 text-sm font-bold text-[#667085] shadow-[0_8px_24px_rgba(16,36,63,0.06)]">
@@ -226,7 +295,7 @@ export function Home({
             </div>
             <div className="rounded-[1rem] bg-[#EAF5F2]/80 px-3 py-2 md:rounded-2xl md:px-4 md:py-3">
               <p className="text-[11px] font-black text-[#1496A3] md:text-xs">今日推荐任务</p>
-              <p className="mt-0.5 line-clamp-1 text-xs font-bold text-[#10243F] md:mt-1 md:text-sm">{todayTask?.task ?? "完成一组文综闯关题，并复盘解析。"}</p>
+              <p className="mt-0.5 line-clamp-1 text-xs font-bold text-[#10243F] md:mt-1 md:text-sm">{todayTask?.task ?? "完成一组学科闯关题，并复盘解析。"}</p>
             </div>
           </div>
 

@@ -60,7 +60,7 @@ export function Profile({ navigate, stats, syncError, user }: ProfileProps) {
 
       <GameCard className="mb-4 bg-ink text-white">
         <p className="text-sm font-black text-gold">当前账号</p>
-        <h2 className="mt-2 text-2xl font-black leading-tight">{user.name || "文综岛学习者"}</h2>
+        <h2 className="mt-2 text-2xl font-black leading-tight">{user.name || "SayHi 学习岛学习者"}</h2>
         <p className="mt-1 text-sm font-semibold text-white/68">{user.email}</p>
         {syncError && <p className="mt-3 rounded-2xl bg-coral/20 px-3 py-2 text-sm font-black text-white">暂时无法同步，已使用本地进度</p>}
       </GameCard>

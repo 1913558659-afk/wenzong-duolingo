@@ -86,7 +86,7 @@ export default function App() {
   return (
     <div className="min-h-screen overflow-x-hidden pb-36 md:pb-0">
       <main className="mx-auto w-full max-w-6xl px-4 py-5 sm:px-5 sm:py-7 md:ml-[284px] md:mr-6 md:w-auto md:max-w-[1180px] md:px-0 lg:px-0">
-        {page === "home" && <Home isLoggedIn={Boolean(auth.user)} navigate={navigate} questionSourceStatus={questionSourceStatus} questions={questions} scheduleItems={scheduleItems} stats={stats} syncError={statsSyncError} wrongCount={records.length} />}
+        {page === "home" && <Home isLoggedIn={Boolean(auth.user)} navigate={navigate} questionSourceStatus={questionSourceStatus} questions={questions} scheduleItems={scheduleItems} stats={stats} syncError={statsSyncError} user={auth.user} wrongCount={records.length} />}
         {page === "map" && <ChallengeMap questionSourceStatus={questionSourceStatus} questions={questions} startPractice={startPractice} />}
         {page === "quiz" && <Quiz goMap={() => setPage("map")} onComplete={addQuizResult} onWrongAnswer={addWrongAnswer} questions={questions} selectedLevelId={selectedLevelId} token={auth.token} />}
         {page === "schedule" && <Timetable addItem={addItem} items={scheduleItems} quickAdd={quickAdd} toggleDone={toggleDone} />}

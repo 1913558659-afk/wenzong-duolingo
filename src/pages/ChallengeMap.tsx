@@ -236,7 +236,7 @@ export function ChallengeMap({ questionSourceStatus, questions, startPractice }:
 
   return (
     <div className="space-y-5 sm:space-y-6">
-      <PageHeader title="文综闯关" subtitle="按学科和章节闯关，逐步完成高频考点训练" />
+      <PageHeader title="学科闯关" subtitle="按学科和章节闯关，逐步完成高频考点训练" />
       <p className="rounded-2xl bg-white/72 px-4 py-3 text-sm font-black text-ink/58">
         {questionSourceStatus === "cloud" ? "使用云端题库" : questionSourceStatus === "loading" ? "正在加载题库" : "后端暂不可用，已使用本地题库"}
       </p>
