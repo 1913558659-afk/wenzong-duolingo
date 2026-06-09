@@ -246,11 +246,11 @@ export function Home({
     >
       <div className="mx-auto max-w-[1180px] space-y-4 md:space-y-5">
         <header className="flex items-center justify-between md:hidden">
-          <div>
+          <div className="min-w-0 pr-3">
             <p className="text-xl font-black">SayHi 学习岛</p>
-            <p className="mt-1 text-xs font-bold text-[#667085]">高中全科学习闯关平台</p>
+            <p className="mt-1 line-clamp-2 break-words text-xs font-bold leading-5 text-[#667085]">{dailyQuote}</p>
           </div>
-          <button className="grid size-10 place-items-center rounded-2xl bg-white text-[#10243F] shadow-[0_10px_28px_rgba(16,36,63,0.08)]" type="button">
+          <button className="grid size-10 shrink-0 place-items-center rounded-2xl bg-white text-[#10243F] shadow-[0_10px_28px_rgba(16,36,63,0.08)]" type="button">
             <Bell className="size-5" />
           </button>
         </header>
