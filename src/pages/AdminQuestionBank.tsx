@@ -6,7 +6,7 @@ import {
   confirmImportQuestions,
   createAdminQuestion,
   deleteAdminQuestion,
-  fetchAllBackendQuestions,
+  fetchAllBackendQuestionsResult,
   previewImportQuestions,
   updateAdminQuestion
 } from "@/lib/api";
@@ -149,6 +149,7 @@ function previewTotal(preview: ImportPreviewResponse | null) {
 export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
   const isAdmin = user?.role === "admin";
   const [questions, setQuestions] = useState<BackendQuestion[]>([]);
+  const [questionTotal, setQuestionTotal] = useState(0);
   const [subjectFilter, setSubjectFilter] = useState<"all" | Subject>("all");
   const [keyword, setKeyword] = useState("");
   const [form, setForm] = useState<QuestionFormState>(emptyForm);
@@ -170,10 +171,14 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
       setMessage("");
     }
     try {
-      const allQuestions = await fetchAllBackendQuestions();
-      setQuestions(allQuestions);
+      const result = await fetchAllBackendQuestionsResult();
+      setQuestions(result.questions);
+      setQuestionTotal(result.total);
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "题目列表加载失败");
+      const errorMessage = error instanceof Error ? error.message : "题目列表加载失败";
+      setQuestions([]);
+      setQuestionTotal(0);
+      setMessage(errorMessage.includes("题目为空") ? "" : errorMessage);
     } finally {
       setLoading(false);
       setAction("idle");
@@ -195,6 +200,8 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
       return matchSubject && (!value || haystack.includes(value));
     });
   }, [keyword, questions, subjectFilter]);
+
+  const hasActiveFilter = subjectFilter !== "all" || keyword.trim().length > 0;
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -323,7 +330,7 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
         <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
           <div>
             <p className="text-sm font-black text-ink/58">当前题目总数</p>
-            <p className="text-3xl font-black text-coral">{questions.length}</p>
+            <p className="text-3xl font-black text-coral">{questionTotal}</p>
           </div>
           <select
             className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink"
@@ -535,7 +542,9 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
         ))}
         {filteredQuestions.length === 0 && (
           <GameCard className="py-8 text-center">
-            <p className="text-sm font-bold text-ink/58">{loading ? "正在加载题目..." : "暂无匹配题目"}</p>
+            <p className="text-sm font-bold text-ink/58">
+              {loading ? "正在加载题目..." : hasActiveFilter ? "暂无匹配题目" : "暂无题目，请先新增或批量导入"}
+            </p>
           </GameCard>
         )}
       </div>

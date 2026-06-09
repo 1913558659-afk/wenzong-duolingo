@@ -92,6 +92,13 @@ type QuestionsResponse = {
   };
 };
 
+export type NormalizedQuestionsResponse = {
+  questions: BackendQuestion[];
+  total: number;
+};
+
+type QuestionsApiResponse = BackendQuestion[] | QuestionsResponse;
+
 async function apiRequest<T>(path: string, options: ApiOptions = {}) {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
@@ -176,10 +183,6 @@ export function mapBackendQuestion(question: BackendQuestion): QuizQuestion {
   };
 }
 
-function validQuestionsResponse(data: QuestionsResponse) {
-  return Array.isArray(data.questions) && data.questions.length > 0;
-}
-
 function pageCount(data: QuestionsResponse) {
   if (typeof data.pagination?.totalPages === "number") {
     return data.pagination.totalPages;
@@ -192,26 +195,46 @@ function pageCount(data: QuestionsResponse) {
   return 1;
 }
 
-export async function fetchAllBackendQuestions(subject?: Subject) {
+function normalizeQuestionsResponse(data: QuestionsApiResponse): NormalizedQuestionsResponse {
+  if (Array.isArray(data)) {
+    return {
+      questions: data,
+      total: data.length
+    };
+  }
+
+  if (data && Array.isArray(data.questions)) {
+    return {
+      questions: data.questions,
+      total: typeof data.pagination?.total === "number" ? data.pagination.total : data.questions.length
+    };
+  }
+
+  throw new Error("题库接口返回格式不正确");
+}
+
+export async function fetchAllBackendQuestionsResult(subject?: Subject): Promise<NormalizedQuestionsResponse> {
   const limit = "100";
   const firstParams = new URLSearchParams({ page: "1", limit });
   if (subject) {
     firstParams.set("subject", subject);
   }
 
-  const firstPage = await apiRequest<QuestionsResponse>(`/api/questions?${firstParams.toString()}`);
+  const firstPage = await apiRequest<QuestionsApiResponse>(`/api/questions?${firstParams.toString()}`);
 
   if (import.meta.env.DEV) {
     console.log("[wenzong-api] API_BASE_URL:", apiBaseUrl);
     console.log("[wenzong-api] /api/questions page 1 response:", firstPage);
   }
 
-  if (!validQuestionsResponse(firstPage)) {
-    throw new Error("题库接口返回格式不正确或题目为空");
+  const normalizedFirstPage = normalizeQuestionsResponse(firstPage);
+
+  if (Array.isArray(firstPage)) {
+    return normalizedFirstPage;
   }
 
   const totalPages = pageCount(firstPage);
-  const allQuestions = [...firstPage.questions!];
+  const allQuestions = [...normalizedFirstPage.questions];
 
   for (let page = 2; page <= totalPages; page += 1) {
     const params = new URLSearchParams({ page: String(page), limit });
@@ -219,14 +242,20 @@ export async function fetchAllBackendQuestions(subject?: Subject) {
       params.set("subject", subject);
     }
 
-    const data = await apiRequest<QuestionsResponse>(`/api/questions?${params.toString()}`);
-    if (!Array.isArray(data.questions)) {
-      throw new Error(`第 ${page} 页题库接口返回格式不正确`);
-    }
-    allQuestions.push(...data.questions);
+    const data = await apiRequest<QuestionsApiResponse>(`/api/questions?${params.toString()}`);
+    const normalizedPage = normalizeQuestionsResponse(data);
+    allQuestions.push(...normalizedPage.questions);
   }
 
-  return allQuestions;
+  return {
+    questions: allQuestions,
+    total: normalizedFirstPage.total
+  };
+}
+
+export async function fetchAllBackendQuestions(subject?: Subject) {
+  const result = await fetchAllBackendQuestionsResult(subject);
+  return result.questions;
 }
 
 export async function fetchAllQuestions(subject?: Subject) {
