@@ -52,7 +52,7 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
 
   return (
     <>
-      <aside className="fixed bottom-3 left-3 top-3 z-50 hidden w-[240px] flex-col overflow-hidden rounded-[1.4rem] bg-[#0B1F3A] p-4 text-white shadow-[0_24px_60px_rgba(11,31,58,0.22)] md:flex">
+      <aside className="fixed bottom-3 left-3 top-3 z-50 hidden w-[240px] flex-col overflow-y-auto overscroll-contain rounded-[1.4rem] bg-[#0B1F3A] p-4 text-white shadow-[0_24px_60px_rgba(11,31,58,0.22)] [scrollbar-color:rgba(255,255,255,0.22)_transparent] [scrollbar-width:thin] md:flex">
         <button className="flex items-center gap-3 rounded-2xl px-2 py-3 text-left" onClick={() => go("home")} type="button">
           <div className="grid size-11 place-items-center rounded-2xl bg-[#F7F1E4]/10 text-[#F3B24A]">
             <Palmtree className="size-6" />
