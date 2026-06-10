@@ -1,14 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Flag, Gift, Lock, Star } from "lucide-react";
+import { ArrowLeft, Flag, Gift, Lock } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { ProgressBar } from "@/components/ProgressBar";
 import { subjectLabels } from "@/lib/labels";
-import type { Difficulty, QuizQuestion, Subject } from "@/types";
+import type { QuizQuestion, Subject } from "@/types";
 import {
   getChapterProgress,
   getCompletedQuestionIds,
-  getModuleProgress,
   getPercent,
   getSubjectProgress,
   getTotalProgress
@@ -26,17 +25,13 @@ type SubjectCard = {
   accent: string;
 };
 
-type ChallengeModule = {
-  name: string;
-  chapters: string[];
-};
-
 type MapNodeStatus = "done" | "current" | "locked";
 
 type MapNode = {
   chapter: string;
   index: number;
   label: string;
+  practiceId: string;
   subtitle: string;
   subject: Subject;
   status: MapNodeStatus;
@@ -51,32 +46,18 @@ type MapNode = {
   mobileY: number;
 };
 
+type ChapterUnit = {
+  id: string;
+  name: string;
+  questions: QuizQuestion[];
+  type: "tag" | "level";
+};
+
 const subjectCards: SubjectCard[] = [
   { subject: "history", desc: "按中国古代史、中国近现代史、世界史分层推进。", accent: "from-coral/18 to-gold/18" },
   { subject: "politics", desc: "围绕教材章节训练概念判断、材料理解和易错点。", accent: "from-tide/16 to-leaf/16" },
   { subject: "geography", desc: "从地球运动、自然地理到区域问题逐步闯关。", accent: "from-leaf/18 to-tide/14" }
 ];
-
-const historyModules: ChallengeModule[] = [
-  {
-    name: "中国古代史",
-    chapters: ["先秦时期", "秦汉魏晋时期", "隋唐宋元时期", "明清时期"]
-  },
-  {
-    name: "中国近现代史",
-    chapters: ["晚清时期", "民国初期至抗战前", "抗日战争与解放战争时期", "新中国成立后"]
-  },
-  {
-    name: "世界史",
-    chapters: ["古代世界史", "新航路开辟到两次工业革命", "两次大战期间的世界", "二战后的世界"]
-  }
-];
-
-const difficultyLabels: Record<Difficulty, string> = {
-  easy: "easy",
-  medium: "medium",
-  hard: "hard"
-};
 
 function getSubjectQuestions(subject: Subject, questions: QuizQuestion[]) {
   return questions.filter((question) => question.subject === subject);
@@ -86,61 +67,17 @@ function getSubjectChapters(subject: Subject, questions: QuizQuestion[]) {
   return [...new Set(getSubjectQuestions(subject, questions).map((question) => question.chapter))];
 }
 
-function buildModules(subject: Subject, questions: QuizQuestion[]): ChallengeModule[] {
-  const chapters = getSubjectChapters(subject, questions);
-
-  if (subject !== "history") {
-    return chapters.map((chapter) => ({ name: chapter, chapters: [chapter] }));
-  }
-
-  const knownChapters = new Set(historyModules.flatMap((module) => module.chapters));
-  const modules = historyModules
-    .map((module) => ({
-      ...module,
-      chapters: module.chapters.filter((chapter) => chapters.includes(chapter))
-    }))
-    .filter((module) => module.chapters.length > 0);
-
-  const unmatched = chapters.filter((chapter) => !knownChapters.has(chapter));
-  if (unmatched.length > 0) {
-    modules.push({ name: "历史综合训练", chapters: unmatched });
-  }
-
-  return modules;
-}
-
-function getDifficultyCounts(questions: QuizQuestion[]) {
-  return questions.reduce(
-    (counts, question) => {
-      counts[question.difficulty] += 1;
-      return counts;
-    },
-    { easy: 0, medium: 0, hard: 0 } satisfies Record<Difficulty, number>
-  );
-}
-
-function getTopTags(questions: QuizQuestion[]) {
+function getTagCounts(questions: QuizQuestion[]) {
   const tagCounts = new Map<string, number>();
   questions.forEach((question) => {
     question.tags.forEach((tag) => {
-      tagCounts.set(tag, (tagCounts.get(tag) ?? 0) + 1);
+      const normalizedTag = tag.trim();
+      if (normalizedTag) {
+        tagCounts.set(normalizedTag, (tagCounts.get(normalizedTag) ?? 0) + 1);
+      }
     });
   });
-
-  return [...tagCounts.entries()]
-    .sort((first, second) => second[1] - first[1])
-    .slice(0, 3)
-    .map(([tag]) => tag);
-}
-
-function getChapterStatus(done: number, total: number) {
-  if (total > 0 && done >= total) {
-    return "已完成";
-  }
-  if (done > 0) {
-    return "继续练习";
-  }
-  return "开始练习";
+  return tagCounts;
 }
 
 const questionsPerLevel = 10;
@@ -185,18 +122,76 @@ function buildMobileRoutePath(nodes: Pick<MapNode, "mobileX" | "mobileY">[]) {
   }, `M ${nodes[0].mobileX} ${nodes[0].mobileY}`);
 }
 
+function buildChapterUnits(chapterQuestions: QuizQuestion[]): ChapterUnit[] {
+  const tagCounts = getTagCounts(chapterQuestions);
+  const topTags = [...tagCounts.entries()]
+    .filter(([, count]) => count >= 2)
+    .sort((first, second) => second[1] - first[1])
+    .slice(0, 4)
+    .map(([tag]) => tag);
+
+  if (topTags.length >= 2) {
+    const groups = new Map<string, QuizQuestion[]>(topTags.map((tag) => [tag, []]));
+    const fallbackQuestions: QuizQuestion[] = [];
+
+    chapterQuestions.forEach((question) => {
+      const matchedTag = topTags.find((tag) => question.tags.includes(tag));
+      if (matchedTag) {
+        groups.get(matchedTag)?.push(question);
+      } else {
+        fallbackQuestions.push(question);
+      }
+    });
+
+    const units: ChapterUnit[] = [...groups.entries()]
+      .filter(([, unitQuestions]) => unitQuestions.length > 0)
+      .map(([tag, unitQuestions]) => ({
+        id: `tag:${tag}`,
+        name: tag,
+        questions: unitQuestions,
+        type: "tag"
+      }));
+
+    if (fallbackQuestions.length > 0) {
+      if (units.length < 5) {
+        units.push({
+          id: "level:extra",
+          name: "综合训练",
+          questions: fallbackQuestions,
+          type: "level"
+        });
+      } else {
+        units[units.length - 1].questions.push(...fallbackQuestions);
+      }
+    }
+
+    return units.slice(0, 5);
+  }
+
+  const levelCount = Math.max(1, Math.ceil(chapterQuestions.length / questionsPerLevel));
+  return Array.from({ length: levelCount }).map((_, index) => {
+    const start = index * questionsPerLevel;
+    return {
+      id: `level:${index + 1}`,
+      name: `${start + 1}-${Math.min(start + questionsPerLevel, chapterQuestions.length)} 题`,
+      questions: chapterQuestions.slice(start, start + questionsPerLevel),
+      type: "level"
+    };
+  });
+}
+
 function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<string>, questions: QuizQuestion[]): MapNode[] {
   if (!chapter) {
     return [];
   }
 
   const currentQuestions = questions.filter((question) => question.subject === subject && question.chapter === chapter);
-  const levelCount = Math.max(1, Math.ceil(currentQuestions.length / questionsPerLevel));
+  const units = buildChapterUnits(currentQuestions);
+  const levelCount = units.length;
   let foundCurrent = false;
 
-  return Array.from({ length: levelCount }).map((_, index) => {
-    const start = index * questionsPerLevel;
-    const levelQuestions = currentQuestions.slice(start, start + questionsPerLevel);
+  return units.map((unit, index) => {
+    const levelQuestions = unit.questions;
     const doneCount = levelQuestions.filter((question) => completedIds.has(question.id)).length;
     const total = levelQuestions.length;
     const done = total > 0 && doneCount >= total;
@@ -215,20 +210,20 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
 
     const position = getDesktopPosition(index, levelCount);
     const mobilePosition = getMobilePosition(index, levelCount);
-    const rangeStart = start + 1;
-    const rangeEnd = start + total;
+    const practiceId = unit.type === "tag" ? `${subject}:${chapter}:tag:${unit.name}` : `${subject}:${chapter}:level:${index + 1}`;
     return {
       chapter,
       index: index + 1,
       label: `第 ${index + 1} 关`,
-      subtitle: total > 0 ? `${rangeStart}-${rangeEnd} 题` : "题目待补充",
+      practiceId,
+      subtitle: total > 0 ? `${unit.name} · ${total} 题` : "题目待补充",
       subject,
       status,
       questionIds: levelQuestions.map((question) => question.id),
       done: doneCount,
       total,
       percent: getPercent(doneCount, total),
-      progressKey: `levelProgress:${subject}:${chapter}:${index + 1}`,
+      progressKey: `levelProgress:${subject}:${chapter}:${unit.id}`,
       x: position.x,
       y: position.y,
       mobileX: mobilePosition.x,
@@ -239,19 +234,11 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
 
 export function ChallengeMap({ questionSourceStatus, questions, startPractice }: ChallengeMapProps) {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
-  const [openModules, setOpenModules] = useState<string[]>([]);
   const completedIds = getCompletedQuestionIds();
   const totalProgress = getTotalProgress(completedIds, questions);
 
   function openSubject(subject: Subject) {
     setSelectedSubject(subject);
-    setOpenModules([]);
-  }
-
-  function toggleModule(moduleName: string) {
-    setOpenModules((current) =>
-      current.includes(moduleName) ? current.filter((item) => item !== moduleName) : [...current, moduleName]
-    );
   }
 
   if (selectedSubject) {
@@ -261,10 +248,8 @@ export function ChallengeMap({ questionSourceStatus, questions, startPractice }:
         questionSourceStatus={questionSourceStatus}
         questions={questions}
         onBack={() => setSelectedSubject(null)}
-        openModules={openModules}
         startPractice={startPractice}
         subject={selectedSubject}
-        toggleModule={toggleModule}
       />
     );
   }
@@ -337,21 +322,16 @@ function SubjectDetail({
   questionSourceStatus,
   questions,
   onBack,
-  openModules,
   startPractice,
-  subject,
-  toggleModule
+  subject
 }: {
   completedIds: Set<string>;
   questionSourceStatus: "loading" | "cloud" | "local";
   questions: QuizQuestion[];
   onBack: () => void;
-  openModules: string[];
   startPractice: (levelId: string) => void;
   subject: Subject;
-  toggleModule: (moduleName: string) => void;
 }) {
-  const modules = useMemo(() => buildModules(subject, questions), [questions, subject]);
   const chapters = useMemo(() => getSubjectChapters(subject, questions), [questions, subject]);
   const [selectedChapter, setSelectedChapter] = useState(() => getSubjectChapters(subject, questions)[0] ?? "");
 
@@ -400,32 +380,35 @@ function SubjectDetail({
       </section>
 
       <section className="overflow-hidden rounded-[1.25rem] border border-white/75 bg-white/72 p-3 shadow-[0_12px_30px_rgba(16,36,63,0.06)]">
-        <div className="mb-2 flex items-center justify-between gap-3">
-          <p className="text-sm font-black text-ink">选择章节</p>
-          <p className="shrink-0 text-xs font-black text-ink/46">{chapters.length} 个章节</p>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-ink">选择章节</p>
+            <p className="mt-1 text-xs font-bold leading-5 text-ink/48">按真实题库章节切换，章节全部开放，可自由进入学习</p>
+          </div>
+          <p className="shrink-0 rounded-full bg-[#EAF5F2] px-3 py-1 text-xs font-black text-tide">{chapters.length} 个章节</p>
         </div>
         {chapters.length === 0 ? (
           <p className="rounded-2xl bg-[#F7F1E4]/72 px-3 py-2 text-sm font-bold text-ink/54">这个学科还没有章节题目，补充题库后会自动出现。</p>
         ) : (
-          <div className="-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex min-w-max gap-2">
+          <div className="-mx-1 overflow-x-auto px-1 pb-1.5 pt-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max gap-2.5">
               {chapters.map((chapter) => {
                 const active = chapter === selectedChapter;
                 const itemProgress = getChapterProgress(subject, chapter, completedIds, questions);
 
                 return (
                   <button
-                    className={`min-h-10 rounded-2xl px-3 text-sm font-black transition ${
+                    className={`inline-flex min-h-11 items-center gap-2 rounded-full border px-3.5 text-sm font-black transition ${
                       active
-                        ? "bg-ink text-white shadow-[0_10px_22px_rgba(16,36,63,0.16)]"
-                        : "bg-[#F7F1E4]/86 text-ink/62 hover:bg-white hover:text-tide"
+                        ? "border-ink bg-ink text-white shadow-[0_12px_24px_rgba(16,36,63,0.20)]"
+                        : "border-white/80 bg-[#FFF8EC]/82 text-ink/68 shadow-[0_6px_16px_rgba(16,36,63,0.04)] hover:-translate-y-0.5 hover:bg-white hover:text-tide"
                     }`}
                     key={chapter}
                     onClick={() => setSelectedChapter(chapter)}
                     type="button"
                   >
-                    {chapter}
-                    <span className={`ml-2 text-xs ${active ? "text-white/60" : "text-ink/40"}`}>{itemProgress.total} 题</span>
+                    <span>{chapter}</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-white/14 text-white/72" : "bg-ink/5 text-ink/42"}`}>{itemProgress.total} 题</span>
                   </button>
                 );
               })}
@@ -435,14 +418,18 @@ function SubjectDetail({
       </section>
 
       <section className="relative overflow-hidden rounded-[1.8rem] border border-white/75 bg-[#F7F1E4] shadow-[0_18px_48px_rgba(16,36,63,0.08)]">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(20,150,163,0.11),transparent_15rem),radial-gradient(circle_at_86%_12%,rgba(233,91,79,0.055),transparent_18rem),linear-gradient(180deg,#F8F2E6_0%,#EEF6EF_100%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:radial-gradient(#0B1F3A_0.7px,transparent_0.7px)] [background-size:18px_18px]" />
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_9%,rgba(20,150,163,0.13),transparent_16rem),radial-gradient(circle_at_88%_14%,rgba(233,91,79,0.065),transparent_18rem),radial-gradient(circle_at_50%_86%,rgba(247,241,228,0.86),transparent_18rem),linear-gradient(180deg,#FAF4E8_0%,#F8F1E4_46%,#EAF5F2_100%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(#0B1F3A_0.68px,transparent_0.68px)] [background-size:18px_18px]" />
+        <div className="pointer-events-none absolute left-[11%] top-[18%] size-2 rounded-full bg-[#1496A3]/18 blur-[1px]" />
+        <div className="pointer-events-none absolute right-[18%] top-[22%] size-1.5 rounded-full bg-[#E95B4F]/18 blur-[1px]" />
+        <div className="pointer-events-none absolute right-[28%] bottom-[24%] size-2 rounded-full bg-[#F3B24A]/22 blur-[1px]" />
 
         <div className="relative hidden h-[600px] md:block">
           <InkMountainBackground variant="desktop" />
           <svg className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100">
-            <path d={desktopRoutePath} fill="none" stroke="#829D96" strokeDasharray="1.8 2.8" strokeLinecap="round" strokeWidth="0.8" opacity=".82" />
-            <path d={desktopRoutePath} fill="none" stroke="#F7F1E4" strokeDasharray="1.8 2.8" strokeLinecap="round" strokeWidth="0.35" opacity=".7" />
+            <path d={desktopRoutePath} fill="none" stroke="#F7F1E4" strokeLinecap="round" strokeWidth="2.1" opacity=".55" />
+            <path d={desktopRoutePath} fill="none" stroke="#78958D" strokeDasharray="1.4 3" strokeLinecap="round" strokeWidth="0.95" opacity=".78" />
+            <path d={desktopRoutePath} fill="none" stroke="#1496A3" strokeDasharray="1 5" strokeLinecap="round" strokeWidth="0.45" opacity=".26" />
           </svg>
           {chapters.length === 0 && (
             <div className="absolute inset-0 grid place-items-center p-6 text-center">
@@ -461,71 +448,18 @@ function SubjectDetail({
         <div className="relative md:hidden" style={{ height: `${mobileMapHeight}px` }}>
           <InkMountainBackground variant="mobile" />
           <svg className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 112">
-            <path d={mobileRoutePath} fill="none" stroke="#829D96" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth="1.15" opacity=".76" />
-            <path d={mobileRoutePath} fill="none" stroke="#F7F1E4" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth=".45" opacity=".72" />
+            <path d={mobileRoutePath} fill="none" stroke="#F7F1E4" strokeLinecap="round" strokeWidth="2.2" opacity=".58" />
+            <path d={mobileRoutePath} fill="none" stroke="#78958D" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth="1.15" opacity=".74" />
+            <path d={mobileRoutePath} fill="none" stroke="#1496A3" strokeDasharray="1 5" strokeLinecap="round" strokeWidth=".5" opacity=".24" />
           </svg>
           {mapNodes.map((node) => (
             <MapLevelNode key={`${node.label}-${node.index}-mobile`} mode="mobile" node={node} startPractice={startPractice} />
           ))}
         </div>
 
-        <ChapterProgressReward done={rewardDone} percent={chapterProgress.percent} total={rewardTotal} />
+        <ChapterProgressReward chapter={selectedChapter} percent={chapterProgress.percent} questionDone={chapterProgress.done} questionTotal={chapterProgress.total} rewardDone={rewardDone} rewardTotal={rewardTotal} unitDone={mapNodes.filter((node) => node.status === "done").length} unitTotal={mapNodes.length} />
       </section>
 
-      <div className="hidden">
-        {modules.length === 0 && (
-          <GameCard className="py-8 text-center">
-            <p className="text-xl font-black text-ink">这个学科还没有题目</p>
-            <p className="mt-2 text-sm font-semibold text-ink/58">稍后在题库里补充后，这里会自动出现章节。</p>
-          </GameCard>
-        )}
-
-        {modules.map((module) => {
-          const moduleProgress = getModuleProgress(subject, module.chapters, completedIds, questions);
-          const isOpen = openModules.includes(module.name);
-
-          return (
-            <section className="rounded-[1.4rem] border border-white/70 bg-white/58 p-3 shadow-soft sm:p-4" key={module.name}>
-              <button
-                className="grid w-full min-w-0 gap-3 rounded-2xl bg-white/82 p-4 text-left transition hover:-translate-y-0.5 hover:shadow-game sm:grid-cols-[1fr_180px_44px] sm:items-center"
-                onClick={() => toggleModule(module.name)}
-                type="button"
-              >
-                <div className="min-w-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-black leading-tight text-ink">{module.name}</h2>
-                    <span className="rounded-full bg-tide/10 px-3 py-1 text-xs font-black text-tide">{moduleProgress.total} 题</span>
-                  </div>
-                  <p className="mt-2 text-xs font-black text-ink/52">
-                    已完成 {moduleProgress.done} / {moduleProgress.total} · {moduleProgress.percent}%
-                  </p>
-                </div>
-                <div className="min-w-0">
-                  <ProgressBar value={moduleProgress.percent} />
-                </div>
-                <span className="grid size-11 place-items-center rounded-2xl bg-ink text-lg font-black text-white shadow-insetGame">
-                  {isOpen ? "收" : "展"}
-                </span>
-              </button>
-
-              {isOpen && (
-                <div className="mt-3 grid gap-3 lg:grid-cols-2">
-                  {module.chapters.map((chapter) => (
-                    <ChapterCard
-                      chapter={chapter}
-                      completedIds={completedIds}
-                      questions={questions}
-                      key={chapter}
-                      startPractice={startPractice}
-                      subject={subject}
-                    />
-                  ))}
-                </div>
-              )}
-            </section>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -534,13 +468,16 @@ function InkMountainBackground({ variant }: { variant: "desktop" | "mobile" }) {
   return (
     <>
       <svg className="pointer-events-none absolute inset-x-0 bottom-10 h-[86%] w-full blur-[0.2px]" preserveAspectRatio="none" viewBox="0 0 1000 620">
-        <path d="M0 320 C120 230 205 286 315 180 C432 68 516 230 615 138 C730 32 825 178 1000 80 L1000 620 L0 620 Z" fill="#D8E8E1" opacity={variant === "desktop" ? ".62" : ".52"} />
-        <path d="M0 410 C145 300 260 365 380 245 C495 130 600 330 720 210 C825 105 910 235 1000 160 L1000 620 L0 620 Z" fill="#C8DCD3" opacity={variant === "desktop" ? ".48" : ".38"} />
-        <path d="M0 505 C130 415 250 445 365 360 C510 252 620 462 750 330 C865 215 930 335 1000 280 L1000 620 L0 620 Z" fill="#AFC8BE" opacity={variant === "desktop" ? ".22" : ".16"} />
+        <path d="M0 300 C100 222 178 270 292 166 C430 42 514 222 616 122 C730 10 828 172 1000 68 L1000 620 L0 620 Z" fill="#DCEAE4" opacity={variant === "desktop" ? ".70" : ".58"} />
+        <path d="M0 382 C122 286 232 338 360 222 C492 102 590 310 722 196 C835 98 920 218 1000 145 L1000 620 L0 620 Z" fill="#C9DDD4" opacity={variant === "desktop" ? ".50" : ".40"} />
+        <path d="M0 500 C130 410 250 440 365 355 C510 248 620 458 750 326 C865 212 930 332 1000 276 L1000 620 L0 620 Z" fill="#AFC8BE" opacity={variant === "desktop" ? ".24" : ".18"} />
+        <path d="M0 550 C180 488 276 528 420 464 C570 396 680 535 820 454 C910 402 960 430 1000 398 L1000 620 L0 620 Z" fill="#8FAEA4" opacity={variant === "desktop" ? ".10" : ".08"} />
       </svg>
-      <div className="pointer-events-none absolute left-8 top-20 h-16 w-56 rounded-full bg-white/35 blur-2xl" />
-      <div className="pointer-events-none absolute right-10 top-32 h-20 w-72 rounded-full bg-white/30 blur-2xl" />
-      <div className="pointer-events-none absolute bottom-32 left-1/3 h-16 w-64 rounded-full bg-[#F7F1E4]/45 blur-2xl" />
+      <div className="pointer-events-none absolute left-8 top-20 h-16 w-56 rounded-full bg-white/38 blur-2xl" />
+      <div className="pointer-events-none absolute right-10 top-32 h-20 w-72 rounded-full bg-white/32 blur-2xl" />
+      <div className="pointer-events-none absolute bottom-32 left-1/3 h-16 w-64 rounded-full bg-[#F7F1E4]/50 blur-2xl" />
+      <div className="pointer-events-none absolute left-[18%] top-[28%] h-8 w-24 rounded-full bg-white/24 blur-xl" />
+      <div className="pointer-events-none absolute right-[22%] bottom-[36%] h-10 w-32 rounded-full bg-white/20 blur-xl" />
     </>
   );
 }
@@ -550,20 +487,20 @@ function MapLevelNode({ mode, node, startPractice }: { mode: "desktop" | "mobile
   const statusLabel = node.status === "done" ? "已完成" : node.status === "current" ? "进行中" : "未解锁";
   const nodeClass =
     node.status === "done"
-      ? "bg-[#1496A3] text-white shadow-[0_12px_24px_rgba(20,150,163,0.26)]"
+      ? "bg-[#1496A3] text-white shadow-[0_14px_28px_rgba(20,150,163,0.28)]"
       : node.status === "current"
-        ? "bg-[#E95B4F] text-white shadow-[0_12px_26px_rgba(233,91,79,0.30)]"
-        : "bg-[#273446] text-white/80 shadow-[0_8px_18px_rgba(39,52,70,0.16)]";
+        ? "bg-[#E95B4F] text-white shadow-[0_0_0_8px_rgba(233,91,79,0.10),0_16px_30px_rgba(233,91,79,0.34)]"
+        : "bg-[#273446]/72 text-white/76 shadow-[0_8px_18px_rgba(39,52,70,0.13)] backdrop-blur";
   const left = mode === "mobile" ? node.mobileX : node.x;
   const top = mode === "mobile" ? node.mobileY : node.y;
-  const nodeSize = mode === "mobile" ? "size-12" : "size-14";
-  const labelWidth = mode === "mobile" ? "max-w-[112px]" : "max-w-[132px]";
+  const nodeSize = mode === "mobile" ? (node.status === "current" ? "size-14" : "size-12") : (node.status === "current" ? "size-16" : "size-14");
+  const labelWidth = mode === "mobile" ? "w-[138px]" : "w-[168px]";
 
   return (
     <button
-      className="absolute min-w-[92px] -translate-x-1/2 -translate-y-1/2 text-center transition enabled:hover:-translate-y-[54%] disabled:cursor-not-allowed"
+      className="absolute min-w-[112px] -translate-x-1/2 -translate-y-1/2 text-center transition enabled:hover:-translate-y-[54%] disabled:cursor-not-allowed"
       disabled={!clickable}
-      onClick={() => startPractice(`${node.subject}:${node.chapter}:${node.index}`)}
+      onClick={() => startPractice(node.practiceId)}
       style={{ left: `${left}%`, top: `${top}%` }}
       type="button"
       title={node.progressKey}
@@ -574,106 +511,62 @@ function MapLevelNode({ mode, node, startPractice }: { mode: "desktop" | "mobile
             <Flag className="size-7 fill-current" />
           </span>
         )}
+        {node.status === "done" && <span className="absolute -right-1 -top-1 grid size-5 place-items-center rounded-full border-2 border-white bg-[#F3B24A] text-[10px] font-black text-white">✓</span>}
         <span className={`grid ${nodeSize} place-items-center border-[4px] border-white text-lg font-black ${node.status === "done" ? "rounded-[1.05rem]" : "rounded-2xl"} ${nodeClass}`}>
           {node.status === "locked" ? <Lock className="size-4" /> : node.index}
         </span>
       </span>
-      <span className={`mx-auto mt-2 block ${labelWidth} rounded-full bg-[#FFFCF5]/82 px-3 py-1 text-[11px] font-black leading-4 text-ink shadow-[0_7px_16px_rgba(16,36,63,0.08)] backdrop-blur`}>
-        {node.label}
-        <span className="block text-[10px] font-bold text-ink/46">{node.subtitle}</span>
-      </span>
-      <span className={`mt-1 block text-[11px] font-black ${node.status === "done" ? "text-[#1496A3]" : node.status === "current" ? "text-[#E95B4F]" : "text-ink/42"}`}>
-        {statusLabel}
+      <span className={`mx-auto mt-2 block ${labelWidth} rounded-[1rem] border border-white/80 bg-[#FFFCF5]/86 px-3 py-2 text-ink shadow-[0_8px_18px_rgba(16,36,63,0.09)] backdrop-blur`}>
+        <span className="block text-[10px] font-black uppercase tracking-[0.12em] text-ink/42">{node.label}</span>
+        <span className="mt-0.5 line-clamp-2 block text-[12px] font-black leading-4 text-ink">{node.subtitle.split(" · ")[0]}</span>
+        <span className={`mt-1 block text-[10px] font-black ${node.status === "done" ? "text-[#1496A3]" : node.status === "current" ? "text-[#E95B4F]" : "text-ink/40"}`}>
+          {node.total} 题 · {node.status === "locked" ? "完成前一关后开启" : statusLabel}
+        </span>
       </span>
     </button>
   );
 }
 
-function ChapterProgressReward({ done, percent, total }: { done: number; percent: number; total: number }) {
+function ChapterProgressReward({
+  chapter,
+  percent,
+  questionDone,
+  questionTotal,
+  rewardDone,
+  rewardTotal,
+  unitDone,
+  unitTotal
+}: {
+  chapter: string;
+  percent: number;
+  questionDone: number;
+  questionTotal: number;
+  rewardDone: number;
+  rewardTotal: number;
+  unitDone: number;
+  unitTotal: number;
+}) {
   return (
-    <div className="relative z-10 mx-3 mb-3 rounded-[1.25rem] border border-white/80 bg-white/88 p-3 shadow-[0_12px_34px_rgba(16,36,63,0.10)] backdrop-blur md:absolute md:inset-x-5 md:bottom-5 md:mx-0 md:mb-0 md:rounded-[1.4rem]">
-      <div className="grid gap-3 sm:grid-cols-[auto_1fr_auto] sm:items-center">
-        <p className="text-xs font-black text-ink/66 sm:text-sm">完成本章节获得 <span className="text-gold">⭐</span> {done} / {total}</p>
-        <div className="h-3 overflow-hidden rounded-full bg-ink/10">
-          <div className="h-full rounded-full bg-[#1496A3]" style={{ width: `${percent}%` }} />
+    <div className="relative z-10 mx-3 mb-3 rounded-[1.25rem] border border-white/80 bg-white/90 p-3 shadow-[0_12px_34px_rgba(16,36,63,0.10)] backdrop-blur md:absolute md:inset-x-5 md:bottom-5 md:mx-0 md:mb-0 md:rounded-[1.4rem] md:p-4">
+      <div className="grid gap-3 md:grid-cols-[1.2fr_1fr_auto] md:items-center">
+        <div className="min-w-0">
+          <p className="text-[11px] font-black uppercase tracking-[0.15em] text-tide">Chapter Overview</p>
+          <p className="mt-1 truncate text-sm font-black text-ink sm:text-base">{chapter || "暂无章节"}</p>
+          <p className="mt-1 text-xs font-bold text-ink/52">本章 {questionTotal} 题 · 已完成 {questionDone} 题 · {unitTotal} 个学习单元 · 已完成 {unitDone} 个</p>
         </div>
-        <span className="grid size-11 place-items-center rounded-2xl bg-[#F7F1E4] text-[#E95B4F]">
+        <div className="min-w-0">
+          <div className="mb-2 flex items-center justify-between text-xs font-black text-ink/58">
+            <span>章节进度</span>
+            <span>{percent}%</span>
+          </div>
+          <div className="h-3 overflow-hidden rounded-full bg-ink/10">
+            <div className="h-full rounded-full bg-[#1496A3]" style={{ width: `${percent}%` }} />
+          </div>
+        </div>
+        <span className="grid size-11 place-items-center rounded-2xl bg-[#F7F1E4] text-[#E95B4F] shadow-[inset_0_-2px_0_rgba(16,36,63,0.06)]" title={`完成本章节获得 ${rewardDone} / ${rewardTotal}`}>
           <Gift className="size-6" />
         </span>
       </div>
     </div>
-  );
-}
-
-function ChapterCard({
-  chapter,
-  completedIds,
-  questions,
-  startPractice,
-  subject
-}: {
-  chapter: string;
-  completedIds: Set<string>;
-  questions: QuizQuestion[];
-  startPractice: (levelId: string) => void;
-  subject: Subject;
-}) {
-  const chapterQuestions = questions.filter((question) => question.subject === subject && question.chapter === chapter);
-  const progress = getChapterProgress(subject, chapter, completedIds, questions);
-  const difficultyCounts = getDifficultyCounts(chapterQuestions);
-  const topTags = getTopTags(chapterQuestions);
-  const status = getChapterStatus(progress.done, progress.total);
-  const isDone = progress.total > 0 && progress.done >= progress.total;
-  const isStarted = progress.done > 0 && !isDone;
-
-  return (
-    <button
-      className={`min-w-0 rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 hover:shadow-game disabled:cursor-not-allowed disabled:opacity-65 ${
-        isDone ? "border-leaf/30 bg-leaf/12" : isStarted ? "border-coral/24 bg-coral/8" : "border-white/80 bg-white/86"
-      }`}
-      disabled={chapterQuestions.length === 0}
-      onClick={() => startPractice(`${subject}:${chapter}`)}
-      type="button"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-xs font-black text-tide">{subjectLabels[subject]}章节</p>
-          <h3 className="mt-1 text-lg font-black leading-tight text-ink">{chapter}</h3>
-        </div>
-        {isDone && <span className="grid size-8 shrink-0 place-items-center rounded-full bg-leaf text-sm font-black text-white">✓</span>}
-      </div>
-
-      {chapterQuestions.length === 0 ? (
-        <p className="mt-4 rounded-2xl bg-white/72 p-3 text-sm font-bold text-ink/52">这个章节还没有题目，稍后补充。</p>
-      ) : (
-        <>
-          <div className="mt-4 space-y-2">
-            <div className="flex items-center justify-between text-xs font-black text-ink/58">
-              <span>已完成 {progress.done} / {progress.total}</span>
-              <span>{progress.percent}%</span>
-            </div>
-            <ProgressBar value={progress.percent} />
-          </div>
-
-          <div className="mt-4 flex flex-wrap gap-2">
-            {Object.entries(difficultyCounts).map(([difficulty, count]) => (
-              <span className="rounded-full bg-ink/6 px-3 py-1 text-xs font-black text-ink/58" key={difficulty}>
-                {difficultyLabels[difficulty as Difficulty]} {count}
-              </span>
-            ))}
-          </div>
-
-          <div className="mt-3 flex flex-wrap gap-2">
-            {topTags.map((tag) => (
-              <span className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink/52" key={tag}>{tag}</span>
-            ))}
-          </div>
-
-          <span className="mt-4 flex min-h-12 items-center justify-center rounded-2xl bg-coral px-4 text-sm font-black text-white shadow-insetGame">
-            {status}
-          </span>
-        </>
-      )}
-    </button>
   );
 }

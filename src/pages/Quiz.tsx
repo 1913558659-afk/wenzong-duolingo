@@ -32,6 +32,28 @@ function getEncouragement(score: number, total: number) {
 function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
   if (selectedLevelId?.includes(":")) {
     const [subject, ...rest] = selectedLevelId.split(":");
+    const marker = rest[rest.length - 2];
+    const markerValue = rest[rest.length - 1];
+
+    if (marker === "tag" && markerValue) {
+      return {
+        subject: subject as Subject,
+        chapter: rest.slice(0, -2).join(":"),
+        levelIndex: 1,
+        tag: markerValue
+      };
+    }
+
+    if (marker === "level") {
+      const levelIndex = Number(markerValue);
+      return {
+        subject: subject as Subject,
+        chapter: rest.slice(0, -2).join(":"),
+        levelIndex: Number.isInteger(levelIndex) && levelIndex > 0 ? levelIndex : 1,
+        tag: ""
+      };
+    }
+
     const possibleLevel = Number(rest[rest.length - 1]);
     const hasLevelIndex = Number.isInteger(possibleLevel) && possibleLevel > 0;
     const chapterParts = hasLevelIndex ? rest.slice(0, -1) : rest;
@@ -39,12 +61,13 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
     return {
       subject: subject as Subject,
       chapter: chapterParts.join(":"),
-      levelIndex: hasLevelIndex ? possibleLevel : 1
+      levelIndex: hasLevelIndex ? possibleLevel : 1,
+      tag: ""
     };
   }
 
   const fallback = questions[0];
-  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "", levelIndex: 1 };
+  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "", levelIndex: 1, tag: "" };
 }
 
 export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questions: allQuestions, token }: QuizProps) {
@@ -52,10 +75,13 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
   const questions = useMemo(
     () => {
       const chapterQuestions = allQuestions.filter((question) => question.subject === level.subject && question.chapter === level.chapter);
+      if (level.tag) {
+        return chapterQuestions.filter((question) => question.tags.includes(level.tag));
+      }
       const start = (level.levelIndex - 1) * questionsPerLevel;
       return chapterQuestions.slice(start, start + questionsPerLevel);
     },
-    [allQuestions, level.chapter, level.levelIndex, level.subject]
+    [allQuestions, level.chapter, level.levelIndex, level.subject, level.tag]
   );
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
@@ -65,7 +91,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
   if (questions.length === 0) {
     return (
       <div>
-        <PageHeader title="题目待补充" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter || "未选择章节"} · 第 ${level.levelIndex} 关`} />
+        <PageHeader title="题目待补充" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter || "未选择章节"} · ${level.tag || `第 ${level.levelIndex} 关`}`} />
         <GameCard className="space-y-3 text-center">
           <p className="text-sm font-semibold leading-6 text-ink/68">这个章节的数据结构已经准备好，题目内容还可以继续在 `src/data/questions.ts` 里添加。</p>
           <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide" onClick={goMap} type="button">
@@ -113,7 +139,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
   if (finished) {
     return (
       <div>
-      <PageHeader title="本关完成" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · 第 ${level.levelIndex} 关`} />
+      <PageHeader title="本关完成" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`}`} />
         <GameCard className="space-y-5 text-center">
           <p className="text-sm font-black text-tide">你的得分</p>
           <p className="text-5xl font-black text-ink">{correctAnswers} / {questions.length}</p>
@@ -135,7 +161,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
 
   return (
     <div>
-      <PageHeader title="选择题练习页" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · 第 ${level.levelIndex} 关 · 最多 10 道单选题`} />
+      <PageHeader title="选择题练习页" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`} · ${level.tag ? "标签专项练习" : "最多 10 道单选题"}`} />
       <QuizCard
         currentNumber={questionIndex + 1}
         nextLabel={questionIndex + 1 >= questions.length ? "查看成绩" : "下一题"}
