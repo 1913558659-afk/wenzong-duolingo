@@ -7,7 +7,6 @@ import remarkMath from "remark-math";
 type MarkdownContentProps = {
   content?: string | null;
   className?: string;
-  debugLabel?: string;
 };
 
 function normalizeMarkdownContent(content: string) {
@@ -16,22 +15,18 @@ function normalizeMarkdownContent(content: string) {
     .replace(/\\n/g, "\n");
 }
 
-export function MarkdownContent({ className = "", content, debugLabel }: MarkdownContentProps) {
+export function MarkdownContent({ className = "", content }: MarkdownContentProps) {
   if (!content) {
     return null;
   }
 
   const normalizedContent = normalizeMarkdownContent(content);
 
-  if (import.meta.env.DEV && debugLabel) {
-    console.log(`[MarkdownContent ${debugLabel}]`, JSON.stringify(normalizedContent));
-  }
-
   return (
     <div className={`min-w-0 max-w-full break-words leading-7 text-inherit ${className}`}>
       <ReactMarkdown
         rehypePlugins={[rehypeKatex]}
-        remarkPlugins={[remarkGfm, remarkMath]}
+        remarkPlugins={[[remarkMath, { singleDollarTextMath: true }], remarkGfm]}
         components={{
           a: ({ children, href }) => (
             <a className="font-black text-tide underline decoration-tide/30 underline-offset-4" href={href} rel="noreferrer" target="_blank">
