@@ -39,7 +39,7 @@ export function QuizCard({ question, currentNumber, total, onAnswer, onNext, nex
         <span className="text-xs font-black text-ink/52">{currentNumber} / {total}</span>
       </div>
       <div className="text-xl font-black leading-snug text-ink sm:text-2xl">
-        <MarkdownContent content={question.question} />
+        <MarkdownContent content={question.question} debugLabel="question stem" />
       </div>
       <div className="space-y-3">
         {question.options.map((option, index) => {

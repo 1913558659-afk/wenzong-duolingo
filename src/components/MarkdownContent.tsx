@@ -4,11 +4,24 @@ import remarkGfm from "remark-gfm";
 type MarkdownContentProps = {
   content?: string | null;
   className?: string;
+  debugLabel?: string;
 };
 
-export function MarkdownContent({ className = "", content }: MarkdownContentProps) {
+function normalizeMarkdownContent(content: string) {
+  return content
+    .replace(/\r\n/g, "\n")
+    .replace(/\\n/g, "\n");
+}
+
+export function MarkdownContent({ className = "", content, debugLabel }: MarkdownContentProps) {
   if (!content) {
     return null;
+  }
+
+  const normalizedContent = normalizeMarkdownContent(content);
+
+  if (import.meta.env.DEV && debugLabel) {
+    console.log(`[MarkdownContent ${debugLabel}]`, JSON.stringify(normalizedContent));
   }
 
   return (
@@ -42,7 +55,7 @@ export function MarkdownContent({ className = "", content }: MarkdownContentProp
           ul: ({ children }) => <ul className="my-2 list-disc space-y-1 pl-5">{children}</ul>
         }}
       >
-        {content}
+        {normalizedContent}
       </ReactMarkdown>
     </div>
   );
