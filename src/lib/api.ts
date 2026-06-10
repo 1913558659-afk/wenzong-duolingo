@@ -99,6 +99,14 @@ export type NormalizedQuestionsResponse = {
 
 type QuestionsApiResponse = BackendQuestion[] | QuestionsResponse;
 
+function apiUrl(path: string) {
+  const normalizedBase = apiBaseUrl.replace(/\/$/, "");
+  if (normalizedBase.endsWith("/api") && path.startsWith("/api/")) {
+    return `${normalizedBase}${path.slice(4)}`;
+  }
+  return `${normalizedBase}${path}`;
+}
+
 async function apiRequest<T>(path: string, options: ApiOptions = {}) {
   const headers = new Headers(options.headers);
   headers.set("Content-Type", "application/json");
@@ -107,7 +115,7 @@ async function apiRequest<T>(path: string, options: ApiOptions = {}) {
     headers.set("Authorization", `Bearer ${options.token}`);
   }
 
-  const response = await fetch(`${apiBaseUrl}${path}`, {
+  const response = await fetch(apiUrl(path), {
     ...options,
     headers
   });
@@ -145,8 +153,22 @@ export function fetchProgressMe(token: string) {
   return apiRequest<ProgressMeResponse>("/api/progress/me", { token });
 }
 
-function normalizeSubject(code?: string): Subject {
-  return code === "history" || code === "politics" || code === "geography" ? code : "history";
+function normalizeSubject(code?: string, name?: string): Subject {
+  const value = `${code ?? ""} ${name ?? ""}`.trim().toLowerCase();
+  if (["history", "历史", "历史学科", "中国历史", "history subject"].some((label) => value.includes(label.toLowerCase()))) {
+    return "history";
+  }
+  if (["politics", "政治", "思想政治", "政治学科"].some((label) => value.includes(label.toLowerCase()))) {
+    return "politics";
+  }
+  if (["geography", "地理", "地理学科"].some((label) => value.includes(label.toLowerCase()))) {
+    return "geography";
+  }
+  return "history";
+}
+
+function normalizeChapter(title?: string, code?: string) {
+  return (title ?? code ?? "未分类章节").trim() || "未分类章节";
 }
 
 function normalizeDifficulty(value?: string): Difficulty {
@@ -172,8 +194,8 @@ function answerText(question: BackendQuestion) {
 export function mapBackendQuestion(question: BackendQuestion): QuizQuestion {
   return {
     id: question.questionCode ?? question.id ?? "",
-    subject: normalizeSubject(question.subject?.code),
-    chapter: question.chapter?.title ?? "未分类章节",
+    subject: normalizeSubject(question.subject?.code, question.subject?.name),
+    chapter: normalizeChapter(question.chapter?.title, question.chapter?.code),
     difficulty: normalizeDifficulty(question.difficulty),
     question: question.stem ?? "",
     options: [question.optionA ?? "", question.optionB ?? "", question.optionC ?? "", question.optionD ?? ""],

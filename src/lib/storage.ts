@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { quizQuestions } from "@/data/questions";
 import { defaultScheduleItems } from "@/data/timetable";
 import { fetchProgressMe } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
@@ -139,7 +138,7 @@ function loadWrongAnswers() {
   return saved ? (JSON.parse(saved) as WrongAnswerRecord[]) : [];
 }
 
-export function useWrongAnswers(token?: string | null) {
+export function useWrongAnswers(token?: string | null, questions: QuizQuestion[] = []) {
   const [records, setRecords] = useState<WrongAnswerRecord[]>([]);
   const [syncError, setSyncError] = useState(false);
 
@@ -156,7 +155,7 @@ export function useWrongAnswers(token?: string | null) {
       .then((progress) => {
         setSyncError(false);
         if (progress.wrongQuestions) {
-          const next = progress.wrongQuestions.map(normalizeWrongAnswer);
+          const next = progress.wrongQuestions.map((record) => normalizeWrongAnswer(record, questions));
           setRecords(next);
           window.localStorage.setItem(wrongBookKey, JSON.stringify(next));
         }
@@ -168,7 +167,7 @@ export function useWrongAnswers(token?: string | null) {
         setSyncError(true);
         // 后端暂时不可用时，保留游客本地错题本。
       });
-  }, [token]);
+  }, [questions, token]);
 
   function save(next: WrongAnswerRecord[]) {
     setRecords(next);
@@ -210,8 +209,8 @@ export function useWrongAnswers(token?: string | null) {
   return { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers, syncError };
 }
 
-function normalizeWrongAnswer(record: WrongAnswerRecord) {
-  const question = quizQuestions.find((item) => item.id === record.questionId);
+function normalizeWrongAnswer(record: WrongAnswerRecord, questions: QuizQuestion[]) {
+  const question = questions.find((item) => item.id === record.questionId);
 
   return {
     ...record,

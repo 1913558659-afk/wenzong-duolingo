@@ -1,4 +1,3 @@
-import { quizQuestions } from "@/data/questions";
 import type { QuizQuestion, Subject } from "@/types";
 
 const completedQuestionsKey = "wenzong-island-completed-question-ids";
@@ -47,7 +46,7 @@ function countCompleted(questions: QuizQuestion[], completedIds = getCompletedQu
   return questions.filter((question) => completedIds.has(question.id)).length;
 }
 
-export function getSubjectProgress(subject: Subject, completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+export function getSubjectProgress(subject: Subject, completedIds = getCompletedQuestionIds(), sourceQuestions: QuizQuestion[] = []) {
   const questions = sourceQuestions.filter((question) => question.subject === subject);
   const done = countCompleted(questions, completedIds);
 
@@ -58,7 +57,7 @@ export function getSubjectProgress(subject: Subject, completedIds = getCompleted
   };
 }
 
-export function getChapterProgress(subject: Subject, chapter: string, completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+export function getChapterProgress(subject: Subject, chapter: string, completedIds = getCompletedQuestionIds(), sourceQuestions: QuizQuestion[] = []) {
   const questions = sourceQuestions.filter((question) => question.subject === subject && question.chapter === chapter);
   const done = countCompleted(questions, completedIds);
 
@@ -69,7 +68,7 @@ export function getChapterProgress(subject: Subject, chapter: string, completedI
   };
 }
 
-export function getModuleProgress(subject: Subject, chapters: string[], completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+export function getModuleProgress(subject: Subject, chapters: string[], completedIds = getCompletedQuestionIds(), sourceQuestions: QuizQuestion[] = []) {
   const chapterSet = new Set(chapters);
   const questions = sourceQuestions.filter((question) => question.subject === subject && chapterSet.has(question.chapter));
   const done = countCompleted(questions, completedIds);
@@ -81,7 +80,7 @@ export function getModuleProgress(subject: Subject, chapters: string[], complete
   };
 }
 
-export function getTotalProgress(completedIds = getCompletedQuestionIds(), sourceQuestions = quizQuestions) {
+export function getTotalProgress(completedIds = getCompletedQuestionIds(), sourceQuestions: QuizQuestion[] = []) {
   const done = countCompleted(sourceQuestions, completedIds);
 
   return {

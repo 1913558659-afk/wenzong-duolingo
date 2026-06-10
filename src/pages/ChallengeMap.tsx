@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Flag, Gift, Lock, Star } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
@@ -9,6 +9,7 @@ import {
   getChapterProgress,
   getCompletedQuestionIds,
   getModuleProgress,
+  getPercent,
   getSubjectProgress,
   getTotalProgress
 } from "@/utils/progress";
@@ -36,9 +37,14 @@ type MapNode = {
   chapter: string;
   index: number;
   label: string;
+  subtitle: string;
   subject: Subject;
   status: MapNodeStatus;
-  progress: ReturnType<typeof getChapterProgress>;
+  questionIds: string[];
+  done: number;
+  total: number;
+  percent: number;
+  progressKey: string;
   x: number;
   y: number;
   mobileX: number;
@@ -137,41 +143,63 @@ function getChapterStatus(done: number, total: number) {
   return "开始练习";
 }
 
-const sampleHistoryNodes = ["夏商周", "西周的兴衰", "春秋争霸", "战国变法", "百家争鸣", "秦的统一"];
+const questionsPerLevel = 10;
 
-const nodePositions = [
-  { x: 17, y: 56 },
-  { x: 30, y: 35 },
-  { x: 44, y: 60 },
-  { x: 56, y: 44 },
-  { x: 69, y: 61 },
-  { x: 81, y: 38 },
-  { x: 75, y: 73 },
-  { x: 58, y: 76 }
-];
+function getDesktopPosition(index: number, total: number) {
+  if (total <= 1) {
+    return { x: 50, y: 48 };
+  }
 
-const mobileNodePositions = [
-  { x: 28, y: 10 },
-  { x: 70, y: 24 },
-  { x: 30, y: 38 },
-  { x: 70, y: 52 },
-  { x: 30, y: 66 },
-  { x: 70, y: 80 },
-  { x: 35, y: 92 },
-  { x: 70, y: 104 }
-];
+  const x = 14 + (72 * index) / (total - 1);
+  const y = index % 2 === 0 ? 57 : 38;
+  return { x, y };
+}
 
-function buildMapNodes(subject: Subject, modules: ChallengeModule[], completedIds: Set<string>, questions: QuizQuestion[]): MapNode[] {
-  const chapters = modules.flatMap((module) => module.chapters);
-  const shouldUseHistorySample = subject === "history" && chapters.length <= 2 && chapters.some((chapter) => chapter.includes("先秦"));
-  const sourceChapters = shouldUseHistorySample ? sampleHistoryNodes.map(() => chapters[0] ?? "先秦时期") : chapters;
-  const labels = shouldUseHistorySample ? sampleHistoryNodes : sourceChapters;
+function getMobilePosition(index: number, total: number) {
+  const x = index % 2 === 0 ? 30 : 70;
+  const y = total <= 1 ? 48 : 10 + (82 * index) / (total - 1);
+  return { x, y };
+}
+
+function buildRoutePath(nodes: Pick<MapNode, "x" | "y">[]) {
+  if (nodes.length === 0) {
+    return "";
+  }
+
+  return nodes.slice(1).reduce((path, node, index) => {
+    const previous = nodes[index];
+    const controlOffset = (node.x - previous.x) * 0.48;
+    return `${path} C ${previous.x + controlOffset} ${previous.y}, ${node.x - controlOffset} ${node.y}, ${node.x} ${node.y}`;
+  }, `M ${nodes[0].x} ${nodes[0].y}`);
+}
+
+function buildMobileRoutePath(nodes: Pick<MapNode, "mobileX" | "mobileY">[]) {
+  if (nodes.length === 0) {
+    return "";
+  }
+
+  return nodes.slice(1).reduce((path, node, index) => {
+    const previous = nodes[index];
+    const middleY = (previous.mobileY + node.mobileY) / 2;
+    return `${path} C ${previous.mobileX} ${middleY}, ${node.mobileX} ${middleY}, ${node.mobileX} ${node.mobileY}`;
+  }, `M ${nodes[0].mobileX} ${nodes[0].mobileY}`);
+}
+
+function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<string>, questions: QuizQuestion[]): MapNode[] {
+  if (!chapter) {
+    return [];
+  }
+
+  const currentQuestions = questions.filter((question) => question.subject === subject && question.chapter === chapter);
+  const levelCount = Math.max(1, Math.ceil(currentQuestions.length / questionsPerLevel));
   let foundCurrent = false;
 
-  return labels.slice(0, 8).map((label, index) => {
-    const chapter = sourceChapters[index] ?? sourceChapters[0] ?? label;
-    const progress = getChapterProgress(subject, chapter, completedIds, questions);
-    const done = progress.total > 0 && progress.done >= progress.total;
+  return Array.from({ length: levelCount }).map((_, index) => {
+    const start = index * questionsPerLevel;
+    const levelQuestions = currentQuestions.slice(start, start + questionsPerLevel);
+    const doneCount = levelQuestions.filter((question) => completedIds.has(question.id)).length;
+    const total = levelQuestions.length;
+    const done = total > 0 && doneCount >= total;
     let status: MapNodeStatus = "locked";
 
     if (done) {
@@ -181,19 +209,26 @@ function buildMapNodes(subject: Subject, modules: ChallengeModule[], completedId
       foundCurrent = true;
     }
 
-    if (index === 0 && progress.total === 0) {
+    if (index === 0 && total === 0) {
       status = "current";
     }
 
-    const position = nodePositions[index % nodePositions.length];
-    const mobilePosition = mobileNodePositions[index % mobileNodePositions.length];
+    const position = getDesktopPosition(index, levelCount);
+    const mobilePosition = getMobilePosition(index, levelCount);
+    const rangeStart = start + 1;
+    const rangeEnd = start + total;
     return {
       chapter,
       index: index + 1,
-      label,
+      label: `第 ${index + 1} 关`,
+      subtitle: total > 0 ? `${rangeStart}-${rangeEnd} 题` : "题目待补充",
       subject,
       status,
-      progress,
+      questionIds: levelQuestions.map((question) => question.id),
+      done: doneCount,
+      total,
+      percent: getPercent(doneCount, total),
+      progressKey: `levelProgress:${subject}:${chapter}:${index + 1}`,
       x: position.x,
       y: position.y,
       mobileX: mobilePosition.x,
@@ -317,10 +352,28 @@ function SubjectDetail({
   toggleModule: (moduleName: string) => void;
 }) {
   const modules = useMemo(() => buildModules(subject, questions), [questions, subject]);
+  const chapters = useMemo(() => getSubjectChapters(subject, questions), [questions, subject]);
+  const [selectedChapter, setSelectedChapter] = useState(() => getSubjectChapters(subject, questions)[0] ?? "");
+
+  useEffect(() => {
+    if (chapters.length === 0) {
+      setSelectedChapter("");
+      return;
+    }
+
+    if (!selectedChapter || !chapters.includes(selectedChapter)) {
+      setSelectedChapter(chapters[0]);
+    }
+  }, [chapters, selectedChapter]);
+
   const progress = getSubjectProgress(subject, completedIds, questions);
-  const mapNodes = useMemo(() => buildMapNodes(subject, modules, completedIds, questions), [completedIds, modules, questions, subject]);
-  const rewardTotal = Math.max(progress.total, 36);
-  const rewardDone = Math.min(rewardTotal, Math.max(progress.done, Math.round((progress.percent / 100) * rewardTotal)));
+  const chapterProgress = selectedChapter ? getChapterProgress(subject, selectedChapter, completedIds, questions) : { done: 0, total: 0, percent: 0 };
+  const mapNodes = useMemo(() => buildMapNodes(subject, selectedChapter, completedIds, questions), [completedIds, questions, selectedChapter, subject]);
+  const desktopRoutePath = buildRoutePath(mapNodes);
+  const mobileRoutePath = buildMobileRoutePath(mapNodes);
+  const mobileMapHeight = Math.max(700, 210 + mapNodes.length * 96);
+  const rewardTotal = Math.max(chapterProgress.total, 36);
+  const rewardDone = Math.min(rewardTotal, Math.max(chapterProgress.done, Math.round((chapterProgress.percent / 100) * rewardTotal)));
 
   return (
     <div className="space-y-4">
@@ -334,9 +387,9 @@ function SubjectDetail({
             <ArrowLeft className="size-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-black text-ink">闯关地图 / {mapNodes[0]?.chapter ?? subjectLabels[subject]}</p>
+            <p className="truncate text-sm font-black text-ink">闯关地图 / {subjectLabels[subject]}</p>
             <p className="mt-0.5 text-xs font-bold text-ink/52">
-              {questionSourceStatus === "cloud" ? "云端题库" : questionSourceStatus === "loading" ? "题库加载中" : "本地题库"}
+              当前章节：{selectedChapter || "暂无章节"} · {questionSourceStatus === "cloud" ? "云端题库" : questionSourceStatus === "loading" ? "题库加载中" : "本地题库"}
             </p>
           </div>
           <div className="rounded-2xl bg-white/78 px-3 py-2 text-right shadow-[0_8px_22px_rgba(16,36,63,0.06)]">
@@ -346,6 +399,41 @@ function SubjectDetail({
         </div>
       </section>
 
+      <section className="overflow-hidden rounded-[1.25rem] border border-white/75 bg-white/72 p-3 shadow-[0_12px_30px_rgba(16,36,63,0.06)]">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <p className="text-sm font-black text-ink">选择章节</p>
+          <p className="shrink-0 text-xs font-black text-ink/46">{chapters.length} 个章节</p>
+        </div>
+        {chapters.length === 0 ? (
+          <p className="rounded-2xl bg-[#F7F1E4]/72 px-3 py-2 text-sm font-bold text-ink/54">这个学科还没有章节题目，补充题库后会自动出现。</p>
+        ) : (
+          <div className="-mx-1 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex min-w-max gap-2">
+              {chapters.map((chapter) => {
+                const active = chapter === selectedChapter;
+                const itemProgress = getChapterProgress(subject, chapter, completedIds, questions);
+
+                return (
+                  <button
+                    className={`min-h-10 rounded-2xl px-3 text-sm font-black transition ${
+                      active
+                        ? "bg-ink text-white shadow-[0_10px_22px_rgba(16,36,63,0.16)]"
+                        : "bg-[#F7F1E4]/86 text-ink/62 hover:bg-white hover:text-tide"
+                    }`}
+                    key={chapter}
+                    onClick={() => setSelectedChapter(chapter)}
+                    type="button"
+                  >
+                    {chapter}
+                    <span className={`ml-2 text-xs ${active ? "text-white/60" : "text-ink/40"}`}>{itemProgress.total} 题</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </section>
+
       <section className="relative overflow-hidden rounded-[1.8rem] border border-white/75 bg-[#F7F1E4] shadow-[0_18px_48px_rgba(16,36,63,0.08)]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_10%,rgba(20,150,163,0.11),transparent_15rem),radial-gradient(circle_at_86%_12%,rgba(233,91,79,0.055),transparent_18rem),linear-gradient(180deg,#F8F2E6_0%,#EEF6EF_100%)]" />
         <div className="pointer-events-none absolute inset-0 opacity-[0.13] [background-image:radial-gradient(#0B1F3A_0.7px,transparent_0.7px)] [background-size:18px_18px]" />
@@ -353,10 +441,10 @@ function SubjectDetail({
         <div className="relative hidden h-[600px] md:block">
           <InkMountainBackground variant="desktop" />
           <svg className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 100">
-            <path d="M17 56 C25 38 30 36 30 35 S38 49 44 60 S50 53 56 44 S64 52 69 61 S76 49 81 38" fill="none" stroke="#829D96" strokeDasharray="1.8 2.8" strokeLinecap="round" strokeWidth="0.8" opacity=".82" />
-            <path d="M17 56 C25 38 30 36 30 35 S38 49 44 60 S50 53 56 44 S64 52 69 61 S76 49 81 38" fill="none" stroke="#F7F1E4" strokeDasharray="1.8 2.8" strokeLinecap="round" strokeWidth="0.35" opacity=".7" />
+            <path d={desktopRoutePath} fill="none" stroke="#829D96" strokeDasharray="1.8 2.8" strokeLinecap="round" strokeWidth="0.8" opacity=".82" />
+            <path d={desktopRoutePath} fill="none" stroke="#F7F1E4" strokeDasharray="1.8 2.8" strokeLinecap="round" strokeWidth="0.35" opacity=".7" />
           </svg>
-          {modules.length === 0 && (
+          {chapters.length === 0 && (
             <div className="absolute inset-0 grid place-items-center p-6 text-center">
               <GameCard className="max-w-md">
                 <p className="text-xl font-black text-ink">这个学科还没有题目</p>
@@ -370,18 +458,18 @@ function SubjectDetail({
           ))}
         </div>
 
-        <div className="relative h-[840px] md:hidden">
+        <div className="relative md:hidden" style={{ height: `${mobileMapHeight}px` }}>
           <InkMountainBackground variant="mobile" />
           <svg className="pointer-events-none absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 100 112">
-            <path d="M28 10 C62 16 70 20 70 24 C70 32 30 30 30 38 C30 46 70 45 70 52 C70 60 30 58 30 66 C30 74 70 72 70 80 C70 88 35 88 35 92" fill="none" stroke="#829D96" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth="1.15" opacity=".76" />
-            <path d="M28 10 C62 16 70 20 70 24 C70 32 30 30 30 38 C30 46 70 45 70 52 C70 60 30 58 30 66 C30 74 70 72 70 80 C70 88 35 88 35 92" fill="none" stroke="#F7F1E4" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth=".45" opacity=".72" />
+            <path d={mobileRoutePath} fill="none" stroke="#829D96" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth="1.15" opacity=".76" />
+            <path d={mobileRoutePath} fill="none" stroke="#F7F1E4" strokeDasharray="2 3.2" strokeLinecap="round" strokeWidth=".45" opacity=".72" />
           </svg>
           {mapNodes.map((node) => (
             <MapLevelNode key={`${node.label}-${node.index}-mobile`} mode="mobile" node={node} startPractice={startPractice} />
           ))}
         </div>
 
-        <ChapterProgressReward done={rewardDone} percent={progress.percent} total={rewardTotal} />
+        <ChapterProgressReward done={rewardDone} percent={chapterProgress.percent} total={rewardTotal} />
       </section>
 
       <div className="hidden">
@@ -475,9 +563,10 @@ function MapLevelNode({ mode, node, startPractice }: { mode: "desktop" | "mobile
     <button
       className="absolute min-w-[92px] -translate-x-1/2 -translate-y-1/2 text-center transition enabled:hover:-translate-y-[54%] disabled:cursor-not-allowed"
       disabled={!clickable}
-      onClick={() => startPractice(`${node.subject}:${node.chapter}`)}
+      onClick={() => startPractice(`${node.subject}:${node.chapter}:${node.index}`)}
       style={{ left: `${left}%`, top: `${top}%` }}
       type="button"
+      title={node.progressKey}
     >
       <span className="relative inline-grid">
         {node.status === "current" && (
@@ -491,6 +580,7 @@ function MapLevelNode({ mode, node, startPractice }: { mode: "desktop" | "mobile
       </span>
       <span className={`mx-auto mt-2 block ${labelWidth} rounded-full bg-[#FFFCF5]/82 px-3 py-1 text-[11px] font-black leading-4 text-ink shadow-[0_7px_16px_rgba(16,36,63,0.08)] backdrop-blur`}>
         {node.label}
+        <span className="block text-[10px] font-bold text-ink/46">{node.subtitle}</span>
       </span>
       <span className={`mt-1 block text-[11px] font-black ${node.status === "done" ? "text-[#1496A3]" : node.status === "current" ? "text-[#E95B4F]" : "text-ink/42"}`}>
         {statusLabel}

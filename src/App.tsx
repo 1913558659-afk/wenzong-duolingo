@@ -27,34 +27,27 @@ export default function App() {
   const [activePromptCategory, setActivePromptCategory] = useState<PromptCategory | undefined>();
   const [activePromptId, setActivePromptId] = useState<string | undefined>();
   const [selectedStudyAidId, setSelectedStudyAidId] = useState<string | null>(null);
-  const [questions, setQuestions] = useState<QuizQuestion[]>(localQuizQuestions);
+  const [questions, setQuestions] = useState<QuizQuestion[]>([]);
   const [questionSourceStatus, setQuestionSourceStatus] = useState<QuestionSourceStatus>("loading");
   const auth = useAuth();
   const { stats, addQuizResult, resetStats, syncError: statsSyncError } = useStudyStats(auth.token);
-  const { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers, syncError: wrongSyncError } = useWrongAnswers(auth.token);
+  const { records, addWrongAnswer, removeWrongAnswer, clearWrongAnswers, syncError: wrongSyncError } = useWrongAnswers(auth.token, questions);
   const { items: scheduleItems, addItem, toggleDone, quickAdd } = useScheduleItems();
 
   useEffect(() => {
     fetchQuestions()
       .then((cloudQuestions) => {
-        if (cloudQuestions.length === 0) {
-          setQuestionSourceStatus("local");
-          if (import.meta.env.DEV) {
-            console.log("[wenzong-api] question source: local(empty cloud questions)");
-          }
-          return;
-        }
         setQuestions(cloudQuestions);
         setQuestionSourceStatus("cloud");
         if (import.meta.env.DEV) {
-          console.log("[wenzong-api] question source: cloud", cloudQuestions.length);
+          console.log("[SayHiStudy] questions source:", "api", cloudQuestions.length);
         }
       })
       .catch((error) => {
         setQuestions(localQuizQuestions);
         setQuestionSourceStatus("local");
         if (import.meta.env.DEV) {
-          console.log("[wenzong-api] question source: local(fetch failed)", error);
+          console.log("[SayHiStudy] questions source:", "local-fallback", localQuizQuestions.length, error);
         }
       });
   }, []);
