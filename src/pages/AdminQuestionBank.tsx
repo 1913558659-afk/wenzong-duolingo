@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { FormEvent } from "react";
 import { GameCard } from "@/components/GameCard";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { PageHeader } from "@/components/PageHeader";
 import {
   confirmImportQuestions,
@@ -72,18 +73,27 @@ const subjectNameMap: Record<Subject, string> = {
   english: "英语"
 };
 
-const importPlaceholder = `学科：历史
-章节：先秦时期
-难度：easy
-标签：先秦,分封制,宗法制
+const importPlaceholder = `学科：数学
+章节：函数
+难度：medium
+标签：函数图像,图像判断
 
-题干：西周实行分封制的主要目的是什么？
-A. 扩大商品经济
-B. 巩固周王朝统治
-C. 推行郡县制
-D. 促进思想统一
+题干：
+观察下图，判断函数图像对应的性质。
+
+![函数图像](/question-assets/math/function-001.png)
+
+| x | -1 | 0 | 1 |
+|---|---:|---:|---:|
+| y | 3 | 1 | -1 |
+
+A. 函数单调递增
+B. 函数单调递减
+C. 函数为偶函数
+D. 函数没有零点
 答案：B
-解析：西周通过分封诸侯拱卫王室，以巩固统治秩序。
+解析：
+从图像和表格都可以看出，随着 x 增大，y 减小，因此函数单调递减。
 ---`;
 
 function toPayload(form: QuestionFormState): AdminQuestionPayload {
@@ -148,7 +158,23 @@ function issueMessage(issue: ImportQuestionIssue) {
 }
 
 function previewTotal(preview: ImportPreviewResponse | null) {
-  return preview?.total ?? preview?.items?.length ?? preview?.parsedQuestions?.length ?? 0;
+  return preview?.total ?? preview?.questions?.length ?? preview?.items?.length ?? preview?.parsedQuestions?.length ?? 0;
+}
+
+type PreviewQuestion = {
+  stem?: string;
+  question?: string;
+  title?: string;
+  optionA?: string;
+  optionB?: string;
+  optionC?: string;
+  optionD?: string;
+  explanation?: string;
+};
+
+function previewQuestions(preview: ImportPreviewResponse | null): PreviewQuestion[] {
+  const items = preview?.questions ?? preview?.parsedQuestions ?? preview?.items ?? [];
+  return items.filter((item): item is PreviewQuestion => Boolean(item) && typeof item === "object").slice(0, 3);
 }
 
 export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
@@ -451,6 +477,30 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
                   ))}
                 </div>
               )}
+              {previewQuestions(importPreview).length > 0 && (
+                <div className="mt-4 space-y-3">
+                  <p className="text-sm font-black text-ink">题目 Markdown 预览</p>
+                  {previewQuestions(importPreview).map((question, index) => (
+                    <div className="rounded-2xl bg-white p-4" key={`${question.stem ?? question.question ?? question.title ?? "preview"}-${index}`}>
+                      <p className="mb-2 text-xs font-black text-ink/48">第 {index + 1} 题</p>
+                      <MarkdownContent className="text-sm font-semibold text-ink" content={question.stem ?? question.question ?? question.title ?? ""} />
+                      <div className="mt-3 grid gap-2">
+                        {[question.optionA, question.optionB, question.optionC, question.optionD].filter(Boolean).map((option, optionIndex) => (
+                          <div className="rounded-xl border border-ink/8 bg-[#F7F1E4]/45 px-3 py-2" key={`${optionIndex}-${option}`}>
+                            <MarkdownContent className="text-xs font-bold text-ink/70" content={`${String.fromCharCode(65 + optionIndex)}. ${option}`} />
+                          </div>
+                        ))}
+                      </div>
+                      {question.explanation && (
+                        <div className="mt-3 rounded-xl bg-tide/8 px-3 py-2">
+                          <p className="text-xs font-black text-tide">解析预览</p>
+                          <MarkdownContent className="mt-1 text-xs font-bold text-ink/70" content={question.explanation} />
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -497,7 +547,7 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
             <textarea className="min-h-28 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, stem: event.target.value })} placeholder="stem 题干" value={form.stem} />
             <div className="grid gap-3 md:grid-cols-2">
               {(["optionA", "optionB", "optionC", "optionD"] as const).map((key) => (
-                <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" key={key} onChange={(event) => setForm({ ...form, [key]: event.target.value })} placeholder={key} value={form[key]} />
+                <textarea className="min-h-20 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold leading-6 text-ink" key={key} onChange={(event) => setForm({ ...form, [key]: event.target.value })} placeholder={`${key}，支持 Markdown 图片/表格`} value={form[key]} />
               ))}
               <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, correctAnswer: event.target.value as "A" | "B" | "C" | "D" })} value={form.correctAnswer}>
                 <option value="A">A</option>

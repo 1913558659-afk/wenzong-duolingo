@@ -67,6 +67,7 @@ export type ImportPreviewResponse = {
   invalidCount?: number;
   errors?: ImportQuestionIssue[];
   issues?: ImportQuestionIssue[];
+  questions?: unknown[];
   items?: unknown[];
   parsedQuestions?: unknown[];
 };
