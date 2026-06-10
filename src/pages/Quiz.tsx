@@ -6,6 +6,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { sendAnswerAttempt } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
 import type { QuizQuestion, Subject } from "@/types";
+import { normalizeChapterForSubject } from "@/utils/chapter";
 import { markQuestionsCompleted } from "@/utils/progress";
 
 type QuizProps = {
@@ -38,7 +39,7 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
     if (marker === "tag" && markerValue) {
       return {
         subject: subject as Subject,
-        chapter: rest.slice(0, -2).join(":"),
+        chapter: normalizeChapterForSubject(subject as Subject, rest.slice(0, -2).join(":")),
         levelIndex: 1,
         tag: markerValue
       };
@@ -48,7 +49,7 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
       const levelIndex = Number(markerValue);
       return {
         subject: subject as Subject,
-        chapter: rest.slice(0, -2).join(":"),
+        chapter: normalizeChapterForSubject(subject as Subject, rest.slice(0, -2).join(":")),
         levelIndex: Number.isInteger(levelIndex) && levelIndex > 0 ? levelIndex : 1,
         tag: ""
       };
@@ -60,7 +61,7 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
 
     return {
       subject: subject as Subject,
-      chapter: chapterParts.join(":"),
+      chapter: normalizeChapterForSubject(subject as Subject, chapterParts.join(":")),
       levelIndex: hasLevelIndex ? possibleLevel : 1,
       tag: ""
     };
@@ -74,7 +75,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
   const level = parseLevel(selectedLevelId, allQuestions);
   const questions = useMemo(
     () => {
-      const chapterQuestions = allQuestions.filter((question) => question.subject === level.subject && question.chapter === level.chapter);
+      const chapterQuestions = allQuestions.filter((question) => question.subject === level.subject && normalizeChapterForSubject(level.subject, question.chapter) === level.chapter);
       if (level.tag) {
         return chapterQuestions.filter((question) => question.tags.includes(level.tag));
       }

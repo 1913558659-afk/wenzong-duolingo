@@ -5,6 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ProgressBar } from "@/components/ProgressBar";
 import { subjectLabels } from "@/lib/labels";
 import type { QuizQuestion, Subject } from "@/types";
+import { compareChapters, normalizeChapterForSubject } from "@/utils/chapter";
 import {
   getChapterProgress,
   getCompletedQuestionIds,
@@ -64,7 +65,8 @@ function getSubjectQuestions(subject: Subject, questions: QuizQuestion[]) {
 }
 
 function getSubjectChapters(subject: Subject, questions: QuizQuestion[]) {
-  return [...new Set(getSubjectQuestions(subject, questions).map((question) => question.chapter))];
+  return [...new Set(getSubjectQuestions(subject, questions).map((question) => normalizeChapterForSubject(subject, question.chapter)))]
+    .sort((first, second) => compareChapters(subject, first, second));
 }
 
 function getTagCounts(questions: QuizQuestion[]) {
@@ -185,7 +187,8 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
     return [];
   }
 
-  const currentQuestions = questions.filter((question) => question.subject === subject && question.chapter === chapter);
+  const normalizedChapter = normalizeChapterForSubject(subject, chapter);
+  const currentQuestions = questions.filter((question) => question.subject === subject && normalizeChapterForSubject(subject, question.chapter) === normalizedChapter);
   const units = buildChapterUnits(currentQuestions);
   const levelCount = units.length;
   let foundCurrent = false;
@@ -210,9 +213,9 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
 
     const position = getDesktopPosition(index, levelCount);
     const mobilePosition = getMobilePosition(index, levelCount);
-    const practiceId = unit.type === "tag" ? `${subject}:${chapter}:tag:${unit.name}` : `${subject}:${chapter}:level:${index + 1}`;
+    const practiceId = unit.type === "tag" ? `${subject}:${normalizedChapter}:tag:${unit.name}` : `${subject}:${normalizedChapter}:level:${index + 1}`;
     return {
-      chapter,
+      chapter: normalizedChapter,
       index: index + 1,
       label: `第 ${index + 1} 关`,
       practiceId,
@@ -223,7 +226,7 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
       done: doneCount,
       total,
       percent: getPercent(doneCount, total),
-      progressKey: `levelProgress:${subject}:${chapter}:${unit.id}`,
+      progressKey: `levelProgress:${subject}:${normalizedChapter}:${unit.id}`,
       x: position.x,
       y: position.y,
       mobileX: mobilePosition.x,

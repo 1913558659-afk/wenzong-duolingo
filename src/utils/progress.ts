@@ -1,4 +1,5 @@
 import type { QuizQuestion, Subject } from "@/types";
+import { normalizeChapterForSubject } from "@/utils/chapter";
 
 const completedQuestionsKey = "wenzong-island-completed-question-ids";
 
@@ -58,7 +59,8 @@ export function getSubjectProgress(subject: Subject, completedIds = getCompleted
 }
 
 export function getChapterProgress(subject: Subject, chapter: string, completedIds = getCompletedQuestionIds(), sourceQuestions: QuizQuestion[] = []) {
-  const questions = sourceQuestions.filter((question) => question.subject === subject && question.chapter === chapter);
+  const normalizedChapter = normalizeChapterForSubject(subject, chapter);
+  const questions = sourceQuestions.filter((question) => question.subject === subject && normalizeChapterForSubject(subject, question.chapter) === normalizedChapter);
   const done = countCompleted(questions, completedIds);
 
   return {
@@ -69,8 +71,8 @@ export function getChapterProgress(subject: Subject, chapter: string, completedI
 }
 
 export function getModuleProgress(subject: Subject, chapters: string[], completedIds = getCompletedQuestionIds(), sourceQuestions: QuizQuestion[] = []) {
-  const chapterSet = new Set(chapters);
-  const questions = sourceQuestions.filter((question) => question.subject === subject && chapterSet.has(question.chapter));
+  const chapterSet = new Set(chapters.map((chapter) => normalizeChapterForSubject(subject, chapter)));
+  const questions = sourceQuestions.filter((question) => question.subject === subject && chapterSet.has(normalizeChapterForSubject(subject, question.chapter)));
   const done = countCompleted(questions, completedIds);
 
   return {
