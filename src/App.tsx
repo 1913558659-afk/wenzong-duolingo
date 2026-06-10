@@ -73,6 +73,9 @@ export default function App() {
       setActivePromptCategory(undefined);
       setActivePromptId(undefined);
     }
+    if (nextPage === "quiz") {
+      setSelectedLevelId("random:true");
+    }
     setPage(nextPage);
   }
 

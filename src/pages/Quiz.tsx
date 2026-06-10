@@ -19,6 +19,16 @@ type QuizProps = {
 };
 
 const questionsPerLevel = 10;
+const randomPracticeId = "random:true";
+
+function shuffleQuestions(questions: QuizQuestion[]) {
+  const next = [...questions];
+  for (let index = next.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [next[index], next[randomIndex]] = [next[randomIndex], next[index]];
+  }
+  return next;
+}
 
 function getEncouragement(score: number, total: number) {
   if (score === total) {
@@ -31,6 +41,16 @@ function getEncouragement(score: number, total: number) {
 }
 
 function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
+  if (selectedLevelId === randomPracticeId) {
+    return {
+      subject: "history" as Subject,
+      chapter: "",
+      levelIndex: 1,
+      tag: "",
+      random: true
+    };
+  }
+
   if (selectedLevelId?.includes(":")) {
     const [subject, ...rest] = selectedLevelId.split(":");
     const marker = rest[rest.length - 2];
@@ -41,7 +61,8 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
         subject: subject as Subject,
         chapter: normalizeChapterForSubject(subject as Subject, rest.slice(0, -2).join(":")),
         levelIndex: 1,
-        tag: markerValue
+        tag: markerValue,
+        random: false
       };
     }
 
@@ -51,7 +72,8 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
         subject: subject as Subject,
         chapter: normalizeChapterForSubject(subject as Subject, rest.slice(0, -2).join(":")),
         levelIndex: Number.isInteger(levelIndex) && levelIndex > 0 ? levelIndex : 1,
-        tag: ""
+        tag: "",
+        random: false
       };
     }
 
@@ -63,18 +85,25 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
       subject: subject as Subject,
       chapter: normalizeChapterForSubject(subject as Subject, chapterParts.join(":")),
       levelIndex: hasLevelIndex ? possibleLevel : 1,
-      tag: ""
+      tag: "",
+      random: false
     };
   }
 
   const fallback = questions[0];
-  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "", levelIndex: 1, tag: "" };
+  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "", levelIndex: 1, tag: "", random: false };
 }
 
 export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questions: allQuestions, token }: QuizProps) {
   const level = parseLevel(selectedLevelId, allQuestions);
+  const [randomSeed, setRandomSeed] = useState(0);
   const questions = useMemo(
     () => {
+      if (level.random) {
+        void randomSeed;
+        return shuffleQuestions(allQuestions).slice(0, questionsPerLevel);
+      }
+
       const chapterQuestions = allQuestions.filter((question) => question.subject === level.subject && normalizeChapterForSubject(level.subject, question.chapter) === level.chapter);
       if (level.tag) {
         return chapterQuestions.filter((question) => question.tags.includes(level.tag));
@@ -82,7 +111,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
       const start = (level.levelIndex - 1) * questionsPerLevel;
       return chapterQuestions.slice(start, start + questionsPerLevel);
     },
-    [allQuestions, level.chapter, level.levelIndex, level.subject, level.tag]
+    [allQuestions, level.chapter, level.levelIndex, level.random, level.subject, level.tag, randomSeed]
   );
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);
@@ -92,7 +121,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
   if (questions.length === 0) {
     return (
       <div>
-        <PageHeader title="题目待补充" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter || "未选择章节"} · ${level.tag || `第 ${level.levelIndex} 关`}`} />
+        <PageHeader title={level.random ? "随机练习页" : "题目待补充"} subtitle={level.random ? "当前题库还没有可练习的题目" : `${subjectLabels[level.subject]}岛 · ${level.chapter || "未选择章节"} · ${level.tag || `第 ${level.levelIndex} 关`}`} />
         <GameCard className="space-y-3 text-center">
           <p className="text-sm font-semibold leading-6 text-ink/68">这个章节的数据结构已经准备好，题目内容还可以继续在 `src/data/questions.ts` 里添加。</p>
           <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide" onClick={goMap} type="button">
@@ -132,15 +161,25 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
     if (saved) {
       return;
     }
-    markQuestionsCompleted(questions.map((item) => item.id));
+    if (!level.random) {
+      markQuestionsCompleted(questions.map((item) => item.id));
+    }
     onComplete(correctAnswers, questions.length, earnedXp);
     setSaved(true);
+  }
+
+  function refreshRandomQuestions() {
+    setQuestionIndex(0);
+    setCorrectAnswers(0);
+    setFinished(false);
+    setSaved(false);
+    setRandomSeed((seed) => seed + 1);
   }
 
   if (finished) {
     return (
       <div>
-      <PageHeader title="本关完成" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`}`} />
+      <PageHeader title={level.random ? "随机练习完成" : "本关完成"} subtitle={level.random ? "从全题库随机抽取 · 本次最多 10 道单选题" : `${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`}`} />
         <GameCard className="space-y-5 text-center">
           <p className="text-sm font-black text-tide">你的得分</p>
           <p className="text-5xl font-black text-ink">{correctAnswers} / {questions.length}</p>
@@ -154,6 +193,11 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
             <button className="rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-coral" onClick={goMap} type="button">
               返回闯关地图
             </button>
+            {level.random && (
+              <button className="rounded-2xl bg-coral px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink sm:col-span-2" onClick={refreshRandomQuestions} type="button">
+                换一组题
+              </button>
+            )}
           </div>
         </GameCard>
       </div>
@@ -162,9 +206,21 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
 
   return (
     <div>
-      <PageHeader title="选择题练习页" subtitle={`${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`} · ${level.tag ? "标签专项练习" : "最多 10 道单选题"}`} />
+      <PageHeader title={level.random ? "随机练习页" : "选择题练习页"} subtitle={level.random ? "从全题库随机抽取 · 本次最多 10 道单选题" : `${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`} · ${level.tag ? "标签专项练习" : "最多 10 道单选题"}`} />
+      {level.random && (
+        <GameCard className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-black text-tide">随机练习</p>
+            <p className="mt-1 text-xs font-bold text-ink/56">本组题目不会写入闯关完成进度，做错仍会进入错题本。</p>
+          </div>
+          <button className="min-h-11 rounded-2xl bg-ink px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-coral" onClick={refreshRandomQuestions} type="button">
+            换一组题
+          </button>
+        </GameCard>
+      )}
       <QuizCard
         currentNumber={questionIndex + 1}
+        key={`${question.id}-${randomSeed}`}
         nextLabel={questionIndex + 1 >= questions.length ? "查看成绩" : "下一题"}
         onAnswer={recordAnswer}
         onNext={nextQuestion}
