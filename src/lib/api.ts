@@ -1,4 +1,4 @@
-import type { AuthUser, Difficulty, QuizQuestion, StudyStats, Subject, WrongAnswerRecord } from "@/types";
+import type { AuthUser, Difficulty, QuestionType, QuizQuestion, StudyStats, Subject, WrongAnswerRecord } from "@/types";
 import { normalizeSubjectCode } from "@/lib/subjects";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
@@ -30,6 +30,8 @@ export type BackendQuestion = {
   optionC?: string;
   optionD?: string;
   correctAnswer?: string;
+  questionType?: string;
+  type?: string;
   explanation?: string;
   difficulty?: string;
   tags?: string[] | string | null;
@@ -46,7 +48,8 @@ export type AdminQuestionPayload = {
   optionB: string;
   optionC: string;
   optionD: string;
-  correctAnswer: "A" | "B" | "C" | "D";
+  correctAnswer: string;
+  questionType: QuestionType;
   explanation: string;
   difficulty: Difficulty;
   tags: string[];
@@ -167,6 +170,14 @@ function normalizeDifficulty(value?: string): Difficulty {
   return value === "easy" || value === "medium" || value === "hard" ? value : "medium";
 }
 
+function normalizeQuestionType(value?: string): QuestionType {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "fill_blank" || text === "fill-blank" || text === "blank" || text === "填空题" || text === "填空") {
+    return "fill_blank";
+  }
+  return "single_choice";
+}
+
 function normalizeTags(tags: BackendQuestion["tags"]) {
   if (Array.isArray(tags)) {
     return tags;
@@ -177,21 +188,28 @@ function normalizeTags(tags: BackendQuestion["tags"]) {
   return [];
 }
 
-function answerText(question: BackendQuestion) {
+function answerText(question: BackendQuestion, questionType: QuestionType) {
+  if (questionType === "fill_blank") {
+    return String(question.correctAnswer ?? "").trim();
+  }
+
   const options = [question.optionA ?? "", question.optionB ?? "", question.optionC ?? "", question.optionD ?? ""];
   const index = { A: 0, B: 1, C: 2, D: 3 }[String(question.correctAnswer ?? "").toUpperCase() as "A" | "B" | "C" | "D"];
   return index === undefined ? String(question.correctAnswer ?? "") : options[index];
 }
 
 export function mapBackendQuestion(question: BackendQuestion): QuizQuestion {
+  const questionType = normalizeQuestionType(question.questionType ?? question.type);
+
   return {
     id: question.questionCode ?? question.id ?? "",
     subject: normalizeSubject(question.subject?.code, question.subject?.name),
     chapter: normalizeChapter(question.chapter?.title, question.chapter?.code),
+    questionType,
     difficulty: normalizeDifficulty(question.difficulty),
     question: question.stem ?? "",
     options: [question.optionA ?? "", question.optionB ?? "", question.optionC ?? "", question.optionD ?? ""],
-    answer: answerText(question),
+    answer: answerText(question, questionType),
     explanation: question.explanation ?? "",
     tags: normalizeTags(question.tags)
   };
@@ -345,6 +363,7 @@ export function sendAnswerAttempt({
       questionId: question.id,
       subject: question.subject,
       chapter: question.chapter,
+      questionType: question.questionType ?? "single_choice",
       question: question.question,
       selectedAnswer,
       correctAnswer: question.answer,

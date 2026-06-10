@@ -5,7 +5,7 @@ import { PageHeader } from "@/components/PageHeader";
 import { ProgressBar } from "@/components/ProgressBar";
 import { subjectLabels } from "@/lib/labels";
 import { SUBJECT_CONFIGS } from "@/lib/subjects";
-import type { QuizQuestion, Subject } from "@/types";
+import type { QuestionType, QuizQuestion, Subject } from "@/types";
 import { compareChapters, defaultChaptersForSubject, normalizeChapterForSubject } from "@/utils/chapter";
 import {
   getChapterProgress,
@@ -49,7 +49,30 @@ type ChapterUnit = {
   name: string;
   questions: QuizQuestion[];
   type: "tag" | "level";
+  questionType: QuestionType;
 };
+
+function questionTypeLabel(questionType: QuestionType) {
+  return questionType === "fill_blank" ? "填空题" : "单选题";
+}
+
+function splitUnitsByQuestionType(units: Omit<ChapterUnit, "questionType">[]): ChapterUnit[] {
+  return units.flatMap((unit) => {
+    const groups = new Map<QuestionType, QuizQuestion[]>();
+    unit.questions.forEach((question) => {
+      const questionType = question.questionType ?? "single_choice";
+      groups.set(questionType, [...(groups.get(questionType) ?? []), question]);
+    });
+
+    return [...groups.entries()].map(([questionType, unitQuestions]) => ({
+      ...unit,
+      id: `${unit.id}:type:${questionType}`,
+      name: groups.size > 1 ? `${unit.name} · ${questionTypeLabel(questionType)}` : unit.name,
+      questions: unitQuestions,
+      questionType
+    }));
+  });
+}
 
 function getSubjectQuestions(subject: Subject, questions: QuizQuestion[]) {
   return questions.filter((question) => question.subject === subject);
@@ -138,13 +161,13 @@ function buildChapterUnits(chapterQuestions: QuizQuestion[]): ChapterUnit[] {
       }
     });
 
-    const units: ChapterUnit[] = [...groups.entries()]
+    const units: Omit<ChapterUnit, "questionType">[] = [...groups.entries()]
       .filter(([, unitQuestions]) => unitQuestions.length > 0)
       .map(([tag, unitQuestions]) => ({
         id: `tag:${tag}`,
         name: tag,
         questions: unitQuestions,
-        type: "tag"
+        type: "tag" as const
       }));
 
     if (fallbackQuestions.length > 0) {
@@ -153,26 +176,26 @@ function buildChapterUnits(chapterQuestions: QuizQuestion[]): ChapterUnit[] {
           id: "level:extra",
           name: "综合训练",
           questions: fallbackQuestions,
-          type: "level"
+          type: "level" as const
         });
       } else {
         units[units.length - 1].questions.push(...fallbackQuestions);
       }
     }
 
-    return units.slice(0, 5);
+    return splitUnitsByQuestionType(units).slice(0, 6);
   }
 
   const levelCount = Math.max(1, Math.ceil(chapterQuestions.length / questionsPerLevel));
-  return Array.from({ length: levelCount }).map((_, index) => {
+  return splitUnitsByQuestionType(Array.from({ length: levelCount }).map((_, index) => {
     const start = index * questionsPerLevel;
     return {
       id: `level:${index + 1}`,
       name: `${start + 1}-${Math.min(start + questionsPerLevel, chapterQuestions.length)} 题`,
       questions: chapterQuestions.slice(start, start + questionsPerLevel),
-      type: "level"
+      type: "level" as const
     };
-  });
+  }));
 }
 
 function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<string>, questions: QuizQuestion[]): MapNode[] {
@@ -206,13 +229,13 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
 
     const position = getDesktopPosition(index, levelCount);
     const mobilePosition = getMobilePosition(index, levelCount);
-    const practiceId = unit.type === "tag" ? `${subject}:${normalizedChapter}:tag:${unit.name}` : `${subject}:${normalizedChapter}:level:${index + 1}`;
+    const practiceId = unit.type === "tag" ? `${subject}:${normalizedChapter}:tag:${unit.name}:type:${unit.questionType}` : `${subject}:${normalizedChapter}:level:${index + 1}:type:${unit.questionType}`;
     return {
       chapter: normalizedChapter,
       index: index + 1,
       label: `第 ${index + 1} 关`,
       practiceId,
-      subtitle: total > 0 ? `${unit.name} · ${total} 题` : "题目待补充",
+      subtitle: total > 0 ? `${unit.name} · ${total} 题 · ${questionTypeLabel(unit.questionType)}` : "题目待补充",
       subject,
       status,
       questionIds: levelQuestions.map((question) => question.id),

@@ -6,7 +6,7 @@ import { ProgressBar } from "@/components/ProgressBar";
 import { sendAnswerAttempt } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
 import { normalizeSubjectCode } from "@/lib/subjects";
-import type { QuizQuestion, Subject } from "@/types";
+import type { QuestionType, QuizQuestion, Subject } from "@/types";
 import { normalizeChapterForSubject } from "@/utils/chapter";
 import { markQuestionsCompleted } from "@/utils/progress";
 
@@ -21,6 +21,14 @@ type QuizProps = {
 
 const questionsPerLevel = 10;
 const randomPracticeId = "random:true";
+
+function questionTypeText(questionType: QuizQuestion["questionType"]) {
+  return questionType === "fill_blank" ? "填空题" : "单选题";
+}
+
+function normalizeQuestionType(value?: string): QuestionType | undefined {
+  return value === "fill_blank" || value === "single_choice" ? value : undefined;
+}
 
 function shuffleQuestions(questions: QuizQuestion[]) {
   const next = [...questions];
@@ -55,15 +63,19 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
   if (selectedLevelId?.includes(":")) {
     const [subject, ...rest] = selectedLevelId.split(":");
     const normalizedSubject = normalizeSubjectCode(subject);
-    const marker = rest[rest.length - 2];
-    const markerValue = rest[rest.length - 1];
+    const typeMarkerIndex = rest.lastIndexOf("type");
+    const questionType = typeMarkerIndex >= 0 ? normalizeQuestionType(rest[typeMarkerIndex + 1]) : undefined;
+    const meaningfulRest = typeMarkerIndex >= 0 ? rest.slice(0, typeMarkerIndex) : rest;
+    const marker = meaningfulRest[meaningfulRest.length - 2];
+    const markerValue = meaningfulRest[meaningfulRest.length - 1];
 
     if (marker === "tag" && markerValue) {
       return {
         subject: normalizedSubject,
-        chapter: normalizeChapterForSubject(normalizedSubject, rest.slice(0, -2).join(":")),
+        chapter: normalizeChapterForSubject(normalizedSubject, meaningfulRest.slice(0, -2).join(":")),
         levelIndex: 1,
         tag: markerValue,
+        questionType,
         random: false
       };
     }
@@ -72,28 +84,30 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
       const levelIndex = Number(markerValue);
       return {
         subject: normalizedSubject,
-        chapter: normalizeChapterForSubject(normalizedSubject, rest.slice(0, -2).join(":")),
+        chapter: normalizeChapterForSubject(normalizedSubject, meaningfulRest.slice(0, -2).join(":")),
         levelIndex: Number.isInteger(levelIndex) && levelIndex > 0 ? levelIndex : 1,
         tag: "",
+        questionType,
         random: false
       };
     }
 
-    const possibleLevel = Number(rest[rest.length - 1]);
+    const possibleLevel = Number(meaningfulRest[meaningfulRest.length - 1]);
     const hasLevelIndex = Number.isInteger(possibleLevel) && possibleLevel > 0;
-    const chapterParts = hasLevelIndex ? rest.slice(0, -1) : rest;
+    const chapterParts = hasLevelIndex ? meaningfulRest.slice(0, -1) : meaningfulRest;
 
     return {
       subject: normalizedSubject,
       chapter: normalizeChapterForSubject(normalizedSubject, chapterParts.join(":")),
       levelIndex: hasLevelIndex ? possibleLevel : 1,
       tag: "",
+      questionType,
       random: false
     };
   }
 
   const fallback = questions[0];
-  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "", levelIndex: 1, tag: "", random: false };
+  return { subject: fallback?.subject ?? "history", chapter: fallback?.chapter ?? "", levelIndex: 1, tag: "", questionType: fallback?.questionType, random: false };
 }
 
 export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questions: allQuestions, token }: QuizProps) {
@@ -106,7 +120,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
         return shuffleQuestions(allQuestions).slice(0, questionsPerLevel);
       }
 
-      const chapterQuestions = allQuestions.filter((question) => question.subject === level.subject && normalizeChapterForSubject(level.subject, question.chapter) === level.chapter);
+      const chapterQuestions = allQuestions.filter((question) => question.subject === level.subject && normalizeChapterForSubject(level.subject, question.chapter) === level.chapter && (!level.questionType || (question.questionType ?? "single_choice") === level.questionType));
       if (level.tag) {
         return chapterQuestions.filter((question) => question.tags.includes(level.tag));
       }
@@ -135,6 +149,8 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
   }
 
   const question: QuizQuestion = questions[questionIndex % questions.length];
+  const currentQuestionType = question.questionType ?? "single_choice";
+  const currentQuestionTypeText = questionTypeText(currentQuestionType);
   const earnedXp = correctAnswers * 10 + (questions.length - correctAnswers) * 2;
 
   function recordAnswer(isCorrect: boolean, selectedAnswer: string) {
@@ -208,7 +224,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
 
   return (
     <div>
-      <PageHeader title={level.random ? "随机练习页" : "选择题练习页"} subtitle={level.random ? "从全题库随机抽取 · 本次最多 10 道单选题" : `${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`} · ${level.tag ? "标签专项练习" : "最多 10 道单选题"}`} />
+      <PageHeader title={level.random ? "随机练习页" : `${currentQuestionTypeText}练习页`} subtitle={level.random ? `从全题库随机抽取 · 本次最多 10 道${currentQuestionTypeText}` : `${subjectLabels[level.subject]}岛 · ${level.chapter} · ${level.tag || `第 ${level.levelIndex} 关`} · ${level.tag ? "标签专项练习" : `最多 10 道${currentQuestionTypeText}`}`} />
       {level.random && (
         <GameCard className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>

@@ -13,7 +13,7 @@ import {
 } from "@/lib/api";
 import type { AdminQuestionPayload, BackendQuestion, ImportConfirmResponse, ImportPreviewResponse, ImportQuestionIssue } from "@/lib/api";
 import { normalizeSubjectCode } from "@/lib/subjects";
-import type { AuthUser, Difficulty, Subject } from "@/types";
+import type { AuthUser, Difficulty, QuestionType, Subject } from "@/types";
 
 type AdminQuestionBankProps = {
   token: string | null;
@@ -32,7 +32,8 @@ type QuestionFormState = {
   optionB: string;
   optionC: string;
   optionD: string;
-  correctAnswer: "A" | "B" | "C" | "D";
+  correctAnswer: string;
+  questionType: QuestionType;
   explanation: string;
   difficulty: Difficulty;
   tagsText: string;
@@ -51,6 +52,7 @@ const emptyForm: QuestionFormState = {
   optionC: "",
   optionD: "",
   correctAnswer: "A",
+  questionType: "single_choice",
   explanation: "",
   difficulty: "medium",
   tagsText: ""
@@ -75,6 +77,7 @@ const subjectNameMap: Record<Subject, string> = {
 
 const importPlaceholder = `学科：数学
 章节：函数
+题型：填空题
 难度：medium
 标签：函数图像,图像判断
 
@@ -109,6 +112,7 @@ function toPayload(form: QuestionFormState): AdminQuestionPayload {
     optionC: form.optionC.trim(),
     optionD: form.optionD.trim(),
     correctAnswer: form.correctAnswer,
+    questionType: form.questionType,
     explanation: form.explanation.trim(),
     difficulty: form.difficulty,
     tags: form.tagsText.split(/[、,，]/).map((tag) => tag.trim()).filter(Boolean)
@@ -130,7 +134,8 @@ function formFromQuestion(question: BackendQuestion): QuestionFormState {
     optionB: question.optionB || "",
     optionC: question.optionC || "",
     optionD: question.optionD || "",
-    correctAnswer: question.correctAnswer === "B" || question.correctAnswer === "C" || question.correctAnswer === "D" ? question.correctAnswer : "A",
+    correctAnswer: question.correctAnswer || "A",
+    questionType: normalizeQuestionType(question.questionType ?? question.type),
     explanation: question.explanation || "",
     difficulty: question.difficulty === "easy" || question.difficulty === "hard" ? question.difficulty : "medium",
     tagsText: Array.isArray(question.tags) ? question.tags.join(", ") : typeof question.tags === "string" ? question.tags : ""
@@ -165,12 +170,27 @@ type PreviewQuestion = {
   stem?: string;
   question?: string;
   title?: string;
+  questionType?: string;
+  type?: string;
   optionA?: string;
   optionB?: string;
   optionC?: string;
   optionD?: string;
+  correctAnswer?: string;
   explanation?: string;
 };
+
+function normalizeQuestionType(value?: string): QuestionType {
+  const text = String(value ?? "").trim().toLowerCase();
+  if (text === "fill_blank" || text === "fill-blank" || text === "blank" || text === "填空题" || text === "填空") {
+    return "fill_blank";
+  }
+  return "single_choice";
+}
+
+function questionTypeLabel(value?: string) {
+  return normalizeQuestionType(value) === "fill_blank" ? "填空题" : "单选题";
+}
 
 function previewQuestions(preview: ImportPreviewResponse | null): PreviewQuestion[] {
   const items = preview?.questions ?? preview?.parsedQuestions ?? preview?.items ?? [];
@@ -482,14 +502,23 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
                   <p className="text-sm font-black text-ink">题目 Markdown 预览</p>
                   {previewQuestions(importPreview).map((question, index) => (
                     <div className="rounded-2xl bg-white p-4" key={`${question.stem ?? question.question ?? question.title ?? "preview"}-${index}`}>
-                      <p className="mb-2 text-xs font-black text-ink/48">第 {index + 1} 题</p>
+                      <div className="mb-2 flex flex-wrap items-center gap-2">
+                        <p className="text-xs font-black text-ink/48">第 {index + 1} 题</p>
+                        <span className="rounded-full bg-tide/10 px-2.5 py-1 text-xs font-black text-tide">{questionTypeLabel(question.questionType ?? question.type)}</span>
+                      </div>
                       <MarkdownContent className="text-sm font-semibold text-ink" content={question.stem ?? question.question ?? question.title ?? ""} />
-                      <div className="mt-3 grid gap-2">
-                        {[question.optionA, question.optionB, question.optionC, question.optionD].filter(Boolean).map((option, optionIndex) => (
-                          <div className="rounded-xl border border-ink/8 bg-[#F7F1E4]/45 px-3 py-2" key={`${optionIndex}-${option}`}>
-                            <MarkdownContent className="text-xs font-bold text-ink/70" content={`${String.fromCharCode(65 + optionIndex)}. ${option}`} />
-                          </div>
-                        ))}
+                      {normalizeQuestionType(question.questionType ?? question.type) === "single_choice" && (
+                        <div className="mt-3 grid gap-2">
+                          {[question.optionA, question.optionB, question.optionC, question.optionD].filter(Boolean).map((option, optionIndex) => (
+                            <div className="rounded-xl border border-ink/8 bg-[#F7F1E4]/45 px-3 py-2" key={`${optionIndex}-${option}`}>
+                              <MarkdownContent className="text-xs font-bold text-ink/70" content={`${String.fromCharCode(65 + optionIndex)}. ${option}`} />
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      <div className="mt-3 rounded-xl bg-leaf/8 px-3 py-2">
+                        <p className="text-xs font-black text-leaf">答案</p>
+                        <p className="mt-1 text-xs font-bold text-ink/70">{question.correctAnswer}</p>
                       </div>
                       {question.explanation && (
                         <div className="mt-3 rounded-xl bg-tide/8 px-3 py-2">
@@ -543,18 +572,30 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
                 ))}
               </select>
               <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, chapterTitle: event.target.value })} placeholder="chapterTitle" value={form.chapterTitle} />
+              <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, questionType: event.target.value as QuestionType, correctAnswer: event.target.value === "fill_blank" ? "" : "A" })} value={form.questionType}>
+                <option value="single_choice">单选题</option>
+                <option value="fill_blank">填空题</option>
+              </select>
             </div>
             <textarea className="min-h-28 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, stem: event.target.value })} placeholder="stem 题干" value={form.stem} />
+            {form.questionType === "single_choice" && (
+              <div className="grid gap-3 md:grid-cols-2">
+                {(["optionA", "optionB", "optionC", "optionD"] as const).map((key) => (
+                  <textarea className="min-h-20 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold leading-6 text-ink" key={key} onChange={(event) => setForm({ ...form, [key]: event.target.value })} placeholder={`${key}，支持 Markdown 图片/表格`} value={form[key]} />
+                ))}
+              </div>
+            )}
             <div className="grid gap-3 md:grid-cols-2">
-              {(["optionA", "optionB", "optionC", "optionD"] as const).map((key) => (
-                <textarea className="min-h-20 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold leading-6 text-ink" key={key} onChange={(event) => setForm({ ...form, [key]: event.target.value })} placeholder={`${key}，支持 Markdown 图片/表格`} value={form[key]} />
-              ))}
-              <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, correctAnswer: event.target.value as "A" | "B" | "C" | "D" })} value={form.correctAnswer}>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-              </select>
+              {form.questionType === "single_choice" ? (
+                <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, correctAnswer: event.target.value })} value={form.correctAnswer}>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+              ) : (
+                <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, correctAnswer: event.target.value })} placeholder="填空题答案，多个答案用 | 分隔" value={form.correctAnswer} />
+              )}
               <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, difficulty: event.target.value as Difficulty })} value={form.difficulty}>
                 <option value="easy">easy</option>
                 <option value="medium">medium</option>
@@ -579,6 +620,7 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
                   <span className="rounded-full bg-ink/6 px-3 py-1 text-xs font-black text-ink/58">{question.questionCode}</span>
                   <span className="rounded-full bg-tide/10 px-3 py-1 text-xs font-black text-tide">{question.subject?.name || question.subject?.code}</span>
                   <span className="rounded-full bg-leaf/10 px-3 py-1 text-xs font-black text-leaf">{question.chapter?.title}</span>
+                  <span className="rounded-full bg-tide/10 px-3 py-1 text-xs font-black text-tide">{questionTypeLabel(question.questionType ?? question.type)}</span>
                   <span className="rounded-full bg-gold/20 px-3 py-1 text-xs font-black text-ink/66">{question.difficulty}</span>
                 </div>
                 <h2 className="text-lg font-black leading-snug text-ink">{(question.stem || "").slice(0, 40)}{(question.stem || "").length > 40 ? "..." : ""}</h2>

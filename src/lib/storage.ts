@@ -187,6 +187,7 @@ export function useWrongAnswers(token?: string | null, questions: QuizQuestion[]
           options: question.options,
           correctAnswer: question.answer,
           selectedAnswer,
+          questionType: question.questionType ?? "single_choice",
           explanation: question.explanation,
           tags: question.tags,
           createdAt: new Date().toISOString()
@@ -220,6 +221,7 @@ function normalizeWrongAnswer(record: WrongAnswerRecord, questions: QuizQuestion
     question: record.question || question?.question || "题目数据暂未匹配",
     options: record.options?.length ? record.options : question?.options ?? [],
     correctAnswer: record.correctAnswer || question?.answer || "题目数据暂未匹配",
+    questionType: record.questionType || question?.questionType || "single_choice",
     explanation: record.explanation || question?.explanation || "题目数据暂未匹配",
     tags: record.tags?.length ? record.tags : question?.tags ?? [],
     createdAt: record.createdAt || new Date().toISOString()

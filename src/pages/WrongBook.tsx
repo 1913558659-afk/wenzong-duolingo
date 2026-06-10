@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { GameCard } from "@/components/GameCard";
+import { MarkdownContent } from "@/components/MarkdownContent";
 import { PageHeader } from "@/components/PageHeader";
 import { SubjectPill } from "@/components/SubjectPill";
 import { resolveWrongQuestion } from "@/lib/api";
@@ -67,6 +68,7 @@ export function WrongBook({ records, questions, removeWrongAnswer, clearWrongAns
           const tags = matchedQuestion?.tags ?? record.tags ?? [];
           const subject = matchedQuestion?.subject ?? record.subject;
           const chapter = matchedQuestion?.chapter ?? record.chapter;
+          const questionType = matchedQuestion?.questionType ?? record.questionType ?? "single_choice";
 
           return (
           <GameCard key={record.id}>
@@ -85,8 +87,10 @@ export function WrongBook({ records, questions, removeWrongAnswer, clearWrongAns
                 {resolvingId === record.questionId ? "同步中" : "标记已掌握"}
               </button>
             </div>
-            <h2 className="mt-3 text-lg font-black leading-snug text-ink">{questionText}</h2>
-            {options.length > 0 ? (
+            <div className="mt-3 text-lg font-black leading-snug text-ink">
+              <MarkdownContent content={questionText} />
+            </div>
+            {questionType === "single_choice" && options.length > 0 ? (
               <div className="mt-3 grid gap-2">
                 {options.map((option, index) => {
                   const isSelected = option === record.selectedAnswer;
@@ -105,7 +109,7 @@ export function WrongBook({ records, questions, removeWrongAnswer, clearWrongAns
                 })}
               </div>
             ) : (
-              <p className="mt-3 rounded-2xl bg-gold/14 p-3 text-sm font-bold text-ink/58">题目数据暂未匹配</p>
+              <p className="mt-3 rounded-2xl bg-gold/14 p-3 text-sm font-bold text-ink/58">填空题无需选项，重点复盘答案和解析。</p>
             )}
             <div className="mt-3 grid gap-2 md:grid-cols-2">
               <div className="rounded-2xl bg-coral/10 p-3">
@@ -119,7 +123,7 @@ export function WrongBook({ records, questions, removeWrongAnswer, clearWrongAns
             </div>
             <div className="mt-3 rounded-2xl bg-gold/14 p-3">
               <p className="text-xs font-black text-ink/52">解析</p>
-              <p className="mt-1 text-sm font-semibold leading-6 text-ink/72">{explanation}</p>
+              <MarkdownContent className="mt-1 text-sm font-semibold text-ink/72" content={explanation} />
             </div>
             <div className="mt-3 flex flex-wrap gap-2">
               {tags.map((tag) => (

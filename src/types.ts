@@ -6,6 +6,8 @@ export type PromptCategory = "history" | "politics" | "geography" | "wrongReview
 
 export type Difficulty = "easy" | "medium" | "hard";
 
+export type QuestionType = "single_choice" | "fill_blank";
+
 export type ChallengeLevel = {
   id: string;
   island: Subject;
@@ -19,6 +21,7 @@ export type QuizQuestion = {
   id: string;
   subject: Subject;
   chapter: string;
+  questionType?: QuestionType;
   difficulty: Difficulty;
   question: string;
   options: string[];
@@ -93,6 +96,7 @@ export type WrongAnswerRecord = {
   options: string[];
   correctAnswer: string;
   selectedAnswer: string;
+  questionType?: QuestionType;
   explanation: string;
   tags: string[];
   createdAt: string;

@@ -14,10 +14,22 @@ type QuizCardProps = {
 };
 
 export function QuizCard({ question, currentNumber, total, onAnswer, onNext, nextLabel = "下一题" }: QuizCardProps) {
+  const questionType = question.questionType ?? "single_choice";
   const [selectedAnswer, setSelectedAnswer] = useState<number | null>(null);
-  const isAnswered = selectedAnswer !== null;
+  const [fillAnswer, setFillAnswer] = useState("");
+  const [submittedFillAnswer, setSubmittedFillAnswer] = useState<string | null>(null);
+  const isAnswered = questionType === "fill_blank" ? submittedFillAnswer !== null : selectedAnswer !== null;
   const selectedOption = selectedAnswer === null ? "" : question.options[selectedAnswer];
-  const isCorrect = selectedOption === question.answer;
+  const isCorrect = questionType === "fill_blank" ? isFillAnswerCorrect(submittedFillAnswer ?? "", question.answer) : selectedOption === question.answer;
+
+  function isFillAnswerCorrect(value: string, correctAnswer: string) {
+    const normalizedValue = value.trim().toLowerCase();
+    return correctAnswer
+      .split("|")
+      .map((answer) => answer.trim().toLowerCase())
+      .filter(Boolean)
+      .some((answer) => answer === normalizedValue);
+  }
 
   function choose(index: number) {
     if (isAnswered) {
@@ -29,7 +41,18 @@ export function QuizCard({ question, currentNumber, total, onAnswer, onNext, nex
 
   function nextQuestion() {
     setSelectedAnswer(null);
+    setFillAnswer("");
+    setSubmittedFillAnswer(null);
     onNext();
+  }
+
+  function submitFillAnswer() {
+    if (isAnswered) {
+      return;
+    }
+    const answer = fillAnswer.trim();
+    setSubmittedFillAnswer(answer);
+    onAnswer(isFillAnswerCorrect(answer, question.answer), answer);
   }
 
   return (
@@ -41,8 +64,34 @@ export function QuizCard({ question, currentNumber, total, onAnswer, onNext, nex
       <div className="text-xl font-black leading-snug text-ink sm:text-2xl">
         <MarkdownContent content={question.question} debugLabel="question stem" />
       </div>
-      <div className="space-y-3">
-        {question.options.map((option, index) => {
+      {questionType === "fill_blank" ? (
+        <div className="space-y-3">
+          <input
+            className={`min-h-14 w-full rounded-2xl border bg-white px-4 text-base font-bold text-ink outline-none transition focus:border-tide disabled:cursor-default ${
+              isAnswered ? (isCorrect ? "border-leaf/55 bg-leaf/12 ring-2 ring-leaf/25" : "border-coral/55 bg-coral/12 ring-2 ring-coral/25") : "border-ink/10"
+            }`}
+            disabled={isAnswered}
+            onChange={(event) => setFillAnswer(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                submitFillAnswer();
+              }
+            }}
+            placeholder="请输入答案"
+            value={fillAnswer}
+          />
+          <button
+            className="min-h-12 w-full rounded-2xl bg-ink px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide disabled:cursor-not-allowed disabled:opacity-55 sm:w-auto"
+            disabled={isAnswered || !fillAnswer.trim()}
+            onClick={submitFillAnswer}
+            type="button"
+          >
+            提交答案
+          </button>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {question.options.map((option, index) => {
           const isRightAnswer = option === question.answer;
           const isSelectedWrong = isAnswered && selectedAnswer === index && !isRightAnswer;
           const answerClass = isAnswered && isRightAnswer ? "border-leaf/55 bg-leaf/12 text-ink ring-2 ring-leaf/25" : "";
@@ -73,11 +122,24 @@ export function QuizCard({ question, currentNumber, total, onAnswer, onNext, nex
               )}
             </button>
           );
-        })}
-      </div>
+          })}
+        </div>
+      )}
       {isAnswered && (
         <div className={`rounded-2xl border p-4 ${isCorrect ? "border-leaf/20 bg-leaf/14" : "border-coral/20 bg-coral/12"}`}>
           <p className={`text-sm font-black ${isCorrect ? "text-leaf" : "text-coral"}`}>{isCorrect ? "回答正确" : "先别急，这题再看一遍"}</p>
+          {questionType === "fill_blank" && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              <div className="rounded-2xl bg-white/70 p-3">
+                <p className="text-xs font-black text-coral">你的答案</p>
+                <p className="mt-1 text-sm font-bold text-ink">{submittedFillAnswer || "未填写"}</p>
+              </div>
+              <div className="rounded-2xl bg-white/70 p-3">
+                <p className="text-xs font-black text-leaf">正确答案</p>
+                <p className="mt-1 text-sm font-bold text-ink">{question.answer}</p>
+              </div>
+            </div>
+          )}
           <MarkdownContent className="mt-2 text-sm font-semibold text-ink/72" content={question.explanation} />
           <button className="sticky bottom-24 mt-4 w-full rounded-2xl bg-ink px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-tide sm:static sm:w-auto" onClick={nextQuestion} type="button">
             {nextLabel}
