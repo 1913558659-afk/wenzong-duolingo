@@ -1,5 +1,8 @@
+import "katex/dist/katex.min.css";
 import ReactMarkdown from "react-markdown";
+import rehypeKatex from "rehype-katex";
 import remarkGfm from "remark-gfm";
+import remarkMath from "remark-math";
 
 type MarkdownContentProps = {
   content?: string | null;
@@ -27,7 +30,8 @@ export function MarkdownContent({ className = "", content, debugLabel }: Markdow
   return (
     <div className={`min-w-0 max-w-full break-words leading-7 text-inherit ${className}`}>
       <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
+        rehypePlugins={[rehypeKatex]}
+        remarkPlugins={[remarkGfm, remarkMath]}
         components={{
           a: ({ children, href }) => (
             <a className="font-black text-tide underline decoration-tide/30 underline-offset-4" href={href} rel="noreferrer" target="_blank">
