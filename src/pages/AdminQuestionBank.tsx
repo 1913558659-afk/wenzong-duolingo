@@ -11,6 +11,7 @@ import {
   updateAdminQuestion
 } from "@/lib/api";
 import type { AdminQuestionPayload, BackendQuestion, ImportConfirmResponse, ImportPreviewResponse, ImportQuestionIssue } from "@/lib/api";
+import { normalizeSubjectCode } from "@/lib/subjects";
 import type { AuthUser, Difficulty, Subject } from "@/types";
 
 type AdminQuestionBankProps = {
@@ -58,13 +59,17 @@ const subjectOptions: { code: "all" | Subject; name: string }[] = [
   { code: "all", name: "全部" },
   { code: "history", name: "历史" },
   { code: "politics", name: "政治" },
-  { code: "geography", name: "地理" }
+  { code: "geography", name: "地理" },
+  { code: "math", name: "数学" },
+  { code: "english", name: "英语" }
 ];
 
 const subjectNameMap: Record<Subject, string> = {
   history: "历史",
   politics: "政治",
-  geography: "地理"
+  geography: "地理",
+  math: "数学",
+  english: "英语"
 };
 
 const importPlaceholder = `学科：历史
@@ -101,7 +106,7 @@ function toPayload(form: QuestionFormState): AdminQuestionPayload {
 }
 
 function formFromQuestion(question: BackendQuestion): QuestionFormState {
-  const subjectCode = question.subject?.code === "politics" || question.subject?.code === "geography" ? question.subject.code : "history";
+  const subjectCode = normalizeSubjectCode(`${question.subject?.code ?? ""} ${question.subject?.name ?? ""}`);
 
   return {
     id: question.id || question.questionCode || "",
@@ -483,9 +488,9 @@ export function AdminQuestionBank({ token, user }: AdminQuestionBankProps) {
               <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, questionCode: event.target.value })} placeholder="questionCode" value={form.questionCode} />
               <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, chapterCode: event.target.value })} placeholder="chapterCode" value={form.chapterCode} />
               <select className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, subjectCode: event.target.value as Subject, subjectName: subjectNameMap[event.target.value as Subject] })} value={form.subjectCode}>
-                <option value="history">历史</option>
-                <option value="politics">政治</option>
-                <option value="geography">地理</option>
+                {subjectOptions.filter((item) => item.code !== "all").map((item) => (
+                  <option key={item.code} value={item.code}>{item.name}</option>
+                ))}
               </select>
               <input className="min-h-12 rounded-2xl border border-ink/10 bg-white px-4 py-3 text-sm font-bold text-ink" onChange={(event) => setForm({ ...form, chapterTitle: event.target.value })} placeholder="chapterTitle" value={form.chapterTitle} />
             </div>

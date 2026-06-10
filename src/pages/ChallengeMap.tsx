@@ -4,8 +4,9 @@ import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { ProgressBar } from "@/components/ProgressBar";
 import { subjectLabels } from "@/lib/labels";
+import { SUBJECT_CONFIGS } from "@/lib/subjects";
 import type { QuizQuestion, Subject } from "@/types";
-import { compareChapters, normalizeChapterForSubject } from "@/utils/chapter";
+import { compareChapters, defaultChaptersForSubject, normalizeChapterForSubject } from "@/utils/chapter";
 import {
   getChapterProgress,
   getCompletedQuestionIds,
@@ -17,13 +18,9 @@ import {
 type ChallengeMapProps = {
   questionSourceStatus: "loading" | "cloud" | "local";
   questions: QuizQuestion[];
+  goHome: () => void;
   startPractice: (levelId: string) => void;
-};
-
-type SubjectCard = {
-  subject: Subject;
-  desc: string;
-  accent: string;
+  startRandomPractice: () => void;
 };
 
 type MapNodeStatus = "done" | "current" | "locked";
@@ -54,19 +51,15 @@ type ChapterUnit = {
   type: "tag" | "level";
 };
 
-const subjectCards: SubjectCard[] = [
-  { subject: "history", desc: "按中国古代史、中国近现代史、世界史分层推进。", accent: "from-coral/18 to-gold/18" },
-  { subject: "politics", desc: "围绕教材章节训练概念判断、材料理解和易错点。", accent: "from-tide/16 to-leaf/16" },
-  { subject: "geography", desc: "从地球运动、自然地理到区域问题逐步闯关。", accent: "from-leaf/18 to-tide/14" }
-];
-
 function getSubjectQuestions(subject: Subject, questions: QuizQuestion[]) {
   return questions.filter((question) => question.subject === subject);
 }
 
 function getSubjectChapters(subject: Subject, questions: QuizQuestion[]) {
-  return [...new Set(getSubjectQuestions(subject, questions).map((question) => normalizeChapterForSubject(subject, question.chapter)))]
+  const realChapters = [...new Set(getSubjectQuestions(subject, questions).map((question) => normalizeChapterForSubject(subject, question.chapter)))]
     .sort((first, second) => compareChapters(subject, first, second));
+
+  return realChapters.length > 0 ? realChapters : defaultChaptersForSubject(subject);
 }
 
 function getTagCounts(questions: QuizQuestion[]) {
@@ -235,7 +228,7 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
   });
 }
 
-export function ChallengeMap({ questionSourceStatus, questions, startPractice }: ChallengeMapProps) {
+export function ChallengeMap({ goHome, questionSourceStatus, questions, startPractice, startRandomPractice }: ChallengeMapProps) {
   const [selectedSubject, setSelectedSubject] = useState<Subject | null>(null);
   const completedIds = getCompletedQuestionIds();
   const totalProgress = getTotalProgress(completedIds, questions);
@@ -250,8 +243,10 @@ export function ChallengeMap({ questionSourceStatus, questions, startPractice }:
         completedIds={completedIds}
         questionSourceStatus={questionSourceStatus}
         questions={questions}
+        goHome={goHome}
         onBack={() => setSelectedSubject(null)}
         startPractice={startPractice}
+        startRandomPractice={startRandomPractice}
         subject={selectedSubject}
       />
     );
@@ -283,20 +278,20 @@ export function ChallengeMap({ questionSourceStatus, questions, startPractice }:
       </GameCard>
 
       <section className="grid gap-4 lg:grid-cols-3">
-        {subjectCards.map((card) => {
-          const progress = getSubjectProgress(card.subject, completedIds, questions);
+        {SUBJECT_CONFIGS.map((card) => {
+          const progress = getSubjectProgress(card.code, completedIds, questions);
 
           return (
-            <button className="group min-w-0 text-left" key={card.subject} onClick={() => openSubject(card.subject)} type="button">
+            <button className="group min-w-0 text-left" key={card.code} onClick={() => openSubject(card.code)} type="button">
               <GameCard className={`h-full bg-gradient-to-br ${card.accent} transition group-hover:-translate-y-0.5`}>
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <p className="text-xs font-black text-tide">学科入口</p>
-                    <h2 className="mt-1 text-2xl font-black leading-tight text-ink">{subjectLabels[card.subject]}</h2>
+                    <h2 className="mt-1 text-2xl font-black leading-tight text-ink">{card.name}</h2>
                   </div>
                   <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-black text-ink/58">暂无正确率</span>
                 </div>
-                <p className="mt-3 text-sm font-semibold leading-6 text-ink/66">{card.desc}</p>
+                <p className="mt-3 text-sm font-semibold leading-6 text-ink/66">{card.description}</p>
                 <div className="mt-4 space-y-2">
                   <div className="flex items-center justify-between text-xs font-black text-ink/60">
                     <span>已完成 {progress.done} / {progress.total}</span>
@@ -322,17 +317,21 @@ export function ChallengeMap({ questionSourceStatus, questions, startPractice }:
 
 function SubjectDetail({
   completedIds,
+  goHome,
   questionSourceStatus,
   questions,
   onBack,
   startPractice,
+  startRandomPractice,
   subject
 }: {
   completedIds: Set<string>;
+  goHome: () => void;
   questionSourceStatus: "loading" | "cloud" | "local";
   questions: QuizQuestion[];
   onBack: () => void;
   startPractice: (levelId: string) => void;
+  startRandomPractice: () => void;
   subject: Subject;
 }) {
   const chapters = useMemo(() => getSubjectChapters(subject, questions), [questions, subject]);
@@ -351,6 +350,9 @@ function SubjectDetail({
 
   const progress = getSubjectProgress(subject, completedIds, questions);
   const chapterProgress = selectedChapter ? getChapterProgress(subject, selectedChapter, completedIds, questions) : { done: 0, total: 0, percent: 0 };
+  const subjectQuestionCount = getSubjectQuestions(subject, questions).length;
+  const subjectEmpty = subjectQuestionCount === 0;
+  const chapterEmpty = !subjectEmpty && chapterProgress.total === 0;
   const mapNodes = useMemo(() => buildMapNodes(subject, selectedChapter, completedIds, questions), [completedIds, questions, selectedChapter, subject]);
   const desktopRoutePath = buildRoutePath(mapNodes);
   const mobileRoutePath = buildMobileRoutePath(mapNodes);
@@ -411,7 +413,9 @@ function SubjectDetail({
                     type="button"
                   >
                     <span>{chapter}</span>
-                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-white/14 text-white/72" : "bg-ink/5 text-ink/42"}`}>{itemProgress.total} 题</span>
+                    <span className={`rounded-full px-2 py-0.5 text-[11px] ${active ? "bg-white/14 text-white/72" : "bg-ink/5 text-ink/42"}`}>
+                      {itemProgress.total > 0 ? `${itemProgress.total} 题` : "待导入"}
+                    </span>
                   </button>
                 );
               })}
@@ -420,6 +424,18 @@ function SubjectDetail({
         )}
       </section>
 
+      {subjectEmpty || chapterEmpty ? (
+        <EmptyQuestionState
+          onHome={goHome}
+          onRandomPractice={startRandomPractice}
+          subtitle={
+            subjectEmpty
+              ? "当前学科还没有导入题目。导入题库后，将自动生成章节地图与关卡路线。"
+              : "本章节还没有可练习的题目。补充题库后，这里会自动生成章节内关卡。"
+          }
+          title={subjectEmpty ? `${subjectLabels[subject]}岛题库建设中` : "本章节题库建设中"}
+        />
+      ) : (
       <section className="relative overflow-hidden rounded-[1.8rem] border border-white/75 bg-[#F7F1E4] shadow-[0_18px_48px_rgba(16,36,63,0.08)]">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_12%_9%,rgba(20,150,163,0.13),transparent_16rem),radial-gradient(circle_at_88%_14%,rgba(233,91,79,0.065),transparent_18rem),radial-gradient(circle_at_50%_86%,rgba(247,241,228,0.86),transparent_18rem),linear-gradient(180deg,#FAF4E8_0%,#F8F1E4_46%,#EAF5F2_100%)]" />
         <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:radial-gradient(#0B1F3A_0.68px,transparent_0.68px)] [background-size:18px_18px]" />
@@ -462,8 +478,41 @@ function SubjectDetail({
 
         <ChapterProgressReward chapter={selectedChapter} percent={chapterProgress.percent} questionDone={chapterProgress.done} questionTotal={chapterProgress.total} rewardDone={rewardDone} rewardTotal={rewardTotal} unitDone={mapNodes.filter((node) => node.status === "done").length} unitTotal={mapNodes.length} />
       </section>
+      )}
 
     </div>
+  );
+}
+
+function EmptyQuestionState({
+  onHome,
+  onRandomPractice,
+  subtitle,
+  title
+}: {
+  onHome: () => void;
+  onRandomPractice: () => void;
+  subtitle: string;
+  title: string;
+}) {
+  return (
+    <GameCard className="overflow-hidden bg-[linear-gradient(135deg,#FFF8EC_0%,#EAF5F2_100%)]">
+      <div className="grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Coming Soon</p>
+          <h2 className="mt-2 text-2xl font-black text-ink">{title}</h2>
+          <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-ink/60">{subtitle}</p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <button className="min-h-11 rounded-2xl bg-ink px-5 text-sm font-black text-white transition hover:-translate-y-0.5 hover:bg-tide" onClick={onHome} type="button">
+            返回首页
+          </button>
+          <button className="min-h-11 rounded-2xl bg-white px-5 text-sm font-black text-ink shadow-[0_10px_24px_rgba(16,36,63,0.08)] transition hover:-translate-y-0.5 hover:text-coral" onClick={onRandomPractice} type="button">
+            去随机练习
+          </button>
+        </div>
+      </div>
+    </GameCard>
   );
 }
 

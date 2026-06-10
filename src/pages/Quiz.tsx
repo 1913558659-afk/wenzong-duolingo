@@ -5,6 +5,7 @@ import { QuizCard } from "@/components/QuizCard";
 import { ProgressBar } from "@/components/ProgressBar";
 import { sendAnswerAttempt } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
+import { normalizeSubjectCode } from "@/lib/subjects";
 import type { QuizQuestion, Subject } from "@/types";
 import { normalizeChapterForSubject } from "@/utils/chapter";
 import { markQuestionsCompleted } from "@/utils/progress";
@@ -53,13 +54,14 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
 
   if (selectedLevelId?.includes(":")) {
     const [subject, ...rest] = selectedLevelId.split(":");
+    const normalizedSubject = normalizeSubjectCode(subject);
     const marker = rest[rest.length - 2];
     const markerValue = rest[rest.length - 1];
 
     if (marker === "tag" && markerValue) {
       return {
-        subject: subject as Subject,
-        chapter: normalizeChapterForSubject(subject as Subject, rest.slice(0, -2).join(":")),
+        subject: normalizedSubject,
+        chapter: normalizeChapterForSubject(normalizedSubject, rest.slice(0, -2).join(":")),
         levelIndex: 1,
         tag: markerValue,
         random: false
@@ -69,8 +71,8 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
     if (marker === "level") {
       const levelIndex = Number(markerValue);
       return {
-        subject: subject as Subject,
-        chapter: normalizeChapterForSubject(subject as Subject, rest.slice(0, -2).join(":")),
+        subject: normalizedSubject,
+        chapter: normalizeChapterForSubject(normalizedSubject, rest.slice(0, -2).join(":")),
         levelIndex: Number.isInteger(levelIndex) && levelIndex > 0 ? levelIndex : 1,
         tag: "",
         random: false
@@ -82,8 +84,8 @@ function parseLevel(selectedLevelId: string | null, questions: QuizQuestion[]) {
     const chapterParts = hasLevelIndex ? rest.slice(0, -1) : rest;
 
     return {
-      subject: subject as Subject,
-      chapter: normalizeChapterForSubject(subject as Subject, chapterParts.join(":")),
+      subject: normalizedSubject,
+      chapter: normalizeChapterForSubject(normalizedSubject, chapterParts.join(":")),
       levelIndex: hasLevelIndex ? possibleLevel : 1,
       tag: "",
       random: false

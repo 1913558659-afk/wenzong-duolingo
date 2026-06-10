@@ -3,7 +3,9 @@ import type { Difficulty, PromptCategory, Subject } from "@/types";
 export const subjectLabels: Record<Subject, string> = {
   history: "历史",
   politics: "政治",
-  geography: "地理"
+  geography: "地理",
+  math: "数学",
+  english: "英语"
 };
 
 export const promptCategoryLabels: Record<PromptCategory, string> = {

@@ -4,9 +4,9 @@ import { SubjectPill } from "@/components/SubjectPill";
 import { textbookArticles } from "@/data/textbookGuides";
 import { studyAids } from "@/data/studyAids";
 import { subjectLabels } from "@/lib/labels";
-import type { PromptCategory, Subject } from "@/types";
+import type { PromptCategory } from "@/types";
 
-const subjects: Subject[] = ["history", "politics", "geography"];
+const subjects = ["history", "politics", "geography"] as const;
 
 type TextbookGuideProps = {
   startPractice: (levelId: string) => void;
@@ -88,7 +88,7 @@ export function TextbookGuide({ startPractice, openPrompts, openStudyAid }: Text
                       <button className="rounded-2xl bg-coral px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={() => startPractice(article.relatedQuizId)} type="button">
                         跳转练习
                       </button>
-                      <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={() => openPrompts(article.subject, article.relatedPromptId)} type="button">
+                      <button className="rounded-2xl bg-tide px-4 py-3 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={() => openPrompts(article.subject as PromptCategory, article.relatedPromptId)} type="button">
                         跳转 AI 提示词
                       </button>
                     </div>

@@ -26,6 +26,39 @@ const historyChapterOrder = [
   "二战后世界"
 ];
 
+const mathChapterOrder = [
+  "集合与常用逻辑用语",
+  "函数",
+  "三角函数",
+  "平面向量",
+  "数列",
+  "不等式",
+  "立体几何",
+  "解析几何",
+  "概率统计",
+  "导数",
+  "复数",
+  "综合训练"
+];
+
+const englishChapterOrder = [
+  "词汇与语法",
+  "阅读理解",
+  "完形填空",
+  "七选五",
+  "语法填空",
+  "应用文写作",
+  "读后续写",
+  "听力训练",
+  "综合训练"
+];
+
+const chapterOrders: Partial<Record<Subject, string[]>> = {
+  history: historyChapterOrder,
+  math: mathChapterOrder,
+  english: englishChapterOrder
+};
+
 export function normalizeHistoryChapter(chapter: string) {
   const value = chapter.trim();
   return historyChapterAliases[value] ?? value;
@@ -36,13 +69,18 @@ export function normalizeChapterForSubject(subject: Subject, chapter: string) {
   return subject === "history" ? normalizeHistoryChapter(value) : value;
 }
 
+export function defaultChaptersForSubject(subject: Subject) {
+  return subject === "math" || subject === "english" ? [...(chapterOrders[subject] ?? [])] : [];
+}
+
 export function compareChapters(subject: Subject, first: string, second: string) {
-  if (subject !== "history") {
+  const order = chapterOrders[subject];
+  if (!order) {
     return first.localeCompare(second, "zh-CN");
   }
 
-  const firstIndex = historyChapterOrder.indexOf(first);
-  const secondIndex = historyChapterOrder.indexOf(second);
+  const firstIndex = order.indexOf(first);
+  const secondIndex = order.indexOf(second);
   const firstKnown = firstIndex >= 0;
   const secondKnown = secondIndex >= 0;
 

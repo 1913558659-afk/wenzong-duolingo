@@ -1,4 +1,5 @@
 import type { AuthUser, Difficulty, QuizQuestion, StudyStats, Subject, WrongAnswerRecord } from "@/types";
+import { normalizeSubjectCode } from "@/lib/subjects";
 
 const apiBaseUrl = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:3000";
 
@@ -154,17 +155,7 @@ export function fetchProgressMe(token: string) {
 }
 
 function normalizeSubject(code?: string, name?: string): Subject {
-  const value = `${code ?? ""} ${name ?? ""}`.trim().toLowerCase();
-  if (["history", "历史", "历史学科", "中国历史", "history subject"].some((label) => value.includes(label.toLowerCase()))) {
-    return "history";
-  }
-  if (["politics", "政治", "思想政治", "政治学科"].some((label) => value.includes(label.toLowerCase()))) {
-    return "politics";
-  }
-  if (["geography", "地理", "地理学科"].some((label) => value.includes(label.toLowerCase()))) {
-    return "geography";
-  }
-  return "history";
+  return normalizeSubjectCode(`${code ?? ""} ${name ?? ""}`);
 }
 
 function normalizeChapter(title?: string, code?: string) {

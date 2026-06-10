@@ -1,8 +1,8 @@
 export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "profile" | "adminQuestions" | "auth" | "about";
 
-export type Subject = "history" | "politics" | "geography";
+export type Subject = "history" | "politics" | "geography" | "math" | "english";
 
-export type PromptCategory = Subject | "wrongReview" | "recitePlan";
+export type PromptCategory = "history" | "politics" | "geography" | "wrongReview" | "recitePlan";
 
 export type Difficulty = "easy" | "medium" | "hard";
 

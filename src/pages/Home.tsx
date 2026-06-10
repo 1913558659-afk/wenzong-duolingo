@@ -1,6 +1,8 @@
-import { ArrowRight, Bell, BookOpen, Brain, CalendarDays, ClipboardList, Globe2, Landmark, LibraryBig, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bell, BookOpen, Brain, Calculator, CalendarDays, ClipboardList, Globe2, Landmark, Languages, LibraryBig, ScrollText, ShieldCheck } from "lucide-react";
+import englishIllustration from "@/assets/subjects/english.svg";
 import geographyIllustration from "@/assets/subjects/geography.svg";
 import historyIllustration from "@/assets/subjects/history.svg";
+import mathIllustration from "@/assets/subjects/math.svg";
 import politicsIllustration from "@/assets/subjects/politics.svg";
 import { aiPrompts } from "@/data/aiPrompts";
 import { defaultScheduleItems } from "@/data/timetable";
@@ -31,7 +33,9 @@ type SubjectMeta = {
 const subjectMeta: SubjectMeta[] = [
   { subject: "history", title: "历史", desc: "穿越历史长河，探索文明的源流", icon: Landmark, color: "#1496A3", bg: "bg-[#DFF6F1]", image: historyIllustration },
   { subject: "politics", title: "政治", desc: "理解社会运行，掌握政治智慧", icon: ShieldCheck, color: "#E95B4F", bg: "bg-[#FBE5DF]", image: politicsIllustration },
-  { subject: "geography", title: "地理", desc: "认识地理环境，辨析区域特征", icon: Globe2, color: "#F3B24A", bg: "bg-[#E8F4F5]", image: geographyIllustration }
+  { subject: "geography", title: "地理", desc: "认识地理环境，辨析区域特征", icon: Globe2, color: "#F3B24A", bg: "bg-[#E8F4F5]", image: geographyIllustration },
+  { subject: "math", title: "数学", desc: "函数、几何、概率统计、导数等核心模块分层训练。", icon: Calculator, color: "#1496A3", bg: "bg-[#EAF5F2]", image: mathIllustration },
+  { subject: "english", title: "英语", desc: "词汇语法、阅读理解、完形填空、七选五专项训练。", icon: Languages, color: "#E95B4F", bg: "bg-[#FBE5DF]", image: englishIllustration }
 ];
 
 function percent(value: number) {
@@ -331,7 +335,7 @@ export function Home({
             <h2 className="text-xl font-black">学科入口</h2>
             <button className="text-xs font-black text-[#667085] md:hidden" onClick={() => navigate("map")} type="button">全部 &gt;</button>
           </div>
-          <div className="grid gap-3 md:grid-cols-3 md:gap-4">
+          <div className="grid gap-3 md:grid-cols-2 md:gap-4 xl:grid-cols-3">
             {subjectMeta.map((item) => {
               const Icon = item.icon;
               const list = subjectQuestions(questions, item.subject);
@@ -359,7 +363,7 @@ export function Home({
                     </div>
                     <div className="relative mt-5">
                       <div className="mb-2 flex items-center justify-between text-xs font-black text-[#667085]">
-                        <span>{done} / {count} 题</span>
+                        <span>{count === 0 ? "待导入题库" : `${done} / ${count} 题`}</span>
                         <span>{progress}%</span>
                       </div>
                       <ProgressLine color={item.color} value={progress} />
