@@ -44,8 +44,8 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
     if (item.adminOnly && user?.role !== "admin") return false;
     return true;
   });
-  const mobilePrimary = navItems.filter((item) => item.mobilePrimary).slice(0, 5);
-  const mobileMore = navItems.filter((item) => !item.mobilePrimary);
+  const mobilePrimary = navItems.slice(0, 5);
+  const mobileMore = navItems.slice(5);
 
   function go(page: PageId) {
     onNavigate(page);
