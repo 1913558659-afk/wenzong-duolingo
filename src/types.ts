@@ -1,4 +1,4 @@
-export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "profile" | "adminQuestions" | "auth" | "about";
+export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "petBattle" | "profile" | "adminQuestions" | "auth" | "about";
 
 export type Subject = "history" | "politics" | "geography" | "biology" | "math" | "english";
 

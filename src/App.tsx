@@ -7,6 +7,7 @@ import { AIPrompts } from "@/pages/AIPrompts";
 import { Auth } from "@/pages/Auth";
 import { ChallengeMap } from "@/pages/ChallengeMap";
 import { Home } from "@/pages/Home";
+import { PetBattle } from "@/pages/PetBattle";
 import { Profile } from "@/pages/Profile";
 import { Quiz } from "@/pages/Quiz";
 import { StudyAidDetail } from "@/pages/StudyAidDetail";
@@ -91,6 +92,7 @@ export default function App() {
         {page === "studyAids" && <StudyAidList openDetail={openStudyAid} />}
         {page === "studyAidDetail" && <StudyAidDetail aidId={selectedStudyAidId} backToList={() => setPage("studyAids")} />}
         {page === "wrongBook" && <WrongBook clearWrongAnswers={clearWrongAnswers} questions={questions} records={records} removeWrongAnswer={removeWrongAnswer} syncError={wrongSyncError} token={auth.token} />}
+        {page === "petBattle" && <PetBattle />}
         {page === "profile" && <Profile navigate={navigate} stats={stats} syncError={statsSyncError} user={auth.user} />}
         {page === "adminQuestions" && <AdminQuestionBank token={auth.token} user={auth.user} />}
         {page === "auth" && <Auth login={auth.login} onDone={() => setPage("home")} register={auth.register} />}
