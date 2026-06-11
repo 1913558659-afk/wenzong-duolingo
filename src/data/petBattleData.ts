@@ -90,6 +90,7 @@ export type BattleEnemy = {
   role: string;
   description?: string;
   personality?: string;
+  weaknessHint?: string;
   image: string;
   level: number;
   stats: BattleStats;
@@ -422,6 +423,108 @@ export const enemies: BattleEnemy[] = [
       { skillId: "gugu_peck", weight: 50 },
       { skillId: "spin_forget_feather", weight: 30 },
       { skillId: "fragment_crow", weight: 20 }
+    ]
+  },
+  {
+    id: "anxiety-dog-01",
+    name: "惊惶犬",
+    type: "anxiety",
+    branch: "anxiety",
+    species: "狗",
+    stage: "advanced",
+    role: "高速骚扰型",
+    description: "总是竖着耳朵观察四周，哪怕没有危险，也会提前进入戒备状态。它不是勇敢，而是害怕出错，所以总抢先行动。",
+    personality: "紧张、警觉、先发制人",
+    weaknessHint: "使用专注型伙伴稳定节奏，可以克制它的焦虑干扰。",
+    image: "/pet-battle/enemies/jinghuangquan.png",
+    level: 4,
+    stats: {
+      hp: 72,
+      attack: 15,
+      defense: 7,
+      speed: 15
+    },
+    growth: {
+      hp: 8,
+      attack: 2,
+      defense: 1,
+      speed: 2
+    },
+    rewardExp: 55,
+    rewardTrainingExp: 18,
+    skills: ["anxiety-dog-bite", "anxiety-dog-dash", "anxiety-dog-bark"],
+    aiWeights: [
+      { skillId: "anxiety-dog-bite", weight: 35 },
+      { skillId: "anxiety-dog-dash", weight: 40 },
+      { skillId: "anxiety-dog-bark", weight: 25 }
+    ]
+  },
+  {
+    id: "anxiety-cat-02",
+    name: "疑影猫",
+    type: "anxiety",
+    branch: "anxiety",
+    species: "猫",
+    stage: "advanced",
+    role: "诡异干扰型",
+    description: "总会盯着空气中不存在的东西发呆，仿佛影子里藏着问题。它的攻击不一定最重，但最容易让人心烦意乱。",
+    personality: "多疑、试探、持续干扰",
+    weaknessHint: "使用专注型伙伴保持稳定判断，可以破解它的疑影干扰。",
+    image: "/pet-battle/enemies/yiyingmao.png",
+    level: 5,
+    stats: {
+      hp: 68,
+      attack: 14,
+      defense: 9,
+      speed: 16
+    },
+    growth: {
+      hp: 7,
+      attack: 2,
+      defense: 1,
+      speed: 2
+    },
+    rewardExp: 65,
+    rewardTrainingExp: 22,
+    skills: ["anxiety-cat-claw", "anxiety-cat-eye", "anxiety-cat-shadow"],
+    aiWeights: [
+      { skillId: "anxiety-cat-claw", weight: 35 },
+      { skillId: "anxiety-cat-shadow", weight: 30 },
+      { skillId: "anxiety-cat-eye", weight: 35 }
+    ]
+  },
+  {
+    id: "anxiety-bear-03",
+    name: "重压熊",
+    type: "anxiety",
+    branch: "anxiety",
+    species: "熊",
+    stage: "advancedBoss",
+    role: "厚重压迫型",
+    description: "它总是背着沉重的任务前行，从不轻易停下。所有担忧都被它一件件扛在身上，久而久之，连攻击都带着压迫感。",
+    personality: "压抑、负担重、自我要求高",
+    weaknessHint: "使用专注型伙伴拆解压力，可以克制它的重压攻击。",
+    image: "/pet-battle/enemies/zhongyaxiong.png",
+    level: 6,
+    stats: {
+      hp: 92,
+      attack: 17,
+      defense: 13,
+      speed: 7
+    },
+    growth: {
+      hp: 10,
+      attack: 3,
+      defense: 2,
+      speed: 1
+    },
+    rewardExp: 80,
+    rewardTrainingExp: 28,
+    skills: ["anxiety-bear-slam", "anxiety-bear-burden", "anxiety-bear-pressure"],
+    aiWeights: [
+      { skillId: "anxiety-bear-slam", weight: 35 },
+      { skillId: "anxiety-bear-pressure", weight: 40 },
+      { skillId: "anxiety-bear-burden", weight: 25 }
     ]
   }
 ];
@@ -827,6 +930,105 @@ export const battleSkills: Record<string, BattleSkill> = {
     },
     effectText: "降低我方下一次攻击伤害",
     description: "发出混乱叫声，降低我方下一次攻击伤害。"
+  },
+  "anxiety-dog-bite": {
+    id: "anxiety-dog-bite",
+    name: "惊步咬",
+    type: "attack",
+    power: 11,
+    cooldown: 0,
+    effectText: "快速造成普通伤害",
+    description: "快速扑咬对手，造成普通伤害。"
+  },
+  "anxiety-dog-dash": {
+    id: "anxiety-dog-dash",
+    name: "警觉冲刺",
+    type: "buff",
+    power: 14,
+    cooldown: 1,
+    buff: {
+      speed: 2,
+      duration: 1
+    },
+    effectText: "造成伤害，并小幅提高自身速度",
+    description: "因过度警觉而突然冲刺攻击，造成伤害，并小幅提高自身速度。"
+  },
+  "anxiety-dog-bark": {
+    id: "anxiety-dog-bark",
+    name: "慌乱吠",
+    type: "debuff",
+    power: 0,
+    cooldown: 2,
+    debuff: {
+      duration: 1,
+      nextDamageMultiplier: 0.8
+    },
+    effectText: "使对手下一次攻击伤害降低",
+    description: "发出慌乱叫声，干扰对手节奏，使对手下一次攻击伤害降低。"
+  },
+  "anxiety-cat-claw": {
+    id: "anxiety-cat-claw",
+    name: "疑影爪",
+    type: "attack",
+    power: 10,
+    cooldown: 0,
+    effectText: "造成普通伤害",
+    description: "从影子里突然伸爪，造成普通伤害。"
+  },
+  "anxiety-cat-eye": {
+    id: "anxiety-cat-eye",
+    name: "乱心瞳",
+    type: "debuff",
+    power: 0,
+    cooldown: 2,
+    debuff: {
+      duration: 1,
+      nextDamageMultiplier: 0.8
+    },
+    effectText: "使对手下一次攻击伤害降低",
+    description: "用不安的目光扰乱对手，使对手下一次攻击伤害降低。"
+  },
+  "anxiety-cat-shadow": {
+    id: "anxiety-cat-shadow",
+    name: "夜影伏",
+    type: "shield",
+    power: 13,
+    cooldown: 1,
+    shieldReduction: 0.25,
+    effectText: "造成伤害，并提升自身下回合减伤效果",
+    description: "伏入阴影后快速突袭，造成伤害，并提升自身下回合减伤效果。"
+  },
+  "anxiety-bear-slam": {
+    id: "anxiety-bear-slam",
+    name: "压顶拍",
+    type: "attack",
+    power: 12,
+    cooldown: 0,
+    effectText: "造成普通伤害",
+    description: "用沉重的熊掌拍击对手，造成普通伤害。"
+  },
+  "anxiety-bear-burden": {
+    id: "anxiety-bear-burden",
+    name: "负担堆积",
+    type: "shield",
+    power: 0,
+    cooldown: 2,
+    shieldReduction: 0.35,
+    debuff: {
+      speed: -1,
+      duration: 1
+    },
+    effectText: "提升自身防御，并让对手下回合速度下降",
+    description: "将焦虑化为压力，提升自身防御，并让对手下回合速度下降。"
+  },
+  "anxiety-bear-pressure": {
+    id: "anxiety-bear-pressure",
+    name: "忧念压制",
+    type: "power_attack",
+    power: 18,
+    cooldown: 1,
+    effectText: "造成较高伤害",
+    description: "以沉重压力压制对手，造成较高伤害。"
   }
 };
 
@@ -840,7 +1042,10 @@ export const battleRewards = {
     careless_rhino: 95,
     "forget-lizard-01": 45,
     "forget-ant-02": 55,
-    "forget-chicken-03": 65
+    "forget-chicken-03": 65,
+    "anxiety-dog-01": 55,
+    "anxiety-cat-02": 65,
+    "anxiety-bear-03": 80
   },
   lose: 5,
   firstDailyWinBonus: 20,

@@ -48,6 +48,9 @@ const openingEnemyCycle = [
   "forget-lizard-01",
   "forget-ant-02",
   "forget-chicken-03",
+  "anxiety-dog-01",
+  "anxiety-cat-02",
+  "anxiety-bear-03",
   "careless_shark",
   "careless_tiger",
   "careless_rhino"
@@ -58,6 +61,9 @@ const advancedEnemyCycle = [
   "forget-lizard-01",
   "forget-ant-02",
   "forget-chicken-03",
+  "anxiety-dog-01",
+  "anxiety-cat-02",
+  "anxiety-bear-03",
   "careless_shark",
   "careless_tiger",
   "careless_rhino"
@@ -678,6 +684,7 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
   const basicEnemies = enemies.filter((enemy) => enemy.branch === "basic");
   const carelessAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "careless");
   const forgetAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "forget");
+  const anxietyAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "anxiety");
 
   return (
     <section className="space-y-5">
@@ -738,6 +745,22 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
               primary="遗忘型"
               secondary={`${enemy.role}${enemy.species ? ` · ${enemy.species}` : ""}`}
               text={enemy.description ?? "遗忘型进阶敌人。"}
+              tone="enemy"
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xl font-black text-ink">焦虑型进阶敌人</h3>
+        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+          {anxietyAdvancedEnemies.map((enemy) => (
+            <ArchiveCard
+              image={enemy.image}
+              key={enemy.id}
+              name={enemy.name}
+              primary="焦虑型"
+              secondary={`${enemy.role}${enemy.species ? ` · ${enemy.species}` : ""}`}
+              text={enemy.description ?? "焦虑型进阶敌人。"}
               tone="enemy"
             />
           ))}
@@ -932,6 +955,18 @@ export function PetBattle() {
     if (enemySkill) {
       nextLogs.push(`${enemy.name} 反击，使用了「${enemySkill.name}」。`);
       if (enemySkill.type === "shield") {
+        if (enemySkill.power > 0) {
+          const shieldMultiplier = 1 - nextEffects.shieldReduction;
+          const enemyDamage = calculateEnemyDamage({
+            attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
+            defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
+            skill: enemySkill,
+            statusMultiplier: shieldMultiplier
+          });
+          nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
+          nextEffects.shieldReduction = 0;
+          nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+        }
         nextEffects.enemyShieldReduction = Math.max(nextEffects.enemyShieldReduction, enemySkill.shieldReduction ?? 0.35);
         nextLogs.push(`${enemy.name} 进入防守姿态，下一次受到的伤害会降低。`);
       } else {
@@ -961,6 +996,9 @@ export function PetBattle() {
       }
       if (enemySkill.debuff?.speed) {
         nextLogs.push(`${selectedPet.name} 速度降低。`);
+      }
+      if (enemySkill.buff?.speed) {
+        nextLogs.push(`${enemy.name} 速度提升。`);
       }
       if (enemySkill.selfDebuff?.defense) {
         nextEffects.enemyDefenseBonus += enemySkill.selfDebuff.defense;
