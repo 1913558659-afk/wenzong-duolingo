@@ -19,6 +19,7 @@ import type { PetBattleSaveState, PetTrainingStats } from "@/utils/petBattleStor
 type BattleEffects = {
   enemyAttackBonus: number;
   enemyDefenseBonus: number;
+  enemyShieldReduction: number;
   petAttackBonus: number;
   petDefenseBonus: number;
   nextAttackMultiplier: number;
@@ -31,6 +32,7 @@ type PetBattleTab = "training" | "growth" | "archive";
 const defaultEffects: BattleEffects = {
   enemyAttackBonus: 0,
   enemyDefenseBonus: 0,
+  enemyShieldReduction: 0,
   petAttackBonus: 0,
   petDefenseBonus: 0,
   nextAttackMultiplier: 1,
@@ -39,12 +41,13 @@ const defaultEffects: BattleEffects = {
 };
 
 const trainingCost = 30;
-const enemyCycle = ["careless_beast", "forget_shadow", "anxiety_beast"];
+const openingEnemyCycle = ["careless_beast", "forget_shadow", "anxiety_beast", "careless_shark", "careless_tiger", "careless_rhino"];
+const advancedEnemyCycle = ["forget_shadow", "anxiety_beast", "careless_shark", "careless_tiger", "careless_rhino"];
 
 const counterMessages: Record<EnemyType, string> = {
-  careless: "行动型克制粗心：快速行动可以纠正粗心。",
-  forget: "积累型克制遗忘：长期积累可以对抗遗忘。",
-  anxiety: "专注型克制焦虑：稳定专注可以压制焦虑。"
+  careless: "属性克制：行动型克制粗心型，本场伤害提升。",
+  forget: "属性克制：积累型克制遗忘型，本场伤害提升。",
+  anxiety: "属性克制：专注型克制焦虑型，本场伤害提升。"
 };
 
 function getPetById(petId: string) {
@@ -52,7 +55,10 @@ function getPetById(petId: string) {
 }
 
 function getBaseEnemyForStage(stage: number) {
-  const enemyId = enemyCycle[(Math.max(1, stage) - 1) % enemyCycle.length];
+  const safeStage = Math.max(1, stage);
+  const enemyId = safeStage <= openingEnemyCycle.length
+    ? openingEnemyCycle[safeStage - 1]
+    : advancedEnemyCycle[(safeStage - openingEnemyCycle.length - 1) % advancedEnemyCycle.length];
   return enemies.find((enemy) => enemy.id === enemyId) ?? enemies[0];
 }
 
@@ -62,6 +68,7 @@ function getScaledEnemy(stage: number): BattleEnemy {
     ...baseEnemy,
     level: stage,
     rewardExp: baseEnemy.rewardExp + stage * 5,
+    rewardTrainingExp: baseEnemy.rewardTrainingExp ?? 10 + Math.floor(stage / 2) * 2,
     stats: {
       hp: baseEnemy.stats.hp + stage * 8,
       attack: baseEnemy.stats.attack + stage * 2,
@@ -71,8 +78,8 @@ function getScaledEnemy(stage: number): BattleEnemy {
   };
 }
 
-function getRewardTrainingExp(stage: number) {
-  return 10 + Math.floor(stage / 2) * 2;
+function getRewardTrainingExp(enemy: BattleEnemy) {
+  return enemy.rewardTrainingExp ?? 10;
 }
 
 function getBattleStats(pet: BattlePet, level: number, training: PetTrainingStats): BattleStats {
@@ -372,13 +379,14 @@ function TrainingRoom({
             <p className="text-xs font-black uppercase tracking-[0.18em] text-tide">Training Field</p>
             <h2 className="mt-1 text-2xl font-black text-ink">第 {stage} 场 · {enemy.name}</h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
-              胜利奖励：宠物经验 +{enemy.rewardExp} · 伙伴训练经验 +{getRewardTrainingExp(stage)}
+              <span className="mr-2 rounded-full bg-coral/10 px-2.5 py-1 text-xs font-black text-coral">{enemyTypeLabel(enemy.type)}型 · {enemy.role}</span>
+              胜利奖励：宠物经验 +{enemy.rewardExp} · 伙伴训练经验 +{getRewardTrainingExp(enemy)}
             </p>
           </div>
           <div className={`rounded-3xl p-4 ring-1 ${countersCurrent ? "bg-tide/10 text-tide ring-tide/20" : "bg-white/72 text-ink/62 ring-ink/6"}`}>
             <p className="text-xs font-black">克制提示</p>
             <p className="mt-1 text-sm font-bold leading-6">
-              {countersCurrent ? counterMessages[enemy.type] : `${pet.name} 对 ${enemy.name} 没有克制，建议不要过度越级。`}
+              {countersCurrent ? counterMessages[enemy.type] : "当前无属性克制，建议提升伙伴等级或进入养成室训练。"}
             </p>
           </div>
         </div>
@@ -648,30 +656,52 @@ function ArchiveCard({
 }
 
 function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string; selectPet: (pet: BattlePet) => void }) {
+  const basicEnemies = enemies.filter((enemy) => enemy.branch !== "careless" && enemy.id !== "careless_shark" && enemy.id !== "careless_tiger" && enemy.id !== "careless_rhino");
+  const carelessAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "careless");
+
   return (
     <section className="space-y-5">
       <div>
         <h2 className="text-2xl font-black text-ink">伙伴图鉴</h2>
         <p className="mt-2 text-sm font-semibold text-ink/58">查看第一版伙伴和训练敌人的类型、特点与克制关系。</p>
       </div>
-      <div className="grid gap-4 lg:grid-cols-3">
-        {pets.map((pet) => (
-          <div key={pet.id}>
-            <PetSelectCard active={pet.id === selectedPetId} onSelect={selectPet} pet={pet} />
-          </div>
-        ))}
+      <div>
+        <h3 className="text-xl font-black text-ink">初始伙伴</h3>
+        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+          {pets.map((pet) => (
+            <div key={pet.id}>
+              <PetSelectCard active={pet.id === selectedPetId} onSelect={selectPet} pet={pet} />
+            </div>
+          ))}
+        </div>
       </div>
       <div>
-        <h3 className="text-xl font-black text-ink">训练敌人</h3>
+        <h3 className="text-xl font-black text-ink">基础敌人</h3>
         <div className="mt-3 grid gap-4 lg:grid-cols-3">
-          {enemies.map((enemy) => (
+          {basicEnemies.map((enemy) => (
             <ArchiveCard
               image={enemy.image}
               key={enemy.id}
               name={enemy.name}
-              primary={`${enemyTypeLabel(enemy.type)}状态`}
-              secondary={`${enemy.role} · 被${counterMessages[enemy.type].slice(0, 3)}克制`}
-              text={counterMessages[enemy.type]}
+              primary={`${enemyTypeLabel(enemy.type)}型`}
+              secondary={enemy.role}
+              text={enemy.description ?? counterMessages[enemy.type]}
+              tone="enemy"
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xl font-black text-ink">粗心型进阶敌人</h3>
+        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+          {carelessAdvancedEnemies.map((enemy) => (
+            <ArchiveCard
+              image={enemy.image}
+              key={enemy.id}
+              name={enemy.name}
+              primary="粗心型"
+              secondary={enemy.role}
+              text={enemy.description ?? "粗心型进阶敌人。"}
               tone="enemy"
             />
           ))}
@@ -781,7 +811,7 @@ export function PetBattle() {
 
   function finishWin(nextPetHp: number, nextLogs: string[], usedSkill: BattleSkill) {
     const rewardPetExp = enemy.rewardExp;
-    const rewardTrainingExp = getRewardTrainingExp(saveState.battleStage);
+    const rewardTrainingExp = getRewardTrainingExp(enemy);
     const { levelUpLogs, state: leveledState } = addPetExpWithLevelUp(saveState, rewardPetExp);
     const nextState = {
       ...leveledState,
@@ -835,11 +865,15 @@ export function PetBattle() {
         enemyType: enemy.type,
         pet: selectedPet,
         skill: skillForDamage,
-        statusMultiplier: nextEffects.nextDamageMultiplier
+        statusMultiplier: nextEffects.nextDamageMultiplier * (1 - nextEffects.enemyShieldReduction)
       });
       nextEnemyHp = clampHp(nextEnemyHp - damage.totalDamage, enemy.stats.hp);
+      if (nextEffects.enemyShieldReduction > 0) {
+        nextLogs.push(`${enemy.name} 的防守降低了本次伤害。`);
+      }
       nextEffects.nextAttackMultiplier = 1;
       nextEffects.nextDamageMultiplier = 1;
+      nextEffects.enemyShieldReduction = 0;
       nextLogs.push(`造成 ${damage.totalDamage} 点伤害${damage.counterMultiplier > 1 ? "，克制生效！" : "。"}`);
 
       if (skill.debuff?.attack) {
@@ -861,16 +895,21 @@ export function PetBattle() {
     const enemySkill = chooseEnemySkill(enemy);
     if (enemySkill) {
       nextLogs.push(`${enemy.name} 反击，使用了「${enemySkill.name}」。`);
-      const shieldMultiplier = 1 - nextEffects.shieldReduction;
-      const enemyDamage = calculateEnemyDamage({
-        attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
-        defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
-        skill: enemySkill,
-        statusMultiplier: shieldMultiplier
-      });
-      nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
-      nextEffects.shieldReduction = 0;
-      nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+      if (enemySkill.type === "shield") {
+        nextEffects.enemyShieldReduction = Math.max(nextEffects.enemyShieldReduction, enemySkill.shieldReduction ?? 0.35);
+        nextLogs.push(`${enemy.name} 进入防守姿态，下一次受到的伤害会降低。`);
+      } else {
+        const shieldMultiplier = 1 - nextEffects.shieldReduction;
+        const enemyDamage = calculateEnemyDamage({
+          attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
+          defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
+          skill: enemySkill,
+          statusMultiplier: shieldMultiplier
+        });
+        nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
+        nextEffects.shieldReduction = 0;
+        nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+      }
 
       if (enemySkill.debuff?.nextDamageMultiplier) {
         nextEffects.nextDamageMultiplier = Math.min(nextEffects.nextDamageMultiplier, enemySkill.debuff.nextDamageMultiplier);

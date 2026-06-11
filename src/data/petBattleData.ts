@@ -61,7 +61,7 @@ export type BattleSkill = {
   };
   lifestealPercent?: number;
   removeEnemyBuff?: boolean;
-  selfDebuff?: Partial<Pick<BattleStats, "defense">> & {
+  selfDebuff?: Partial<Pick<BattleStats, "defense" | "speed">> & {
     duration: number;
   };
 };
@@ -84,11 +84,14 @@ export type BattleEnemy = {
   id: string;
   name: string;
   type: EnemyType;
+  branch?: EnemyType | "basic";
   role: string;
+  description?: string;
   image: string;
   level: number;
   stats: BattleStats;
   rewardExp: number;
+  rewardTrainingExp?: number;
   skills: string[];
   aiWeights: Array<{
     skillId: string;
@@ -179,7 +182,9 @@ export const enemies: BattleEnemy[] = [
     id: "careless_beast",
     name: "粗心兽",
     type: "careless",
+    branch: "basic",
     role: "新手敌人",
+    description: "容易漏看条件的新手训练敌人，适合作为第一场热身。",
     image: "/pet-battle/enemies/careless-beast.png",
     level: 1,
     stats: {
@@ -189,6 +194,7 @@ export const enemies: BattleEnemy[] = [
       speed: 5
     },
     rewardExp: 30,
+    rewardTrainingExp: 10,
     skills: ["miss_bump", "distract_sneeze"],
     aiWeights: [
       { skillId: "miss_bump", weight: 70 },
@@ -199,7 +205,9 @@ export const enemies: BattleEnemy[] = [
     id: "forget_shadow",
     name: "遗忘怪",
     type: "forget",
+    branch: "basic",
     role: "中级敌人",
+    description: "会削弱防御、消耗节奏的遗忘型敌人。",
     image: "/pet-battle/enemies/forget-wraith.png",
     level: 3,
     stats: {
@@ -209,6 +217,7 @@ export const enemies: BattleEnemy[] = [
       speed: 7
     },
     rewardExp: 45,
+    rewardTrainingExp: 12,
     skills: ["fragment_hit", "blank_fog", "memory_drain"],
     aiWeights: [
       { skillId: "fragment_hit", weight: 60 },
@@ -220,7 +229,9 @@ export const enemies: BattleEnemy[] = [
     id: "anxiety_beast",
     name: "焦虑兽",
     type: "anxiety",
+    branch: "basic",
     role: "精英敌人",
+    description: "速度快、压迫感强，适合作为第一版小Boss。",
     image: "/pet-battle/enemies/anxiety-fang.png",
     level: 5,
     stats: {
@@ -230,11 +241,84 @@ export const enemies: BattleEnemy[] = [
       speed: 13
     },
     rewardExp: 70,
+    rewardTrainingExp: 14,
     skills: ["panic_claw", "pressure_scream", "countdown_impact"],
     aiWeights: [
       { skillId: "panic_claw", weight: 55 },
       { skillId: "pressure_scream", weight: 30 },
       { skillId: "countdown_impact", weight: 15 }
+    ]
+  },
+  {
+    id: "careless_shark",
+    name: "漏题鲨",
+    type: "careless",
+    branch: "careless",
+    role: "高速爆发",
+    description: "总是冲得很快，但容易漏看关键信息的粗心型敌人。攻击和速度高，防御低。",
+    image: "/pet-battle/enemies/careless-shark.png",
+    level: 4,
+    stats: {
+      hp: 46,
+      attack: 16,
+      defense: 6,
+      speed: 15
+    },
+    rewardExp: 70,
+    rewardTrainingExp: 16,
+    skills: ["fin_slash", "missed_question_dash", "chain_wrong_bite"],
+    aiWeights: [
+      { skillId: "fin_slash", weight: 50 },
+      { skillId: "missed_question_dash", weight: 25 },
+      { skillId: "chain_wrong_bite", weight: 25 }
+    ]
+  },
+  {
+    id: "careless_tiger",
+    name: "马虎虎",
+    type: "careless",
+    branch: "careless",
+    role: "均衡连击",
+    description: "会做题但容易写错步骤的粗心型敌人，属性较均衡，连击能力强。",
+    image: "/pet-battle/enemies/careless-tiger.png",
+    level: 5,
+    stats: {
+      hp: 52,
+      attack: 15,
+      defense: 9,
+      speed: 12
+    },
+    rewardExp: 80,
+    rewardTrainingExp: 18,
+    skills: ["tiger_paw", "careless_pounce", "distracted_roar"],
+    aiWeights: [
+      { skillId: "tiger_paw", weight: 50 },
+      { skillId: "careless_pounce", weight: 30 },
+      { skillId: "distracted_roar", weight: 20 }
+    ]
+  },
+  {
+    id: "careless_rhino",
+    name: "粗撞犀",
+    type: "careless",
+    branch: "careless",
+    role: "厚血强攻",
+    description: "喜欢一股脑往前冲的粗心型敌人，血厚防高，速度较慢。",
+    image: "/pet-battle/enemies/careless-rhino.png",
+    level: 6,
+    stats: {
+      hp: 64,
+      attack: 14,
+      defense: 13,
+      speed: 7
+    },
+    rewardExp: 95,
+    rewardTrainingExp: 20,
+    skills: ["right_angle_charge", "rough_line_headbutt", "heavy_guard"],
+    aiWeights: [
+      { skillId: "right_angle_charge", weight: 55 },
+      { skillId: "rough_line_headbutt", weight: 25 },
+      { skillId: "heavy_guard", weight: 20 }
     ]
   }
 ];
@@ -457,6 +541,98 @@ export const battleSkills: Record<string, BattleSkill> = {
     },
     effectText: "造成高额伤害；使用后自身防御-2，持续1回合",
     description: "强力但有副作用，适合制造Boss压迫感。"
+  },
+  fin_slash: {
+    id: "fin_slash",
+    name: "乱鳍拍击",
+    type: "attack",
+    power: 10,
+    cooldown: 0,
+    effectText: "快速拍击，造成普通伤害",
+    description: "漏题鲨快速拍击，造成普通伤害。"
+  },
+  missed_question_dash: {
+    id: "missed_question_dash",
+    name: "漏题突袭",
+    type: "power_attack",
+    power: 17,
+    cooldown: 2,
+    effectText: "高速突袭，速度优势明显",
+    description: "高速突袭，若敌人速度低于自己，额外造成少量伤害。"
+  },
+  chain_wrong_bite: {
+    id: "chain_wrong_bite",
+    name: "连错撕咬",
+    type: "multi_hit",
+    power: 7,
+    hits: 2,
+    cooldown: 1,
+    effectText: "连续造成两段伤害",
+    description: "连续撕咬两次，像连续错过两个关键条件。"
+  },
+  tiger_paw: {
+    id: "tiger_paw",
+    name: "虎爪拍击",
+    type: "attack",
+    power: 11,
+    cooldown: 0,
+    effectText: "稳定造成伤害",
+    description: "马虎虎用虎爪拍击，稳定造成伤害。"
+  },
+  careless_pounce: {
+    id: "careless_pounce",
+    name: "马虎连扑",
+    type: "multi_hit",
+    power: 6,
+    hits: 3,
+    cooldown: 2,
+    effectText: "连续攻击三次",
+    description: "马虎虎连续扑击三次，连击能力很强。"
+  },
+  distracted_roar: {
+    id: "distracted_roar",
+    name: "走神咆哮",
+    type: "debuff",
+    power: 0,
+    cooldown: 3,
+    debuff: {
+      attack: -1,
+      duration: 1
+    },
+    effectText: "降低我方攻击",
+    description: "马虎虎用咆哮打乱节奏，降低我方攻击。"
+  },
+  right_angle_charge: {
+    id: "right_angle_charge",
+    name: "直角冲撞",
+    type: "attack",
+    power: 12,
+    cooldown: 0,
+    effectText: "稳定造成伤害",
+    description: "粗撞犀直线冲撞，稳定造成伤害。"
+  },
+  rough_line_headbutt: {
+    id: "rough_line_headbutt",
+    name: "粗线猛顶",
+    type: "power_attack",
+    power: 18,
+    cooldown: 2,
+    selfDebuff: {
+      speed: -2,
+      duration: 1
+    },
+    effectText: "造成高额伤害，但自身下回合速度降低",
+    description: "粗撞犀猛顶造成高额伤害，但出手后变得笨重。"
+  },
+  heavy_guard: {
+    id: "heavy_guard",
+    name: "笨重防守",
+    type: "shield",
+    power: 0,
+    cooldown: 3,
+    shieldReduction: 0.35,
+    effectText: "下次受到伤害降低",
+    description: "粗撞犀缩起身体防守，下次受到的伤害降低。"
   }
 };
 
@@ -464,7 +640,10 @@ export const battleRewards = {
   defeat: {
     careless_beast: 30,
     forget_shadow: 45,
-    anxiety_beast: 70
+    anxiety_beast: 70,
+    careless_shark: 70,
+    careless_tiger: 80,
+    careless_rhino: 95
   },
   lose: 5,
   firstDailyWinBonus: 20,
