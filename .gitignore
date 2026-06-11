@@ -8,3 +8,13 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .DS_Store
+.venv/
+public/pet-battle/enemies/_backup-before-new-careless-sprites/
+.venv/
+content-input/new-enemy-sprites/
+public/pet-battle/enemies/_backup-fake-transparent/
+public/pet-battle/enemies/_backup-fake-transparent-batch/
+public/pet-battle/enemies/_backup-before-new-careless-sprites/
+public/pet-battle/pets/_backup-fake-transparent/
+public/pet-battle/pets/_backup-fake-transparent-batch/
+scripts/__pycache__/

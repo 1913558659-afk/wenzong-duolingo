@@ -73,3 +73,137 @@ canvas {
     linear-gradient(rgba(23, 32, 51, 0.06) 1px, transparent 1px);
   background-size: 26px 26px;
 }
+
+.partner-chess-idle {
+  animation: partner-chess-idle 2.4s ease-in-out infinite;
+}
+
+.partner-chess-attack-ally {
+  animation: partner-chess-attack-ally 0.58s ease-in-out;
+}
+
+.partner-chess-attack-enemy {
+  animation: partner-chess-attack-enemy 0.58s ease-in-out;
+}
+
+.partner-chess-hit {
+  animation: partner-chess-hit 0.5s ease-in-out;
+}
+
+.partner-chess-hit-flash {
+  animation: partner-chess-hit-flash 0.5s ease-in-out;
+}
+
+.partner-chess-skill {
+  animation: partner-chess-skill 0.72s ease-in-out;
+}
+
+.partner-chess-damage {
+  animation: partner-chess-damage 0.78s ease-out forwards;
+}
+
+.partner-chess-skill-text {
+  animation: partner-chess-skill-text 0.72s ease-out forwards;
+}
+
+@keyframes partner-chess-idle {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-7px) scale(1.025);
+  }
+}
+
+@keyframes partner-chess-attack-ally {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  48% {
+    transform: translateX(34px) scale(1.06);
+  }
+}
+
+@keyframes partner-chess-attack-enemy {
+  0%,
+  100% {
+    transform: translateX(0) scale(1);
+  }
+  48% {
+    transform: translateX(-34px) scale(1.06);
+  }
+}
+
+@keyframes partner-chess-hit {
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+  20% {
+    transform: translateX(-7px);
+  }
+  40% {
+    transform: translateX(7px);
+  }
+  60% {
+    transform: translateX(-4px);
+  }
+  80% {
+    transform: translateX(4px);
+  }
+}
+
+@keyframes partner-chess-hit-flash {
+  0%,
+  100% {
+    filter: none;
+  }
+  35%,
+  62% {
+    filter: drop-shadow(0 0 12px rgba(233, 91, 79, 0.7)) saturate(1.35);
+  }
+}
+
+@keyframes partner-chess-skill {
+  0%,
+  100% {
+    transform: scale(1);
+    box-shadow: 0 18px 38px rgba(16, 36, 63, 0.14);
+  }
+  45% {
+    transform: scale(1.14);
+    box-shadow: 0 0 0 10px rgba(34, 184, 165, 0.13), 0 20px 46px rgba(16, 36, 63, 0.18);
+  }
+}
+
+@keyframes partner-chess-damage {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, 10px) scale(0.88);
+  }
+  20% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -38px) scale(1.08);
+  }
+}
+
+@keyframes partner-chess-skill-text {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -6px) scale(0.94);
+  }
+  25%,
+  72% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -8px) scale(0.98);
+  }
+}

@@ -6,7 +6,7 @@ import { BattleLogPanel } from "@/components/partnerChess/BattleLogPanel";
 import { BuffSelectPanel } from "@/components/partnerChess/BuffSelectPanel";
 import { ChessHeader } from "@/components/partnerChess/ChessHeader";
 import type { PartnerChessPhase } from "@/components/partnerChess/ChessHeader";
-import { FormationPanel } from "@/components/partnerChess/FormationPanel";
+import { DynamicBattleStage } from "@/components/partnerChess/DynamicBattleStage";
 import { PrepQuizPanel } from "@/components/partnerChess/PrepQuizPanel";
 import { enemies, pets } from "@/data/petBattleData";
 import type { BattleEnemy } from "@/data/petBattleData";
@@ -46,6 +46,14 @@ function subjectLabel(subject: PartnerChessSubjectFilter) {
   return subjectOptions.find((item) => item.id === subject)?.label ?? "全部";
 }
 
+const phaseLabels: Record<PartnerChessPhase, string> = {
+  select: "副本选择",
+  prep: "备战",
+  buff: "增益选择",
+  battle: "自动战斗",
+  settlement: "结算"
+};
+
 const emptyQuestionPick = {
   questions: [] as PartnerChessQuizQuestion[],
   realCount: 0,
@@ -80,6 +88,7 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     if (battleEnemies.length > 0) return battleEnemies;
     return createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
   }, [battleEnemies, currentRound?.enemyIds]);
+  const stageTheme = selectedStage?.theme ?? "careless";
 
   function buildQuestionPick(round: number, subject: PartnerChessSubjectFilter, usedIds: string[], seed = Date.now()) {
     return pickPartnerChessQuestions({
@@ -195,72 +204,80 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
 
   return (
     <div className="space-y-5">
-      <PageHeader title="伙伴战棋场" subtitle="伙伴岛二阶段玩法 v0.2：从真实题库抽题备战，选择增益后让三只伙伴自动出战。" />
+      <PageHeader title="伙伴战棋场" subtitle="伙伴岛二阶段玩法 v0.3：上方横版动态战斗场景，下方真实题库备战与增益选择。" />
       <ChessHeader phase={phase} round={currentRound?.round ?? 0} stageName={selectedStage?.name ?? ""} will={will} />
+      <DynamicBattleStage
+        allies={previewAllies}
+        enemies={previewEnemies}
+        isBossRound={Boolean(currentRound?.isBoss)}
+        logs={logs.length ? logs : ["选择副本，开始伙伴战棋试炼。"]}
+        phase={phaseLabels[phase]}
+        roundTitle={selectedStage && currentRound ? `${selectedStage.name} · 第 ${currentRound.round} 回合 · ${currentRound.title}` : "选择副本后，战斗舞台会显示伙伴和敌人。"}
+        stageTheme={stageTheme}
+      />
 
-      <GameCard className="bg-white/68">
-        <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Prep Question Bank</p>
-            <h2 className="mt-1 text-xl font-black text-ink">备战题库</h2>
-            <p className="mt-1 text-sm font-semibold leading-6 text-ink/58">本局备战题目将从所选科目的题库中抽取。答对越多，灵感点越多。</p>
+      <section className="space-y-5">
+        <GameCard className="bg-white/68">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Prep Question Bank</p>
+              <h2 className="mt-1 text-xl font-black text-ink">备战题库</h2>
+              <p className="mt-1 text-sm font-semibold leading-6 text-ink/58">本局备战题目将从所选科目的题库中抽取。答对越多，灵感点越多。</p>
+            </div>
+            <p className="rounded-2xl bg-[#F7F3E7]/80 px-3 py-2 text-xs font-black text-ink/54">
+              当前科目：{subjectLabel(selectedSubject)}
+            </p>
           </div>
-          <p className="rounded-2xl bg-[#F7F3E7]/80 px-3 py-2 text-xs font-black text-ink/54">
-            当前科目：{subjectLabel(selectedSubject)}
-          </p>
-        </div>
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {subjectOptions.map((option) => {
-            const count = subjectCounts[option.id] ?? 0;
-            const disabled = option.id !== "all" && count === 0;
-            const active = selectedSubject === option.id;
-            return (
-              <button
-                className={`shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${
-                  active
-                    ? "border-ink bg-ink text-white shadow-[0_10px_22px_rgba(16,36,63,0.16)]"
-                    : disabled
-                      ? "cursor-not-allowed border-ink/5 bg-white/42 text-ink/28"
-                      : "border-white/80 bg-white/70 text-ink/60 hover:-translate-y-0.5 hover:text-tide"
-                }`}
-                disabled={disabled}
-                key={option.id}
-                onClick={() => changeSubject(option.id)}
-                type="button"
-              >
-                {option.label}
-                <span className="ml-1 text-[10px] opacity-70">{count > 0 ? `${count}题` : "暂无"}</span>
+          <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+            {subjectOptions.map((option) => {
+              const count = subjectCounts[option.id] ?? 0;
+              const disabled = option.id !== "all" && count === 0;
+              const active = selectedSubject === option.id;
+              return (
+                <button
+                  className={`shrink-0 rounded-full border px-4 py-2 text-xs font-black transition ${
+                    active
+                      ? "border-ink bg-ink text-white shadow-[0_10px_22px_rgba(16,36,63,0.16)]"
+                      : disabled
+                        ? "cursor-not-allowed border-ink/5 bg-white/42 text-ink/28"
+                        : "border-white/80 bg-white/70 text-ink/60 hover:-translate-y-0.5 hover:text-tide"
+                  }`}
+                  disabled={disabled}
+                  key={option.id}
+                  onClick={() => changeSubject(option.id)}
+                  type="button"
+                >
+                  {option.label}
+                  <span className="ml-1 text-[10px] opacity-70">{count > 0 ? `${count}题` : "暂无"}</span>
+                </button>
+              );
+            })}
+          </div>
+        </GameCard>
+
+        {phase === "select" && (
+          <div className="grid gap-4 lg:grid-cols-3">
+            {partnerChessStages.map((stage) => (
+              <button className="text-left" key={stage.id} onClick={() => startStage(stage)} type="button">
+                <GameCard className="h-full bg-white/68 transition hover:-translate-y-0.5 hover:border-tide/30">
+                  <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">{stage.theme}</p>
+                  <h2 className="mt-2 text-2xl font-black text-ink">{stage.name}</h2>
+                  <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">{stage.description}</p>
+                  <div className="mt-4 space-y-2">
+                    {stage.rounds.map((round) => (
+                      <p className="rounded-2xl bg-[#F7F3E7]/76 px-3 py-2 text-xs font-black text-ink/58" key={round.round}>
+                        第 {round.round} 回合 · {round.title}
+                      </p>
+                    ))}
+                  </div>
+                </GameCard>
               </button>
-            );
-          })}
-        </div>
-      </GameCard>
+            ))}
+          </div>
+        )}
 
-      {phase === "select" && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          {partnerChessStages.map((stage) => (
-            <button className="text-left" key={stage.id} onClick={() => startStage(stage)} type="button">
-              <GameCard className="h-full bg-white/68 transition hover:-translate-y-0.5 hover:border-tide/30">
-                <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">{stage.theme}</p>
-                <h2 className="mt-2 text-2xl font-black text-ink">{stage.name}</h2>
-                <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">{stage.description}</p>
-                <div className="mt-4 space-y-2">
-                  {stage.rounds.map((round) => (
-                    <p className="rounded-2xl bg-[#F7F3E7]/76 px-3 py-2 text-xs font-black text-ink/58" key={round.round}>
-                      第 {round.round} 回合 · {round.title}
-                    </p>
-                  ))}
-                </div>
-              </GameCard>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {phase !== "select" && (
-        <>
-          <FormationPanel allies={previewAllies} enemies={previewEnemies} />
-
+        {phase !== "select" && (
+          <>
           {phase === "prep" && (
             <PrepQuizPanel
               answers={answers}
@@ -301,8 +318,9 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
           )}
 
           <BattleLogPanel logs={logs} />
-        </>
-      )}
+          </>
+        )}
+      </section>
     </div>
   );
 }
