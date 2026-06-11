@@ -13,7 +13,7 @@ import { markQuestionsCompleted } from "@/utils/progress";
 
 type QuizProps = {
   selectedLevelId: string | null;
-  onComplete: (correctAnswers: number, totalQuestions: number, earnedXp: number) => void;
+  onComplete: (correctAnswers: number, totalQuestions: number, earnedXp: number, meta?: { isRandom: boolean }) => void;
   onWrongAnswer: (question: QuizQuestion, selectedAnswer: string) => void;
   goMap: () => void;
   questions: QuizQuestion[];
@@ -187,7 +187,7 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
     if (!level.random) {
       markQuestionsCompleted(questions.map((item) => item.id));
     }
-    onComplete(correctAnswers, questions.length, earnedXp);
+    onComplete(correctAnswers, questions.length, earnedXp, { isRandom: level.random });
     setSaved(true);
   }
 
