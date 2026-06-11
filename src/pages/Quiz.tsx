@@ -7,6 +7,7 @@ import { sendAnswerAttempt } from "@/lib/api";
 import { subjectLabels } from "@/lib/labels";
 import { normalizeSubjectCode } from "@/lib/subjects";
 import type { QuestionType, QuizQuestion, Subject } from "@/types";
+import { buildChallengeLevels } from "@/utils/challengeLevels";
 import { normalizeChapterForSubject } from "@/utils/chapter";
 import { markQuestionsCompleted } from "@/utils/progress";
 
@@ -124,10 +125,14 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
       if (level.tag) {
         return chapterQuestions.filter((question) => question.tags.includes(level.tag));
       }
-      const start = (level.levelIndex - 1) * questionsPerLevel;
-      return chapterQuestions.slice(start, start + questionsPerLevel);
+      const levels = buildChallengeLevels({
+        chapterTitle: level.chapter,
+        questions: allQuestions.filter((question) => question.subject === level.subject && normalizeChapterForSubject(level.subject, question.chapter) === level.chapter),
+        subjectName: subjectLabels[level.subject]
+      });
+      return levels[level.levelIndex - 1]?.questions ?? [];
     },
-    [allQuestions, level.chapter, level.levelIndex, level.random, level.subject, level.tag, randomSeed]
+    [allQuestions, level.chapter, level.levelIndex, level.questionType, level.random, level.subject, level.tag, randomSeed]
   );
   const [questionIndex, setQuestionIndex] = useState(0);
   const [correctAnswers, setCorrectAnswers] = useState(0);

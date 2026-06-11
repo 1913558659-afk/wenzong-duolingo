@@ -5,8 +5,9 @@ import { PageHeader } from "@/components/PageHeader";
 import { ProgressBar } from "@/components/ProgressBar";
 import { subjectLabels } from "@/lib/labels";
 import { SUBJECT_CONFIGS } from "@/lib/subjects";
-import type { QuestionType, QuizQuestion, Subject } from "@/types";
+import type { QuizQuestion, Subject } from "@/types";
 import { compareChapters, defaultChaptersForSubject, normalizeChapterForSubject } from "@/utils/chapter";
+import { buildChallengeLevels } from "@/utils/challengeLevels";
 import {
   getChapterProgress,
   getCompletedQuestionIds,
@@ -44,36 +45,6 @@ type MapNode = {
   mobileY: number;
 };
 
-type ChapterUnit = {
-  id: string;
-  name: string;
-  questions: QuizQuestion[];
-  type: "tag" | "level";
-  questionType: QuestionType;
-};
-
-function questionTypeLabel(questionType: QuestionType) {
-  return questionType === "fill_blank" ? "填空题" : "单选题";
-}
-
-function splitUnitsByQuestionType(units: Omit<ChapterUnit, "questionType">[]): ChapterUnit[] {
-  return units.flatMap((unit) => {
-    const groups = new Map<QuestionType, QuizQuestion[]>();
-    unit.questions.forEach((question) => {
-      const questionType = question.questionType ?? "single_choice";
-      groups.set(questionType, [...(groups.get(questionType) ?? []), question]);
-    });
-
-    return [...groups.entries()].map(([questionType, unitQuestions]) => ({
-      ...unit,
-      id: `${unit.id}:type:${questionType}`,
-      name: groups.size > 1 ? `${unit.name} · ${questionTypeLabel(questionType)}` : unit.name,
-      questions: unitQuestions,
-      questionType
-    }));
-  });
-}
-
 function getSubjectQuestions(subject: Subject, questions: QuizQuestion[]) {
   return questions.filter((question) => question.subject === subject);
 }
@@ -84,21 +55,6 @@ function getSubjectChapters(subject: Subject, questions: QuizQuestion[]) {
 
   return realChapters.length > 0 ? realChapters : defaultChaptersForSubject(subject);
 }
-
-function getTagCounts(questions: QuizQuestion[]) {
-  const tagCounts = new Map<string, number>();
-  questions.forEach((question) => {
-    question.tags.forEach((tag) => {
-      const normalizedTag = tag.trim();
-      if (normalizedTag) {
-        tagCounts.set(normalizedTag, (tagCounts.get(normalizedTag) ?? 0) + 1);
-      }
-    });
-  });
-  return tagCounts;
-}
-
-const questionsPerLevel = 10;
 
 function getDesktopPosition(index: number, total: number) {
   if (total <= 1) {
@@ -140,64 +96,6 @@ function buildMobileRoutePath(nodes: Pick<MapNode, "mobileX" | "mobileY">[]) {
   }, `M ${nodes[0].mobileX} ${nodes[0].mobileY}`);
 }
 
-function buildChapterUnits(chapterQuestions: QuizQuestion[]): ChapterUnit[] {
-  const tagCounts = getTagCounts(chapterQuestions);
-  const topTags = [...tagCounts.entries()]
-    .filter(([, count]) => count >= 2)
-    .sort((first, second) => second[1] - first[1])
-    .slice(0, 4)
-    .map(([tag]) => tag);
-
-  if (topTags.length >= 2) {
-    const groups = new Map<string, QuizQuestion[]>(topTags.map((tag) => [tag, []]));
-    const fallbackQuestions: QuizQuestion[] = [];
-
-    chapterQuestions.forEach((question) => {
-      const matchedTag = topTags.find((tag) => question.tags.includes(tag));
-      if (matchedTag) {
-        groups.get(matchedTag)?.push(question);
-      } else {
-        fallbackQuestions.push(question);
-      }
-    });
-
-    const units: Omit<ChapterUnit, "questionType">[] = [...groups.entries()]
-      .filter(([, unitQuestions]) => unitQuestions.length > 0)
-      .map(([tag, unitQuestions]) => ({
-        id: `tag:${tag}`,
-        name: tag,
-        questions: unitQuestions,
-        type: "tag" as const
-      }));
-
-    if (fallbackQuestions.length > 0) {
-      if (units.length < 5) {
-        units.push({
-          id: "level:extra",
-          name: "综合训练",
-          questions: fallbackQuestions,
-          type: "level" as const
-        });
-      } else {
-        units[units.length - 1].questions.push(...fallbackQuestions);
-      }
-    }
-
-    return splitUnitsByQuestionType(units).slice(0, 6);
-  }
-
-  const levelCount = Math.max(1, Math.ceil(chapterQuestions.length / questionsPerLevel));
-  return splitUnitsByQuestionType(Array.from({ length: levelCount }).map((_, index) => {
-    const start = index * questionsPerLevel;
-    return {
-      id: `level:${index + 1}`,
-      name: `${start + 1}-${Math.min(start + questionsPerLevel, chapterQuestions.length)} 题`,
-      questions: chapterQuestions.slice(start, start + questionsPerLevel),
-      type: "level" as const
-    };
-  }));
-}
-
 function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<string>, questions: QuizQuestion[]): MapNode[] {
   if (!chapter) {
     return [];
@@ -205,7 +103,11 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
 
   const normalizedChapter = normalizeChapterForSubject(subject, chapter);
   const currentQuestions = questions.filter((question) => question.subject === subject && normalizeChapterForSubject(subject, question.chapter) === normalizedChapter);
-  const units = buildChapterUnits(currentQuestions);
+  const units = buildChallengeLevels({
+    chapterTitle: normalizedChapter,
+    questions: currentQuestions,
+    subjectName: subjectLabels[subject]
+  });
   const levelCount = units.length;
   let foundCurrent = false;
 
@@ -229,20 +131,20 @@ function buildMapNodes(subject: Subject, chapter: string, completedIds: Set<stri
 
     const position = getDesktopPosition(index, levelCount);
     const mobilePosition = getMobilePosition(index, levelCount);
-    const practiceId = unit.type === "tag" ? `${subject}:${normalizedChapter}:tag:${unit.name}:type:${unit.questionType}` : `${subject}:${normalizedChapter}:level:${index + 1}:type:${unit.questionType}`;
+    const practiceId = `${subject}:${normalizedChapter}:level:${unit.index}`;
     return {
       chapter: normalizedChapter,
       index: index + 1,
       label: `第 ${index + 1} 关`,
       practiceId,
-      subtitle: total > 0 ? `${unit.name} · ${total} 题 · ${questionTypeLabel(unit.questionType)}` : "题目待补充",
+      subtitle: total > 0 ? `${unit.title} · ${total} 题` : "题目待补充",
       subject,
       status,
       questionIds: levelQuestions.map((question) => question.id),
       done: doneCount,
       total,
       percent: getPercent(doneCount, total),
-      progressKey: `levelProgress:${subject}:${normalizedChapter}:${unit.id}`,
+      progressKey: `levelProgress:${subject}:${normalizedChapter}:${unit.index}`,
       x: position.x,
       y: position.y,
       mobileX: mobilePosition.x,
