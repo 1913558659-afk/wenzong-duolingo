@@ -6,7 +6,7 @@ import { studyAids } from "@/data/studyAids";
 import { subjectLabels } from "@/lib/labels";
 import type { PromptCategory } from "@/types";
 
-const subjects = ["history", "politics", "geography"] as const;
+const subjects = ["history", "politics", "geography", "biology", "math", "english"] as const;
 
 type TextbookGuideProps = {
   startPractice: (levelId: string) => void;

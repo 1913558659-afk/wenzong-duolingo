@@ -4,6 +4,7 @@ export const subjectLabels: Record<Subject, string> = {
   history: "历史",
   politics: "政治",
   geography: "地理",
+  biology: "生物",
   math: "数学",
   english: "英语"
 };

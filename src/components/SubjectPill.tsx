@@ -5,6 +5,7 @@ const subjectColors: Record<Subject, string> = {
   history: "bg-coral/14 text-coral",
   geography: "bg-tide/14 text-tide",
   politics: "bg-leaf/14 text-leaf",
+  biology: "bg-leaf/16 text-leaf",
   math: "bg-gold/16 text-ink",
   english: "bg-coral/10 text-coral"
 };

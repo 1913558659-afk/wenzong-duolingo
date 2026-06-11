@@ -6,7 +6,7 @@ import { studyAids } from "@/data/studyAids";
 import { subjectLabels } from "@/lib/labels";
 import type { StudyAid, Subject } from "@/types";
 
-const subjects: ("all" | Subject)[] = ["all", "history", "politics", "geography"];
+const subjects: ("all" | Subject)[] = ["all", "history", "politics", "geography", "biology", "math", "english"];
 
 type StudyAidListProps = {
   openDetail: (aidId: string) => void;

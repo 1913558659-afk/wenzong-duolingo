@@ -63,6 +63,7 @@ const subjectOptions: { code: "all" | Subject; name: string }[] = [
   { code: "history", name: "历史" },
   { code: "politics", name: "政治" },
   { code: "geography", name: "地理" },
+  { code: "biology", name: "生物" },
   { code: "math", name: "数学" },
   { code: "english", name: "英语" }
 ];
@@ -71,6 +72,7 @@ const subjectNameMap: Record<Subject, string> = {
   history: "历史",
   politics: "政治",
   geography: "地理",
+  biology: "生物",
   math: "数学",
   english: "英语"
 };

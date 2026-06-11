@@ -6,13 +6,13 @@ import type { ChallengeLevel, QuizQuestion, Subject } from "@/types";
   你以后主要在这个文件里新增关卡和选择题，不需要改页面代码。
 
   固定写法：
-  - subject / island 只能填：history（历史）、politics（政治）、geography（地理）
+  - subject / island 可填：history（历史）、politics（政治）、geography（地理）、biology（生物）、math（数学）、english（英语）
   - difficulty 在题目里只能填：easy（入门）、medium（进阶）、hard（挑战）
   - difficulty 在关卡里写给学生看的中文：入门、进阶、挑战
 
   challengeLevels 字段说明：
   - id：关卡唯一编号，建议写成“subject:章节名”，例如 "history:先秦时期"
-  - island：所属学科岛，只能填 history / politics / geography
+  - island：所属学科岛，填写上面 subject / island 的学科代码
   - name：页面上显示的关卡名
   - difficulty：关卡难度，填 入门 / 进阶 / 挑战
   - questionCount：页面显示的题目数量
@@ -20,7 +20,7 @@ import type { ChallengeLevel, QuizQuestion, Subject } from "@/types";
 
   quizQuestions 字段说明：
   - id：题目唯一编号，不能重复
-  - subject：所属学科，只能填 history / politics / geography
+  - subject：所属学科，填写上面 subject / island 的学科代码
   - chapter：所属章节，必须和关卡 name 完全一致
   - difficulty：题目难度，只能填 easy / medium / hard
   - question：题干
@@ -39,7 +39,10 @@ import type { ChallengeLevel, QuizQuestion, Subject } from "@/types";
 export const islands: Subject[] = [
   "history",
   "politics",
-  "geography"
+  "geography",
+  "biology",
+  "math",
+  "english"
 ];
 
 export const challengeLevels: ChallengeLevel[] = [

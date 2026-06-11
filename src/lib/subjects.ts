@@ -35,6 +35,14 @@ export const SUBJECT_CONFIGS: SubjectConfig[] = [
     accent: "from-leaf/18 to-tide/14"
   },
   {
+    code: "biology",
+    name: "生物",
+    islandName: "生物岛",
+    description: "围绕细胞、代谢、遗传、稳态和生态系统逐步训练。",
+    homeDescription: "观察生命规律，理解结构与功能",
+    accent: "from-leaf/20 to-tide/16"
+  },
+  {
     code: "math",
     name: "数学",
     islandName: "数学岛",
@@ -63,6 +71,9 @@ export const subjectConfigMap = SUBJECT_CONFIGS.reduce(
 export function normalizeSubjectCode(value?: string | null): Subject {
   const text = String(value ?? "").trim().toLowerCase();
 
+  if (text.includes("biology") || text.includes("bio") || text.includes("生物") || text.includes("生命科学")) {
+    return "biology";
+  }
   if (text.includes("math") || text.includes("mathematics") || text.includes("数学")) {
     return "math";
   }

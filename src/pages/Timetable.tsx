@@ -7,7 +7,7 @@ import { subjectLabels } from "@/lib/labels";
 import type { ScheduleItem, Subject } from "@/types";
 
 const days = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
-const subjects: Subject[] = ["history", "politics", "geography"];
+const subjects: Subject[] = ["history", "politics", "geography", "biology", "math", "english"];
 
 type TimetableProps = {
   items: ScheduleItem[];

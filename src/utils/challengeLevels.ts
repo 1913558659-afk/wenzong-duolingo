@@ -57,6 +57,15 @@ const subjectFallbackLevelTitles: Record<string, string[]> = {
     "地理过程与原因分析",
     "综合题思维训练",
     "高考综合演练"
+  ],
+  "生物": [
+    "生命系统与基础概念",
+    "细胞结构与功能分析",
+    "代谢过程与实验探究",
+    "遗传变异与图表判读",
+    "稳态调节与生命活动",
+    "生态系统与综合应用",
+    "高考综合演练"
   ]
 };
 
@@ -65,7 +74,8 @@ const extraTitlePrefixes: Record<string, string> = {
   "政治": "综合辨析训练",
   "英语": "语法综合训练",
   "数学": "综合应用训练",
-  "地理": "地理综合训练"
+  "地理": "地理综合训练",
+  "生物": "生物综合训练"
 };
 
 const mathFunctionLevelTitles = [
@@ -76,6 +86,60 @@ const mathFunctionLevelTitles = [
   "函数零点与方程",
   "函数综合应用训练",
   "高考压轴综合演练"
+];
+
+const biologyChapterMatchers = [
+  {
+    keywords: ["细胞"],
+    titles: [
+      "细胞学说与生命系统",
+      "细胞膜、细胞器与细胞核",
+      "生物膜系统与结构功能观",
+      "细胞观察与实验探究",
+      "细胞结构综合训练"
+    ]
+  },
+  {
+    keywords: ["代谢", "酶", "光合", "呼吸"],
+    titles: [
+      "酶与ATP基础",
+      "细胞呼吸过程分析",
+      "光合作用过程分析",
+      "影响因素与实验探究",
+      "代谢综合训练"
+    ]
+  },
+  {
+    keywords: ["遗传", "变异", "进化"],
+    titles: [
+      "分离定律与自由组合定律",
+      "伴性遗传与系谱分析",
+      "基因表达与生物变异",
+      "生物进化与适应",
+      "遗传进化综合训练"
+    ]
+  },
+  {
+    keywords: ["稳态", "调节", "免疫"],
+    titles: [
+      "内环境与稳态",
+      "神经调节",
+      "体液调节",
+      "免疫调节",
+      "植物生命活动调节",
+      "稳态调节综合训练"
+    ]
+  },
+  {
+    keywords: ["生态"],
+    titles: [
+      "种群与群落",
+      "生态系统结构",
+      "能量流动与物质循环",
+      "生态平衡与环境保护",
+      "生态综合训练"
+    ]
+  }
 ];
 
 const subjectChapterLevelTitles: Record<string, Record<string, string[]>> = {
@@ -263,6 +327,13 @@ function getLevelTitles(subjectName: string, chapterTitle: string) {
     return mathFunctionLevelTitles;
   }
 
+  if (subject === "生物") {
+    const matchedBiologyTitles = biologyChapterMatchers.find((item) => item.keywords.some((keyword) => chapter.includes(keyword)))?.titles;
+    if (matchedBiologyTitles) {
+      return matchedBiologyTitles;
+    }
+  }
+
   return subjectChapterLevelTitles[subject]?.[chapter] ?? subjectFallbackLevelTitles[subject] ?? genericFallbackLevelTitles;
 }
 
@@ -304,4 +375,3 @@ export function buildChallengeLevels({
     };
   });
 }
-

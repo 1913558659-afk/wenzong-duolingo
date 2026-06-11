@@ -1,4 +1,5 @@
-import { ArrowRight, Bell, BookOpen, Brain, Calculator, CalendarDays, ClipboardList, Globe2, Landmark, Languages, LibraryBig, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bell, BookOpen, Brain, Calculator, CalendarDays, ClipboardList, Dna, Globe2, Landmark, Languages, LibraryBig, ScrollText, ShieldCheck } from "lucide-react";
+import biologyIllustration from "@/assets/subjects/biology.svg";
 import englishIllustration from "@/assets/subjects/english.svg";
 import geographyIllustration from "@/assets/subjects/geography.svg";
 import historyIllustration from "@/assets/subjects/history.svg";
@@ -34,6 +35,7 @@ const subjectMeta: SubjectMeta[] = [
   { subject: "history", title: "历史", desc: "穿越历史长河，探索文明的源流", icon: Landmark, color: "#1496A3", bg: "bg-[#DFF6F1]", image: historyIllustration },
   { subject: "politics", title: "政治", desc: "理解社会运行，掌握政治智慧", icon: ShieldCheck, color: "#E95B4F", bg: "bg-[#FBE5DF]", image: politicsIllustration },
   { subject: "geography", title: "地理", desc: "认识地理环境，辨析区域特征", icon: Globe2, color: "#F3B24A", bg: "bg-[#E8F4F5]", image: geographyIllustration },
+  { subject: "biology", title: "生物", desc: "细胞、代谢、遗传、稳态与生态系统分层训练。", icon: Dna, color: "#61B870", bg: "bg-[#E7F7ED]", image: biologyIllustration },
   { subject: "math", title: "数学", desc: "函数、几何、概率统计、导数等核心模块分层训练。", icon: Calculator, color: "#1496A3", bg: "bg-[#EAF5F2]", image: mathIllustration },
   { subject: "english", title: "英语", desc: "词汇语法、阅读理解、完形填空、七选五专项训练。", icon: Languages, color: "#E95B4F", bg: "bg-[#FBE5DF]", image: englishIllustration }
 ];
