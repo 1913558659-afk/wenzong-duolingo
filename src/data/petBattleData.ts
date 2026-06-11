@@ -55,7 +55,7 @@ export type BattleSkill = {
     duration: number;
     nextAttackPowerMultiplier?: number;
   };
-  debuff?: Partial<Pick<BattleStats, "attack" | "defense">> & {
+  debuff?: Partial<Pick<BattleStats, "attack" | "defense" | "speed">> & {
     duration: number;
     nextDamageMultiplier?: number;
   };
@@ -85,11 +85,15 @@ export type BattleEnemy = {
   name: string;
   type: EnemyType;
   branch?: EnemyType | "basic";
+  species?: string;
+  stage?: "basic" | "advanced" | "advancedBoss";
   role: string;
   description?: string;
+  personality?: string;
   image: string;
   level: number;
   stats: BattleStats;
+  growth?: BattleStats;
   rewardExp: number;
   rewardTrainingExp?: number;
   skills: string[];
@@ -319,6 +323,105 @@ export const enemies: BattleEnemy[] = [
       { skillId: "right_angle_charge", weight: 55 },
       { skillId: "rough_line_headbutt", weight: 25 },
       { skillId: "heavy_guard", weight: 20 }
+    ]
+  },
+  {
+    id: "forget-lizard-01",
+    name: "迷糊的小紫蜥蜴",
+    type: "forget",
+    branch: "forget",
+    species: "蜥蜴",
+    stage: "advanced",
+    role: "迷糊控场",
+    description: "总是把刚刚记住的知识贴得到处都是，尾巴一甩，笔记就散了一地。",
+    personality: "迷糊、慢半拍、容易忘步骤",
+    image: "/pet-battle/enemies/forget-lizard-01.png",
+    level: 4,
+    stats: {
+      hp: 68,
+      attack: 14,
+      defense: 8,
+      speed: 10
+    },
+    growth: {
+      hp: 8,
+      attack: 2,
+      defense: 1,
+      speed: 1
+    },
+    rewardExp: 45,
+    rewardTrainingExp: 14,
+    skills: ["loose_page_slap", "tail_fog_forget", "blank_stare"],
+    aiWeights: [
+      { skillId: "loose_page_slap", weight: 50 },
+      { skillId: "tail_fog_forget", weight: 30 },
+      { skillId: "blank_stare", weight: 20 }
+    ]
+  },
+  {
+    id: "forget-ant-02",
+    name: "背题迷宫蚁",
+    type: "forget",
+    branch: "forget",
+    species: "蚂蚁",
+    stage: "advanced",
+    role: "厚血干扰",
+    description: "它背着一块装满知识碎片的紫色方盒，但总是在迷宫里走错路。",
+    personality: "努力但混乱、记得很多碎片却串不起来",
+    image: "/pet-battle/enemies/forget-ant-02.png",
+    level: 5,
+    stats: {
+      hp: 82,
+      attack: 13,
+      defense: 11,
+      speed: 8
+    },
+    growth: {
+      hp: 9,
+      attack: 2,
+      defense: 2,
+      speed: 1
+    },
+    rewardExp: 55,
+    rewardTrainingExp: 18,
+    skills: ["fragment_nibble", "memory_box_bump", "maze_loop"],
+    aiWeights: [
+      { skillId: "fragment_nibble", weight: 50 },
+      { skillId: "memory_box_bump", weight: 30 },
+      { skillId: "maze_loop", weight: 20 }
+    ]
+  },
+  {
+    id: "forget-chicken-03",
+    name: "旋忘咕咕鸡",
+    type: "forget",
+    branch: "forget",
+    species: "鸡",
+    stage: "advancedBoss",
+    role: "高速断片",
+    description: "一激动就开始原地转圈，转完以后连自己刚刚为什么转都忘了。",
+    personality: "慌张、跳脱、记忆断片",
+    image: "/pet-battle/enemies/forget-chicken-03.png",
+    level: 6,
+    stats: {
+      hp: 76,
+      attack: 16,
+      defense: 7,
+      speed: 14
+    },
+    growth: {
+      hp: 8,
+      attack: 3,
+      defense: 1,
+      speed: 2
+    },
+    rewardExp: 65,
+    rewardTrainingExp: 22,
+    skills: ["gugu_peck", "spin_forget_feather", "fragment_crow"],
+    aiWeights: [
+      { skillId: "gugu_peck", weight: 50 },
+      { skillId: "spin_forget_feather", weight: 30 },
+      { skillId: "fragment_crow", weight: 20 }
     ]
   }
 ];
@@ -633,6 +736,97 @@ export const battleSkills: Record<string, BattleSkill> = {
     shieldReduction: 0.35,
     effectText: "下次受到伤害降低",
     description: "粗撞犀缩起身体防守，下次受到的伤害降低。"
+  },
+  loose_page_slap: {
+    id: "loose_page_slap",
+    name: "散页拍打",
+    type: "attack",
+    power: 10,
+    cooldown: 0,
+    effectText: "造成普通伤害",
+    description: "用散落的便签拍击对手，造成普通伤害。"
+  },
+  tail_fog_forget: {
+    id: "tail_fog_forget",
+    name: "尾雾遗忘",
+    type: "debuff",
+    power: 13,
+    cooldown: 1,
+    debuff: {
+      speed: -1,
+      duration: 1
+    },
+    effectText: "造成伤害，并小幅降低我方速度",
+    description: "甩出紫色迷雾，造成伤害，并小幅降低我方速度。"
+  },
+  blank_stare: {
+    id: "blank_stare",
+    name: "空白凝视",
+    type: "shield",
+    power: 0,
+    cooldown: 2,
+    shieldReduction: 0.28,
+    effectText: "下一回合自身受到伤害降低",
+    description: "让对手一瞬间忘记节奏，下一回合敌方受到伤害降低。"
+  },
+  fragment_nibble: {
+    id: "fragment_nibble",
+    name: "碎片啃咬",
+    type: "attack",
+    power: 11,
+    cooldown: 0,
+    effectText: "造成普通伤害",
+    description: "用零散知识碎片攻击对手，造成普通伤害。"
+  },
+  memory_box_bump: {
+    id: "memory_box_bump",
+    name: "记忆盒撞击",
+    type: "power_attack",
+    power: 15,
+    cooldown: 1,
+    effectText: "造成较高伤害",
+    description: "抱着记忆盒冲撞，造成较高伤害。"
+  },
+  maze_loop: {
+    id: "maze_loop",
+    name: "迷宫循环",
+    type: "shield",
+    power: 0,
+    cooldown: 2,
+    shieldReduction: 0.35,
+    effectText: "本回合提升自身防御",
+    description: "进入重复回忆状态，本回合提升自身防御。"
+  },
+  gugu_peck: {
+    id: "gugu_peck",
+    name: "咕咕啄击",
+    type: "attack",
+    power: 10,
+    cooldown: 0,
+    effectText: "快速造成普通伤害",
+    description: "快速啄击对手，造成普通伤害。"
+  },
+  spin_forget_feather: {
+    id: "spin_forget_feather",
+    name: "旋忘羽击",
+    type: "power_attack",
+    power: 17,
+    cooldown: 1,
+    effectText: "造成较高伤害",
+    description: "旋转甩出紫色羽毛，造成较高伤害。"
+  },
+  fragment_crow: {
+    id: "fragment_crow",
+    name: "断片啼叫",
+    type: "debuff",
+    power: 0,
+    cooldown: 2,
+    debuff: {
+      duration: 1,
+      nextDamageMultiplier: 0.8
+    },
+    effectText: "降低我方下一次攻击伤害",
+    description: "发出混乱叫声，降低我方下一次攻击伤害。"
   }
 };
 
@@ -643,7 +837,10 @@ export const battleRewards = {
     anxiety_beast: 70,
     careless_shark: 70,
     careless_tiger: 80,
-    careless_rhino: 95
+    careless_rhino: 95,
+    "forget-lizard-01": 45,
+    "forget-ant-02": 55,
+    "forget-chicken-03": 65
   },
   lose: 5,
   firstDailyWinBonus: 20,

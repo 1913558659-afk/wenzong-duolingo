@@ -41,8 +41,27 @@ const defaultEffects: BattleEffects = {
 };
 
 const trainingCost = 30;
-const openingEnemyCycle = ["careless_beast", "forget_shadow", "anxiety_beast", "careless_shark", "careless_tiger", "careless_rhino"];
-const advancedEnemyCycle = ["forget_shadow", "anxiety_beast", "careless_shark", "careless_tiger", "careless_rhino"];
+const openingEnemyCycle = [
+  "careless_beast",
+  "forget_shadow",
+  "anxiety_beast",
+  "forget-lizard-01",
+  "forget-ant-02",
+  "forget-chicken-03",
+  "careless_shark",
+  "careless_tiger",
+  "careless_rhino"
+];
+const advancedEnemyCycle = [
+  "forget_shadow",
+  "anxiety_beast",
+  "forget-lizard-01",
+  "forget-ant-02",
+  "forget-chicken-03",
+  "careless_shark",
+  "careless_tiger",
+  "careless_rhino"
+];
 
 const counterMessages: Record<EnemyType, string> = {
   careless: "属性克制：行动型克制粗心型，本场伤害提升。",
@@ -656,8 +675,9 @@ function ArchiveCard({
 }
 
 function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string; selectPet: (pet: BattlePet) => void }) {
-  const basicEnemies = enemies.filter((enemy) => enemy.branch !== "careless" && enemy.id !== "careless_shark" && enemy.id !== "careless_tiger" && enemy.id !== "careless_rhino");
+  const basicEnemies = enemies.filter((enemy) => enemy.branch === "basic");
   const carelessAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "careless");
+  const forgetAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "forget");
 
   return (
     <section className="space-y-5">
@@ -702,6 +722,22 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
               primary="粗心型"
               secondary={enemy.role}
               text={enemy.description ?? "粗心型进阶敌人。"}
+              tone="enemy"
+            />
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xl font-black text-ink">遗忘型进阶敌人</h3>
+        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+          {forgetAdvancedEnemies.map((enemy) => (
+            <ArchiveCard
+              image={enemy.image}
+              key={enemy.id}
+              name={enemy.name}
+              primary="遗忘型"
+              secondary={`${enemy.role}${enemy.species ? ` · ${enemy.species}` : ""}`}
+              text={enemy.description ?? "遗忘型进阶敌人。"}
               tone="enemy"
             />
           ))}
@@ -923,9 +959,15 @@ export function PetBattle() {
         nextEffects.petAttackBonus += enemySkill.debuff.attack;
         nextLogs.push(`${selectedPet.name} 攻击降低。`);
       }
+      if (enemySkill.debuff?.speed) {
+        nextLogs.push(`${selectedPet.name} 速度降低。`);
+      }
       if (enemySkill.selfDebuff?.defense) {
         nextEffects.enemyDefenseBonus += enemySkill.selfDebuff.defense;
         nextLogs.push(`${enemy.name} 使用强攻后防御下降。`);
+      }
+      if (enemySkill.selfDebuff?.speed) {
+        nextLogs.push(`${enemy.name} 使用强攻后速度下降。`);
       }
     }
 
