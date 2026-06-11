@@ -770,7 +770,7 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
   );
 }
 
-export function PetBattle() {
+export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void }) {
   const [saveState, setSaveState] = useState(() => loadPetBattleState());
   const [activeTab, setActiveTab] = useState<PetBattleTab>("training");
   const selectedPet = getPetById(saveState.selectedPetId);
@@ -1028,6 +1028,18 @@ export function PetBattle() {
   return (
     <div className="space-y-5">
       <PageHeader title="我的学习伙伴" subtitle="伙伴岛第一版：把学习经验转化为伙伴养成，用训练战斗陪你稳步闯关。" />
+      {openPartnerChess && (
+        <GameCard className="flex flex-col gap-3 bg-[linear-gradient(135deg,rgba(255,255,255,0.78),rgba(226,247,244,0.62))] sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Partner Chess v0.1</p>
+            <h2 className="mt-1 text-xl font-black text-ink">伙伴战棋场已开放</h2>
+            <p className="mt-1 text-sm font-semibold text-ink/58">先答题备战，再选择增益，让三只伙伴自动出战。</p>
+          </div>
+          <button className="min-h-12 rounded-2xl bg-tide px-5 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={openPartnerChess} type="button">
+            进入伙伴战棋场
+          </button>
+        </GameCard>
+      )}
 
       <TopStatusBar
         bestStage={saveState.bestStage}
