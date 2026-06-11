@@ -185,39 +185,39 @@ function TopStatusBar({
   bestStage: number;
 }) {
   return (
-    <GameCard className="bg-[linear-gradient(135deg,#0B1F3A_0%,#10243F_55%,#1496A3_140%)] text-white">
+    <GameCard className="border-white/70 bg-[linear-gradient(135deg,rgba(255,255,255,0.82)_0%,rgba(226,247,244,0.74)_58%,rgba(255,246,224,0.66)_100%)] shadow-[0_18px_44px_rgba(16,36,63,0.08)] backdrop-blur">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="grid size-16 shrink-0 place-items-center rounded-3xl bg-white/12 p-2 ring-1 ring-white/16 sm:size-20">
+          <div className="grid size-20 shrink-0 place-items-center rounded-[1.7rem] bg-[linear-gradient(135deg,#FFFDF7,#EAF5F2)] p-2 shadow-[0_12px_28px_rgba(16,36,63,0.10)] ring-1 ring-white/80 sm:size-24">
             <img alt={pet.name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={pet.image} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className="text-xl font-black sm:text-2xl">{pet.name}</h2>
-              <span className="rounded-full bg-white/12 px-3 py-1 text-xs font-black text-white/84">Lv.{petLevel}</span>
-              <span className="rounded-full bg-tide/25 px-3 py-1 text-xs font-black text-white/84">{attributeLabel(pet.attribute)}</span>
+              <h2 className="text-xl font-black text-ink sm:text-2xl">{pet.name}</h2>
+              <span className="rounded-full bg-ink px-3 py-1 text-xs font-black text-white">Lv.{petLevel}</span>
+              <span className="rounded-full bg-tide/10 px-3 py-1 text-xs font-black text-tide ring-1 ring-tide/20">{attributeLabel(pet.attribute)}</span>
             </div>
             <div className="mt-3 max-w-md">
-              <div className="mb-1 flex justify-between text-xs font-black text-white/62">
+              <div className="mb-1 flex justify-between text-xs font-black text-ink/52">
                 <span>宠物经验</span>
                 <span>{petExp} / {petExpNeed}</span>
               </div>
-              <ProgressBar percent={hpPercent(petExp, petExpNeed)} tone="gold" />
+              <ProgressBar percent={hpPercent(petExp, petExpNeed)} tone="tide" />
             </div>
           </div>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:w-[430px]">
-          <div className="rounded-3xl bg-white/10 p-3 ring-1 ring-white/12">
-            <p className="text-xs font-black text-white/54">伙伴训练经验</p>
-            <p className="mt-1 text-2xl font-black">{companionTrainingExp}</p>
+          <div className="rounded-3xl bg-white/68 p-3 shadow-[0_10px_24px_rgba(16,36,63,0.06)] ring-1 ring-white/78">
+            <p className="text-xs font-black text-ink/45">伙伴训练经验</p>
+            <p className="mt-1 text-2xl font-black text-tide">{companionTrainingExp}</p>
           </div>
-          <div className="rounded-3xl bg-white/10 p-3 ring-1 ring-white/12">
-            <p className="text-xs font-black text-white/54">最高挑战</p>
-            <p className="mt-1 text-2xl font-black">{bestStage}</p>
+          <div className="rounded-3xl bg-white/68 p-3 shadow-[0_10px_24px_rgba(16,36,63,0.06)] ring-1 ring-white/78">
+            <p className="text-xs font-black text-ink/45">最高挑战</p>
+            <p className="mt-1 text-2xl font-black text-ink">{bestStage}</p>
           </div>
-          <div className="col-span-2 rounded-3xl bg-white/10 p-3 ring-1 ring-white/12 sm:col-span-1">
-            <p className="text-xs font-black text-white/54">经验来源</p>
-            <p className="mt-1 text-sm font-bold leading-5 text-white/78">闯关、答题与训练胜利</p>
+          <div className="col-span-2 rounded-3xl bg-white/68 p-3 shadow-[0_10px_24px_rgba(16,36,63,0.06)] ring-1 ring-white/78 sm:col-span-1">
+            <p className="text-xs font-black text-ink/45">经验来源</p>
+            <p className="mt-1 text-sm font-bold leading-5 text-ink/62">闯关、答题与训练胜利</p>
           </div>
         </div>
       </div>
@@ -229,7 +229,9 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
   return (
     <button
       className={`min-h-11 rounded-2xl px-4 text-sm font-black transition ${
-        active ? "bg-ink text-white shadow-[0_12px_24px_rgba(16,36,63,0.16)]" : "bg-white/64 text-ink/58 ring-1 ring-ink/6 hover:-translate-y-0.5 hover:text-ink"
+        active
+          ? "bg-gradient-to-r from-tide to-[#22B8A5] text-white shadow-[0_12px_24px_rgba(21,156,168,0.18)]"
+          : "bg-white/58 text-ink/58 ring-1 ring-white/78 hover:-translate-y-0.5 hover:bg-white/78 hover:text-ink"
       }`}
       onClick={onClick}
       type="button"
@@ -287,17 +289,18 @@ function FighterPanel({
 }) {
   const percent = hpPercent(hp, maxHp);
   const barColor = tone === "pet" ? "from-[#1496A3] to-[#61B870]" : "from-[#E95B4F] to-[#F3B24A]";
+  const panelTone = tone === "pet" ? "border-tide/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.80),rgba(224,247,244,0.48))]" : "border-coral/20 bg-[linear-gradient(135deg,rgba(255,255,255,0.80),rgba(255,241,224,0.58))]";
 
   return (
-    <div className="rounded-[1.8rem] border border-white/75 bg-white/78 p-4 shadow-[0_16px_38px_rgba(16,36,63,0.08)]">
+    <div className={`rounded-[1.8rem] border p-4 shadow-[0_16px_38px_rgba(16,36,63,0.07)] backdrop-blur ${panelTone}`}>
       <div className="flex flex-col items-center gap-4 sm:flex-row">
-        <div className="grid size-32 shrink-0 place-items-center rounded-[1.6rem] bg-[#F7F1E4] p-2 shadow-[inset_0_-3px_0_rgba(16,36,63,0.06)] lg:size-36">
+        <div className="grid size-32 shrink-0 place-items-center rounded-[1.6rem] bg-[linear-gradient(135deg,#FFFDF7,#F7F1E4)] p-3 shadow-[0_10px_24px_rgba(16,36,63,0.08),inset_0_-3px_0_rgba(16,36,63,0.04)] ring-1 ring-white/80 lg:size-36">
           <img alt={name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={image} />
         </div>
         <div className="w-full min-w-0 flex-1">
           <div className="flex flex-wrap items-center justify-center gap-2 sm:justify-between">
             <h3 className="break-words text-center text-2xl font-black text-ink sm:text-left">{name}</h3>
-            <span className="shrink-0 rounded-full bg-ink px-3 py-1 text-xs font-black text-white">Lv.{level}</span>
+            <span className="shrink-0 rounded-full bg-ink px-3 py-1 text-xs font-black text-white shadow-[0_8px_16px_rgba(16,36,63,0.12)]">Lv.{level}</span>
           </div>
           <div className="mt-4 flex items-center justify-between text-xs font-black text-ink/58">
             <span>HP</span>
@@ -388,7 +391,7 @@ function TrainingRoom({
 
       <div className="grid gap-4 xl:grid-cols-[1.1fr_auto_1.1fr] xl:items-center">
         <FighterPanel hp={petHp} image={pet.image} level={petLevel} maxHp={petStats.hp} name={pet.name} stats={petStats} tone="pet" />
-        <div className="hidden rounded-full bg-ink px-5 py-3 text-center text-sm font-black text-white shadow-[0_12px_24px_rgba(16,36,63,0.16)] xl:block">VS</div>
+        <div className="hidden rounded-full bg-white/78 px-5 py-3 text-center text-sm font-black text-ink shadow-[0_12px_24px_rgba(16,36,63,0.08)] ring-1 ring-white/80 xl:block">VS</div>
         <FighterPanel hp={enemyHp} image={enemy.image} level={enemy.level} maxHp={enemy.stats.hp} name={enemy.name} stats={enemy.stats} tone="enemy" />
       </div>
 
@@ -409,6 +412,7 @@ function TrainingRoom({
               const cooldown = cooldowns[skill.id] ?? 0;
               const disabled = battleState !== "playing" || cooldown > 0 || !canChallengeCurrent;
               const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
+              const iconTone = skill.type === "heal" || skill.type === "shield" ? "text-leaf" : skill.type === "power_attack" || skill.type === "multi_hit" ? "text-coral" : skill.type === "buff" ? "text-gold" : "text-tide";
 
               return (
                 <button
@@ -424,8 +428,8 @@ function TrainingRoom({
                 >
                   <div className="flex items-center justify-between gap-2">
                     <span className="flex items-center gap-2 text-base font-black">
-                      <Icon className="size-4 shrink-0" />
-                      {skill.name}
+                          <Icon className={`size-4 shrink-0 ${disabled ? "text-ink/30" : iconTone}`} />
+                          {skill.name}
                     </span>
                     <span className="shrink-0 rounded-full bg-ink/6 px-2 py-1 text-[11px] font-black">{cooldown > 0 ? `冷却 ${cooldown}` : `威力 ${skill.power}`}</span>
                   </div>
@@ -470,19 +474,30 @@ function TrainingRoom({
           )}
         </GameCard>
 
-        <div className="rounded-[1.6rem] border border-white/75 bg-[#0B1F3A] p-4 text-white shadow-[0_16px_34px_rgba(16,36,63,0.12)]">
+        <div className="rounded-[1.6rem] border border-white/75 bg-white/68 p-4 text-ink shadow-[0_16px_34px_rgba(16,36,63,0.07)] backdrop-blur">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-lg font-black">战斗日志</h3>
-            <span className={`rounded-full px-3 py-1 text-xs font-black ${battleState === "won" ? "bg-leaf/20 text-leaf" : battleState === "lost" ? "bg-coral/20 text-coral" : "bg-white/10 text-white/70"}`}>
+            <span className={`rounded-full px-3 py-1 text-xs font-black ${battleState === "won" ? "bg-leaf/10 text-leaf ring-1 ring-leaf/20" : battleState === "lost" ? "bg-coral/10 text-coral ring-1 ring-coral/20" : "bg-tide/10 text-tide ring-1 ring-tide/20"}`}>
               {battleState === "won" ? "胜利" : battleState === "lost" ? "暂败" : "进行中"}
             </span>
           </div>
-          <div className="h-[340px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin]">
-            {logs.map((log, index) => (
-              <p className="rounded-2xl bg-white/[0.07] px-3 py-2 text-sm font-semibold leading-6 text-white/76" key={`${log}-${index}`}>
-                {log}
-              </p>
-            ))}
+          <div className="h-[300px] space-y-2 overflow-y-auto rounded-[1.25rem] bg-[#F7F3E7]/58 p-2 pr-1 ring-1 ring-white/72 [scrollbar-width:thin] md:h-[340px]">
+            {logs.length === 0 ? (
+              <p className="rounded-2xl border border-tide/20 bg-tide/10 px-3 py-3 text-sm font-bold leading-6 text-ink/54">选择技能，开始本场训练。</p>
+            ) : (
+              logs.map((log, index) => (
+                <p
+                  className={`rounded-2xl border px-3 py-2 text-sm font-semibold leading-6 ${
+                    index === 0
+                      ? "border-tide/20 bg-tide/10 text-ink shadow-[inset_3px_0_0_rgba(21,156,168,0.55)]"
+                      : "border-[#D2E1E6]/70 bg-white/70 text-ink/70"
+                  }`}
+                  key={`${log}-${index}`}
+                >
+                  {log}
+                </p>
+              ))
+            )}
           </div>
         </div>
       </div>
