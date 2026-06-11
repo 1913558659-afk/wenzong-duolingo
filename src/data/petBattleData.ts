@@ -327,7 +327,7 @@ export const enemies: BattleEnemy[] = [
   },
   {
     id: "forget-lizard-01",
-    name: "迷糊的小紫蜥蜴",
+    name: "忘影蜥",
     type: "forget",
     branch: "forget",
     species: "蜥蜴",
@@ -360,7 +360,7 @@ export const enemies: BattleEnemy[] = [
   },
   {
     id: "forget-ant-02",
-    name: "背题迷宫蚁",
+    name: "记空蚁",
     type: "forget",
     branch: "forget",
     species: "蚂蚁",
@@ -393,7 +393,7 @@ export const enemies: BattleEnemy[] = [
   },
   {
     id: "forget-chicken-03",
-    name: "旋忘咕咕鸡",
+    name: "忆迷鸡",
     type: "forget",
     branch: "forget",
     species: "鸡",
