@@ -15,16 +15,16 @@ type NavItem = {
 const items: NavItem[] = [
   { id: "home", label: "首页", icon: Home, mobilePrimary: true },
   { id: "map", label: "闯关", icon: Map, mobilePrimary: true },
+  { id: "petBattle", label: "伙伴岛", icon: PawPrint },
+  { id: "partnerChess", label: "战棋场", icon: Swords },
+  { id: "wrongBook", label: "错题本", icon: ClipboardList, mobilePrimary: true },
   { id: "quiz", label: "练习", icon: PenSquare },
   { id: "schedule", label: "课表", icon: CalendarDays },
   { id: "prompts", label: "AI学习", icon: Brain, mobilePrimary: true },
   { id: "textbook", label: "教材", icon: BookOpen },
   { id: "studyAids", label: "教辅", icon: LibraryBig },
-  { id: "wrongBook", label: "错题本", icon: ClipboardList, mobilePrimary: true },
-  { id: "petBattle", label: "伙伴岛", icon: PawPrint },
-  { id: "partnerChess", label: "战棋场", icon: Swords },
-  { id: "profile", label: "我的", icon: UserRound, authOnly: true, mobilePrimary: true },
   { id: "auth", label: "登录", icon: LogIn, guestOnly: true, mobilePrimary: true },
+  { id: "profile", label: "我的", icon: UserRound, authOnly: true, mobilePrimary: true },
   { id: "adminQuestions", label: "题库管理", icon: Shield, adminOnly: true },
   { id: "about", label: "关于", icon: Compass }
 ];
