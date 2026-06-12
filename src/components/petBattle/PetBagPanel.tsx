@@ -1,5 +1,6 @@
 import { GameCard } from "@/components/GameCard";
 import type { PetBattleTeamMember } from "@/components/petBattle/PetTeamBar";
+import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 
 function hpPercent(current: number, max: number) {
   return max <= 0 ? 0 : Math.max(0, Math.min(100, Math.round((current / max) * 100)));
@@ -42,7 +43,7 @@ export function PetBagPanel({
               </div>
               <div className="mt-4 flex items-center gap-4">
                 <div className="grid size-24 shrink-0 place-items-center rounded-[1.4rem] bg-white/72 p-2 ring-1 ring-white/80">
-                  <img alt={member.pet.name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={member.pet.image} />
+                  <img alt={member.pet.name} className={`max-h-full max-w-full object-contain [image-rendering:pixelated] ${petSpriteFacingClass(member.pet.id, "right")}`} src={member.pet.image} />
                 </div>
                 <div className="min-w-0 flex-1">
                   <h3 className="text-xl font-black text-ink">{member.pet.name}</h3>

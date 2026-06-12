@@ -1,6 +1,7 @@
 import { GameCard } from "@/components/GameCard";
 import type { BattlePet, BattleStats } from "@/data/petBattleData";
 import type { PetTrainingSkill } from "@/data/petTrainingSkills";
+import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 import type { ReactNode } from "react";
 
 function attributeLabel(attribute: BattlePet["attribute"]) {
@@ -43,7 +44,7 @@ export function PetDetailCard({
     <GameCard className="h-full bg-white/68">
       <div className="flex items-start gap-4">
         <div className="grid size-24 shrink-0 place-items-center rounded-[1.4rem] bg-[linear-gradient(135deg,#FFFDF7,#EAF5F2)] p-2 ring-1 ring-white/80">
-          <img alt={pet.name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={pet.image} />
+          <img alt={pet.name} className={`max-h-full max-w-full object-contain [image-rendering:pixelated] ${petSpriteFacingClass(pet.id, "right")}`} src={pet.image} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">

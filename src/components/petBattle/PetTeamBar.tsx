@@ -1,4 +1,5 @@
 import type { BattlePet, BattleStats } from "@/data/petBattleData";
+import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 
 export type PetBattleTeamMember = {
   hp: number;
@@ -44,7 +45,7 @@ export function PetTeamBar({
           >
             <div className="flex items-center gap-3">
               <div className="grid size-14 shrink-0 place-items-center rounded-2xl bg-white/72 p-1.5 ring-1 ring-white/80">
-                <img alt={member.pet.name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={member.pet.image} />
+                <img alt={member.pet.name} className={`max-h-full max-w-full object-contain [image-rendering:pixelated] ${petSpriteFacingClass(member.pet.id, "right")}`} src={member.pet.image} />
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">

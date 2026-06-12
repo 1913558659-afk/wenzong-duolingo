@@ -3,6 +3,7 @@ import { ManualDamageNumber } from "@/components/petBattle/ManualDamageNumber";
 import { StatusEffectBadges } from "@/components/petBattle/StatusEffectBadges";
 import type { BattleStatusEffect } from "@/data/petTrainingStatuses";
 import type { BattleStats, EnemyType, PetAttribute } from "@/data/petBattleData";
+import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 
 export type ManualCharacterSide = "pet" | "enemy";
 export type ManualCharacterAnimation = "idle" | "attack" | "hit" | "skill";
@@ -19,6 +20,7 @@ export function ManualBattleCharacter({
   enemyType,
   hp,
   image,
+  sourceId,
   isCounterDamage,
   isSkillDamage,
   level,
@@ -37,6 +39,7 @@ export function ManualBattleCharacter({
   enemyType?: EnemyType;
   hp: number;
   image: string;
+  sourceId: string;
   isCounterDamage?: boolean;
   isSkillDamage?: boolean;
   level: number;
@@ -50,6 +53,7 @@ export function ManualBattleCharacter({
 }) {
   const percent = hpPercent(hp, maxHp);
   const theme = attribute === "focus" ? "cloud" : attribute === "action" ? "fire" : attribute === "growth" ? "growth" : enemyType ?? "careless";
+  const spriteFacing = side === "pet" ? "right" : "left";
   const animationClass = {
     idle: "manual-battle-idle",
     attack: "manual-battle-attack",
@@ -80,7 +84,7 @@ export function ManualBattleCharacter({
         )}
         <img
           alt={name}
-          className={`manual-battle-sprite border-0 bg-transparent object-contain drop-shadow-[0_20px_20px_rgba(16,36,63,0.18)] [image-rendering:pixelated] ${animation === "hit" ? "manual-battle-hit-flash" : ""}`}
+          className={`manual-battle-sprite border-0 bg-transparent object-contain drop-shadow-[0_20px_20px_rgba(16,36,63,0.18)] [image-rendering:pixelated] ${petSpriteFacingClass(sourceId, spriteFacing)} ${animation === "hit" ? "manual-battle-hit-flash" : ""}`}
           src={image}
         />
         {animation === "skill" && <span className={`pointer-events-none absolute inset-2 rounded-full manual-battle-aura manual-battle-aura-${theme}`} />}

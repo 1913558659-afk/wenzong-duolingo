@@ -211,6 +211,7 @@ export function ManualBattleStage({
           playKey={action?.id ?? "idle"}
           scale={1}
           side="pet"
+          sourceId={pet.id}
           stats={petStats}
           statuses={petStatuses}
         />
@@ -231,6 +232,7 @@ export function ManualBattleStage({
           playKey={action?.id ?? "idle"}
           scale={1}
           side="enemy"
+          sourceId={enemy.id}
           stats={enemyStats}
           statuses={enemyStatuses}
         />

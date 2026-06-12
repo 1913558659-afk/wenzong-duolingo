@@ -36,6 +36,7 @@ import {
   isInitialPet,
   replaceTeamSlot
 } from "@/utils/petCollection";
+import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 import {
   addCoinsAndShard,
   claimDailyFirstEntry,
@@ -346,7 +347,7 @@ function TopStatusBar({
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex min-w-0 items-center gap-4">
           <div className="grid size-20 shrink-0 place-items-center rounded-[1.7rem] bg-[linear-gradient(135deg,#FFFDF7,#EAF5F2)] p-2 shadow-[0_12px_28px_rgba(16,36,63,0.10)] ring-1 ring-white/80 sm:size-24">
-            <img alt={pet.name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={pet.image} />
+            <img alt={pet.name} className={`max-h-full max-w-full object-contain [image-rendering:pixelated] ${petSpriteFacingClass(pet.id, "right")}`} src={pet.image} />
           </div>
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
@@ -404,7 +405,7 @@ function PetSelectCard({ active, onSelect, pet }: { active: boolean; onSelect: (
       <GameCard className={`h-full overflow-hidden transition group-hover:-translate-y-0.5 ${active ? "ring-2 ring-tide" : ""}`}>
         <div className="flex items-start gap-4">
           <div className="grid size-24 shrink-0 place-items-center rounded-[1.35rem] bg-[linear-gradient(135deg,#EAF5F2,#F7F1E4)] p-2 shadow-[inset_0_-3px_0_rgba(16,36,63,0.06)]">
-            <img alt={pet.name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={pet.image} />
+            <img alt={pet.name} className={`max-h-full max-w-full object-contain [image-rendering:pixelated] ${petSpriteFacingClass(pet.id, "right")}`} src={pet.image} />
           </div>
           <div className="min-w-0 flex-1">
             <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">{attributeLabel(pet.attribute)}</p>
@@ -736,7 +737,7 @@ function GrowthRoom({
     <section className="grid gap-4 xl:grid-cols-[0.82fr_1.18fr]">
       <GameCard className="bg-[linear-gradient(135deg,#FFF8EC_0%,#EAF5F2_100%)]">
         <div className="grid place-items-center rounded-[2rem] bg-white/58 p-5 ring-1 ring-white/80">
-          <img alt={pet.name} className="h-40 object-contain [image-rendering:pixelated]" src={pet.image} />
+          <img alt={pet.name} className={`h-40 object-contain [image-rendering:pixelated] ${petSpriteFacingClass(pet.id, "right")}`} src={pet.image} />
         </div>
         <div className="mt-5 flex items-start justify-between gap-3">
           <div>
@@ -819,6 +820,7 @@ function ArchiveCard({
   name,
   primary,
   secondary,
+  sourceId,
   text,
   tone
 }: {
@@ -827,6 +829,7 @@ function ArchiveCard({
   name: string;
   primary: string;
   secondary: string;
+  sourceId: string;
   text: string;
   tone: "pet" | "enemy";
 }) {
@@ -834,7 +837,7 @@ function ArchiveCard({
     <GameCard className="h-full bg-white/66">
       <div className="flex items-start gap-4">
         <div className={`grid size-24 shrink-0 place-items-center rounded-[1.4rem] p-2 ${tone === "pet" ? "bg-tide/10" : "bg-coral/10"}`}>
-          <img alt={name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={image} />
+          <img alt={name} className={`max-h-full max-w-full object-contain [image-rendering:pixelated] ${petSpriteFacingClass(sourceId, "right")}`} src={image} />
         </div>
         <div>
           <div className="flex flex-wrap items-center gap-2">
@@ -891,6 +894,7 @@ function CompanionArchive({
               name={enemy.name}
               primary={`${enemyTypeLabel(enemy.type)}型`}
               secondary={enemy.role}
+              sourceId={enemy.id}
               text={enemy.description ?? counterMessages[enemy.type]}
               tone="enemy"
             />
@@ -908,6 +912,7 @@ function CompanionArchive({
               name={enemy.name}
               primary="粗心型"
               secondary={enemy.role}
+              sourceId={enemy.id}
               text={enemy.description ?? "粗心型进阶敌人。"}
               tone="enemy"
             />
@@ -925,6 +930,7 @@ function CompanionArchive({
               name={enemy.name}
               primary="遗忘型"
               secondary={`${enemy.role}${enemy.species ? ` · ${enemy.species}` : ""}`}
+              sourceId={enemy.id}
               text={enemy.description ?? "遗忘型进阶敌人。"}
               tone="enemy"
             />
@@ -942,6 +948,7 @@ function CompanionArchive({
               name={enemy.name}
               primary="焦虑型"
               secondary={`${enemy.role}${enemy.species ? ` · ${enemy.species}` : ""}`}
+              sourceId={enemy.id}
               text={enemy.description ?? "焦虑型进阶敌人。"}
               tone="enemy"
             />
