@@ -3,9 +3,11 @@ import type { PartnerChessBuff } from "@/data/partnerChessBuffs";
 
 export function AutoBattlePanel({
   activeBuffs,
+  isBattlePlaying,
   onRunBattle
 }: {
   activeBuffs: PartnerChessBuff[];
+  isBattlePlaying?: boolean;
   onRunBattle: () => void;
 }) {
   return (
@@ -15,8 +17,13 @@ export function AutoBattlePanel({
           <h2 className="text-xl font-black text-ink">自动战斗</h2>
           <p className="mt-1 text-sm font-semibold text-ink/56">战斗阶段不再答题，伙伴会根据站位、速度、克制和增益自动行动。</p>
         </div>
-        <button className="min-h-12 rounded-2xl bg-coral px-5 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={onRunBattle} type="button">
-          开始自动战斗
+        <button
+          className="min-h-12 rounded-2xl bg-coral px-5 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink disabled:cursor-not-allowed disabled:bg-ink/20 disabled:text-ink/40 disabled:shadow-none disabled:hover:translate-y-0"
+          disabled={isBattlePlaying}
+          onClick={onRunBattle}
+          type="button"
+        >
+          {isBattlePlaying ? "战斗播放中..." : "开始自动战斗"}
         </button>
       </div>
       <div className="mt-4 flex flex-wrap gap-2">

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { AutoBattlePanel } from "@/components/partnerChess/AutoBattlePanel";
@@ -75,9 +75,14 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
   const [activeBuffs, setActiveBuffs] = useState<PartnerChessBuff[]>([]);
   const [buffChoices, setBuffChoices] = useState<PartnerChessBuff[]>([]);
   const [logs, setLogs] = useState<string[]>([]);
+  const [animatedBattleLogs, setAnimatedBattleLogs] = useState<string[]>([]);
   const [battleAllies, setBattleAllies] = useState<ChessUnit[]>([]);
   const [battleEnemies, setBattleEnemies] = useState<ChessUnit[]>([]);
+  const [battleDisplayAllies, setBattleDisplayAllies] = useState<ChessUnit[]>([]);
+  const [battleDisplayEnemies, setBattleDisplayEnemies] = useState<ChessUnit[]>([]);
   const [challengeResult, setChallengeResult] = useState<"playing" | "victory" | "defeat">("playing");
+  const [isBattlePlaying, setIsBattlePlaying] = useState(false);
+  const battleAnimationTimerRef = useRef<number | null>(null);
 
   const currentRound = selectedStage?.rounds[roundIndex] ?? null;
   const currentQuestions = questionPick.questions;
@@ -88,7 +93,20 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     if (battleEnemies.length > 0) return battleEnemies;
     return createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
   }, [battleEnemies, currentRound?.enemyIds]);
+  const stageAllies = battleDisplayAllies.length > 0 ? battleDisplayAllies : previewAllies;
+  const stageEnemies = battleDisplayEnemies.length > 0 ? battleDisplayEnemies : previewEnemies;
   const stageTheme = selectedStage?.theme ?? "careless";
+
+  function clearBattleAnimationTimer() {
+    if (battleAnimationTimerRef.current !== null) {
+      window.clearTimeout(battleAnimationTimerRef.current);
+      battleAnimationTimerRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    return () => clearBattleAnimationTimer();
+  }, []);
 
   function buildQuestionPick(round: number, subject: PartnerChessSubjectFilter, usedIds: string[], seed = Date.now()) {
     return pickPartnerChessQuestions({
@@ -110,6 +128,8 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
   }
 
   function startStage(stage: PartnerChessStage) {
+    clearBattleAnimationTimer();
+    setIsBattlePlaying(false);
     const seed = Date.now();
     const initialUsedIds: string[] = [];
     setSelectedStage(stage);
@@ -123,13 +143,18 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     setActiveBuffs([]);
     setBuffChoices([]);
     setLogs([`进入副本「${stage.name}」。第 1 回合开始备战。`]);
+    setAnimatedBattleLogs([]);
     setBattleAllies([]);
     setBattleEnemies([]);
+    setBattleDisplayAllies([]);
+    setBattleDisplayEnemies([]);
     setChallengeResult("playing");
     setPhase("prep");
   }
 
   function submitPrep() {
+    clearBattleAnimationTimer();
+    setIsBattlePlaying(false);
     let correct = 0;
     for (const question of currentQuestions) {
       if (isPartnerChessAnswerCorrect(question, answers[question.id])) correct += 1;
@@ -140,41 +165,65 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     setPerfectPrep(perfect);
     setBuffChoices(getBuffChoices(correct, perfect));
     setLogs((current) => [`备战完成：答对 ${correct}/${currentQuestions.length}，获得 ${correct} 点灵感点。${perfect ? "触发完美备战。" : ""}`, ...current]);
+    setAnimatedBattleLogs([]);
     setPhase("buff");
   }
 
   function selectBuff(buff: PartnerChessBuff) {
+    clearBattleAnimationTimer();
+    setIsBattlePlaying(false);
     const nextBuffs = [buff, ...(perfectPrep ? [getPerfectBuff()] : [])];
+    const initialAllies = createAllyFormation(pets, nextBuffs);
+    const initialEnemies = createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
     setActiveBuffs(nextBuffs);
-    setBattleAllies(createAllyFormation(pets, nextBuffs));
-    setBattleEnemies(createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? [])));
+    setBattleAllies(initialAllies);
+    setBattleEnemies(initialEnemies);
+    setBattleDisplayAllies(initialAllies);
+    setBattleDisplayEnemies(initialEnemies);
     setLogs((current) => [`选择增益「${buff.name}」。${perfectPrep ? "额外获得「完美备战」。" : ""}`, ...current]);
+    setAnimatedBattleLogs([]);
     setPhase("battle");
   }
 
   function runBattle() {
+    clearBattleAnimationTimer();
+    const startingAllies = battleDisplayAllies.length ? battleDisplayAllies : battleAllies.length ? battleAllies : createAllyFormation(pets, activeBuffs);
+    const startingEnemies = battleDisplayEnemies.length ? battleDisplayEnemies : battleEnemies.length ? battleEnemies : createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
     const result = runPartnerChessBattle({
-      allies: battleAllies.length ? battleAllies : createAllyFormation(pets, activeBuffs),
-      enemies: battleEnemies.length ? battleEnemies : createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? [])),
+      allies: startingAllies,
+      enemies: startingEnemies,
       buffs: activeBuffs
     });
-    setBattleAllies(result.allies);
-    setBattleEnemies(result.enemies);
+    setBattleDisplayAllies(startingAllies.map((unit) => ({ ...unit })));
+    setBattleDisplayEnemies(startingEnemies.map((unit) => ({ ...unit })));
     setLogs((current) => [...current, ...result.logs]);
+    setAnimatedBattleLogs(result.logs);
+    setIsBattlePlaying(true);
 
-    if (result.winner === "ally") {
-      if (selectedStage && roundIndex >= selectedStage.rounds.length - 1) {
-        setChallengeResult("victory");
+    const animationDelay = Math.min(9000, Math.max(1400, result.logs.length * 880 + 700));
+    battleAnimationTimerRef.current = window.setTimeout(() => {
+      setIsBattlePlaying(false);
+      battleAnimationTimerRef.current = null;
+      setBattleAllies(result.allies);
+      setBattleEnemies(result.enemies);
+      setBattleDisplayAllies(result.allies);
+      setBattleDisplayEnemies(result.enemies);
+      if (result.winner === "ally") {
+        if (selectedStage && roundIndex >= selectedStage.rounds.length - 1) {
+          setChallengeResult("victory");
+        }
+      } else {
+        const nextWill = Math.max(0, will - result.willLoss);
+        setWill(nextWill);
+        if (nextWill <= 0) setChallengeResult("defeat");
       }
-    } else {
-      const nextWill = Math.max(0, will - result.willLoss);
-      setWill(nextWill);
-      if (nextWill <= 0) setChallengeResult("defeat");
-    }
-    setPhase("settlement");
+      setPhase("settlement");
+    }, animationDelay);
   }
 
   function nextRound() {
+    clearBattleAnimationTimer();
+    setIsBattlePlaying(false);
     if (!selectedStage) return;
     if (roundIndex >= selectedStage.rounds.length - 1) {
       setChallengeResult("victory");
@@ -194,23 +243,47 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     setBuffChoices([]);
     setBattleAllies([]);
     setBattleEnemies([]);
+    setBattleDisplayAllies([]);
+    setBattleDisplayEnemies([]);
     setLogs((current) => [`进入第 ${nextIndex + 1} 回合：${selectedStage.rounds[nextIndex].title}。`, ...current]);
+    setAnimatedBattleLogs([]);
     setPhase("prep");
   }
 
   function restart() {
+    clearBattleAnimationTimer();
+    setIsBattlePlaying(false);
     if (selectedStage) startStage(selectedStage);
   }
+
+  const applyDisplayDamage = useCallback(({
+    damage,
+    targetId,
+    targetSide
+  }: {
+    damage: number;
+    targetId: string;
+    targetSide: "ally" | "enemy";
+  }) => {
+    const applyDamage = (unit: ChessUnit) => unit.id === targetId ? { ...unit, hp: Math.max(0, unit.hp - damage) } : unit;
+    if (targetSide === "ally") {
+      setBattleDisplayAllies((current) => current.map(applyDamage));
+    } else {
+      setBattleDisplayEnemies((current) => current.map(applyDamage));
+    }
+  }, []);
 
   return (
     <div className="space-y-5">
       <PageHeader title="伙伴战棋场" subtitle="伙伴岛二阶段玩法 v0.3：上方横版动态战斗场景，下方真实题库备战与增益选择。" />
       <ChessHeader phase={phase} round={currentRound?.round ?? 0} stageName={selectedStage?.name ?? ""} will={will} />
       <DynamicBattleStage
-        allies={previewAllies}
-        enemies={previewEnemies}
+        allies={stageAllies}
+        enemies={stageEnemies}
         isBossRound={Boolean(currentRound?.isBoss)}
-        logs={logs.length ? logs : ["选择副本，开始伙伴战棋试炼。"]}
+        isBattlePlaying={isBattlePlaying}
+        logs={isBattlePlaying ? animatedBattleLogs : []}
+        onDamageImpact={applyDisplayDamage}
         phase={phaseLabels[phase]}
         roundTitle={selectedStage && currentRound ? `${selectedStage.name} · 第 ${currentRound.round} 回合 · ${currentRound.title}` : "选择副本后，战斗舞台会显示伙伴和敌人。"}
         stageTheme={stageTheme}
@@ -291,7 +364,7 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
 
           {phase === "buff" && <BuffSelectPanel choices={buffChoices.length ? buffChoices : [fallbackBuff]} inspiration={inspiration} onSelect={selectBuff} perfect={perfectPrep} />}
 
-          {phase === "battle" && <AutoBattlePanel activeBuffs={activeBuffs} onRunBattle={runBattle} />}
+          {phase === "battle" && <AutoBattlePanel activeBuffs={activeBuffs} isBattlePlaying={isBattlePlaying} onRunBattle={runBattle} />}
 
           {phase === "settlement" && (
             <GameCard className="bg-white/70">
