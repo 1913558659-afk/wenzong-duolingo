@@ -1,21 +1,37 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BookOpen, HeartPulse, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
+import { CapturePanel } from "@/components/petBattle/CapturePanel";
+import { DailyTrainingRewardPanel } from "@/components/petBattle/DailyTrainingRewardPanel";
 import { ManualBattleStage, type ManualBattleAction } from "@/components/petBattle/ManualBattleStage";
+import { PetTeamBar, type PetBattleTeamMember } from "@/components/petBattle/PetTeamBar";
+import { SkillUnlockHint } from "@/components/petBattle/SkillUnlockHint";
 import { enemies, pets } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats, EnemyType, PetAttribute } from "@/data/petBattleData";
+import { getTrainingSkillsForPet, trainingSkillCountersEnemy, type PetTrainingSkill } from "@/data/petTrainingSkills";
+import type { BattleStatusEffect, BattleStatusType } from "@/data/petTrainingStatuses";
 import {
   calculateEnemyDamage,
-  calculateSkillDamage,
   chooseEnemySkill,
   clampHp,
-  getPetSkills,
   getPetStatsAtLevel,
   getRequiredPetExp
 } from "@/utils/petBattle";
 import { loadPetBattleState, savePetBattleState } from "@/utils/petBattleStorage";
 import type { PetBattleSaveState, PetTrainingStats } from "@/utils/petBattleStorage";
+import { addPetExp, getPetLevelInfo, loadPartnerChessSave, savePartnerChessSave } from "@/utils/partnerChessSave";
+import type { PartnerChessSave } from "@/utils/partnerChessSave";
+import {
+  addCoinsAndShard,
+  claimDailyFirstEntry,
+  loadDailyTrainingProgress,
+  recordTrainingBattle,
+  saveDailyTrainingProgress,
+  shardKeyForEnemyType,
+  shardLabelForEnemyType
+} from "@/utils/petTrainingSave";
+import type { DailyTrainingProgress } from "@/utils/petTrainingSave";
 
 type BattleEffects = {
   enemyAttackBonus: number;
@@ -75,6 +91,7 @@ const counterMessages: Record<EnemyType, string> = {
   forget: "属性克制：积累型克制遗忘型，本场伤害提升。",
   anxiety: "属性克制：专注型克制焦虑型，本场伤害提升。"
 };
+const defaultTeamIds = ["cloud_beast", "fire_fox", "grass_dragon"];
 
 function getPetById(petId: string) {
   return pets.find((pet) => pet.id === petId) ?? pets[0];
@@ -182,6 +199,92 @@ function getMaxChallengeLevel(pet: BattlePet, petLevel: number, enemy: Pick<Batt
 
 function canChallengeEnemy(pet: BattlePet, petLevel: number, enemy: Pick<BattleEnemy, "level" | "type">) {
   return enemy.level <= getMaxChallengeLevel(pet, petLevel, enemy);
+}
+
+function getPartnerPetLevel(save: PartnerChessSave, petId: string) {
+  return Math.max(1, save.petLevel[petId] ?? 1);
+}
+
+function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
+  const levelBonus = Math.max(0, level - 1);
+  return {
+    hp: pet.baseStats.hp + levelBonus * 3,
+    attack: pet.baseStats.attack + levelBonus,
+    defense: pet.baseStats.defense + levelBonus,
+    speed: pet.baseStats.speed
+  };
+}
+
+function createTeamHp(save: PartnerChessSave) {
+  return Object.fromEntries(defaultTeamIds.map((petId) => {
+    const pet = getPetById(petId);
+    const stats = getTrainingBattleStats(pet, getPartnerPetLevel(save, petId));
+    return [petId, stats.hp];
+  }));
+}
+
+function applyShield(statuses: BattleStatusEffect[], incomingDamage: number) {
+  let remainingDamage = incomingDamage;
+  const nextStatuses = statuses.flatMap((status) => {
+    if (status.type !== "shield" || remainingDamage <= 0) return [status];
+    const shield = status.amount ?? 0;
+    const nextShield = Math.max(0, shield - remainingDamage);
+    remainingDamage = Math.max(0, remainingDamage - shield);
+    return nextShield > 0 ? [{ ...status, amount: nextShield }] : [];
+  });
+  return { damage: remainingDamage, statuses: nextStatuses };
+}
+
+function tickStatuses(statuses: BattleStatusEffect[]) {
+  return statuses
+    .map((status) => status.type === "shield" ? { ...status, duration: status.duration - 1 } : status)
+    .filter((status) => status.duration > 0 || (status.type === "shield" && (status.amount ?? 0) > 0));
+}
+
+function addOrReplaceStatus(statuses: BattleStatusEffect[], status: BattleStatusEffect) {
+  return [...statuses.filter((item) => item.type !== status.type), status];
+}
+
+function statusForSkill(skill: PetTrainingSkill, targetMaxHp: number): BattleStatusEffect | null {
+  if (skill.status?.type === "burn") {
+    return { duration: 2, id: `burn-${Date.now()}`, label: "灼烧", type: "burn" };
+  }
+  if (skill.status?.type === "shield") {
+    return { amount: Math.max(12, Math.round(targetMaxHp * 0.22)), duration: 2, id: `shield-${Date.now()}`, label: "护盾", type: "shield" };
+  }
+  if (skill.id === "focus_star") {
+    return { duration: 1, id: `stun-${Date.now()}`, label: "眩晕", type: "stun" };
+  }
+  if (skill.id === "root_bind") {
+    return { duration: 1, id: `forget-${Date.now()}`, label: "遗忘", type: "forget" };
+  }
+  return null;
+}
+
+function statusForEnemySkill(skill: BattleSkill): BattleStatusEffect | null {
+  if (skill.debuff?.nextDamageMultiplier) {
+    return { duration: 1, id: `anxiety-${Date.now()}`, label: "焦虑压制", type: "anxietyDown" };
+  }
+  if (skill.debuff && skill.power === 0) {
+    return { duration: 1, id: `forget-${Date.now()}`, label: "遗忘", type: "forget" };
+  }
+  return null;
+}
+
+function burnDamage(maxHp: number) {
+  return Math.max(3, Math.round(maxHp * 0.08));
+}
+
+function getCaptureRate(enemyHp: number, enemyMaxHp: number) {
+  const ratio = enemyMaxHp <= 0 ? 1 : enemyHp / enemyMaxHp;
+  if (ratio <= 0.1) return 70;
+  if (ratio <= 0.2) return 50;
+  if (ratio <= 0.3) return 35;
+  return 0;
+}
+
+function isBossEnemy(enemy: BattleEnemy) {
+  return enemy.stage === "advancedBoss" || enemy.role.includes("Boss") || Boolean(enemy.description?.includes("Boss"));
 }
 
 function StatItem({ label, value }: { label: string; value: number | string }) {
@@ -355,52 +458,72 @@ function FighterPanel({
 
 function TrainingRoom({
   action,
+  activePetId,
   battleState,
   canChallengeCurrent,
   canChallengeNext,
+  canCapture,
+  captureRate,
+  dailyProgress,
   continueChallenge,
   cooldowns,
   enemy,
   enemyHp,
+  enemyStatuses,
   isAnimating,
+  isBossCapture,
   logs,
   nextEnemy,
   onActionComplete,
   onActionImpact,
+  onCapture,
+  onSwitchPet,
   pet,
   petHp,
   petLevel,
   petSkills,
   petStats,
+  petStatuses,
   resetBattle,
   returnToPetSelect,
   setActiveTab,
   stage,
+  teamMembers,
   useSkill
 }: {
   action?: ManualBattleAction | null;
+  activePetId: string;
   battleState: "playing" | "won" | "lost";
   canChallengeCurrent: boolean;
   canChallengeNext: boolean;
+  canCapture: boolean;
+  captureRate: number;
+  dailyProgress: DailyTrainingProgress;
   continueChallenge: () => void;
   cooldowns: Record<string, number>;
   enemy: BattleEnemy;
   enemyHp: number;
+  enemyStatuses: BattleStatusEffect[];
   isAnimating: boolean;
+  isBossCapture: boolean;
   logs: string[];
   nextEnemy: BattleEnemy;
   onActionComplete: () => void;
   onActionImpact: () => void;
+  onCapture: () => void;
+  onSwitchPet: (petId: string) => void;
   pet: BattlePet;
   petHp: number;
   petLevel: number;
-  petSkills: BattleSkill[];
+  petSkills: PetTrainingSkill[];
   petStats: BattleStats;
+  petStatuses: BattleStatusEffect[];
   resetBattle: () => void;
   returnToPetSelect: () => void;
   setActiveTab: (tab: PetBattleTab) => void;
   stage: number;
-  useSkill: (skill: BattleSkill) => void;
+  teamMembers: PetBattleTeamMember[];
+  useSkill: (skill: PetTrainingSkill) => void;
 }) {
   const countersCurrent = isCountering(pet, enemy);
   const currentMaxLevel = getMaxChallengeLevel(pet, petLevel, enemy);
@@ -438,6 +561,7 @@ function TrainingRoom({
         enemyHp={enemyHp}
         enemyMaxHp={enemy.stats.hp}
         enemyStats={enemy.stats}
+        enemyStatuses={enemyStatuses}
         onActionComplete={onActionComplete}
         onActionImpact={onActionImpact}
         pet={pet}
@@ -445,7 +569,10 @@ function TrainingRoom({
         petLevel={petLevel}
         petMaxHp={petStats.hp}
         petStats={petStats}
+        petStatuses={petStatuses}
       />
+
+      <PetTeamBar activePetId={activePetId} members={teamMembers} onSwitch={onSwitchPet} switchingDisabled={battleState !== "playing" || isAnimating} />
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <GameCard className="bg-white/68">
@@ -459,12 +586,15 @@ function TrainingRoom({
               重新训练
             </button>
           </div>
+          <CapturePanel canCapture={canCapture} isBoss={isBossCapture} onCapture={onCapture} rate={captureRate} />
           <div className="grid gap-3 md:grid-cols-2">
             {petSkills.map((skill) => {
               const cooldown = cooldowns[skill.id] ?? 0;
-              const disabled = battleState !== "playing" || cooldown > 0 || !canChallengeCurrent || isAnimating;
+              const locked = petLevel < skill.unlockLevel;
+              const disabled = battleState !== "playing" || cooldown > 0 || !canChallengeCurrent || isAnimating || locked;
               const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
               const iconTone = skill.type === "heal" || skill.type === "shield" ? "text-leaf" : skill.type === "power_attack" || skill.type === "multi_hit" ? "text-coral" : skill.type === "buff" ? "text-gold" : "text-tide";
+              const counters = trainingSkillCountersEnemy(skill, enemy.type);
 
               return (
                 <button
@@ -483,9 +613,9 @@ function TrainingRoom({
                           <Icon className={`size-4 shrink-0 ${disabled ? "text-ink/30" : iconTone}`} />
                           {skill.name}
                     </span>
-                    <span className="shrink-0 rounded-full bg-ink/6 px-2 py-1 text-[11px] font-black">{cooldown > 0 ? `冷却 ${cooldown}` : `威力 ${skill.power}`}</span>
+                    {locked ? <SkillUnlockHint level={skill.unlockLevel} /> : <span className="shrink-0 rounded-full bg-ink/6 px-2 py-1 text-[11px] font-black">{cooldown > 0 ? `冷却 ${cooldown}` : `威力 ${skill.power}`}</span>}
                   </div>
-                  <p className="mt-2 text-xs font-bold text-ink/52">{skillTypeLabel(skill.type)} · 冷却 {skill.cooldown} 回合</p>
+                  <p className="mt-2 text-xs font-bold text-ink/52">{skillTypeLabel(skill.type)} · 冷却 {skill.cooldown} 回合 · {counters ? "克制当前敌人" : "普通效果"}</p>
                   <p className="mt-1 text-xs font-semibold leading-5 text-ink/62">{skill.effectText}</p>
                 </button>
               );
@@ -553,6 +683,7 @@ function TrainingRoom({
           </div>
         </div>
       </div>
+      <DailyTrainingRewardPanel progress={dailyProgress} />
     </section>
   );
 }
@@ -791,16 +922,22 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
 
 export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void }) {
   const [saveState, setSaveState] = useState(() => loadPetBattleState());
+  const [partnerSave, setPartnerSave] = useState(() => loadPartnerChessSave());
+  const [dailyProgress, setDailyProgress] = useState(() => loadDailyTrainingProgress());
   const [activeTab, setActiveTab] = useState<PetBattleTab>("training");
-  const selectedPet = getPetById(saveState.selectedPetId);
+  const [activePetId, setActivePetId] = useState(saveState.selectedPetId);
+  const selectedPet = getPetById(activePetId);
   const enemy = useMemo(() => getScaledEnemy(saveState.battleStage), [saveState.battleStage]);
   const nextEnemy = useMemo(() => getScaledEnemy(saveState.battleStage + 1), [saveState.battleStage]);
-  const petStats = useMemo(() => getBattleStats(selectedPet, saveState.petLevel, saveState.training), [saveState.petLevel, saveState.training, selectedPet]);
-  const petSkills = useMemo(() => getPetSkills(selectedPet), [selectedPet]);
-  const [petHp, setPetHp] = useState(petStats.hp);
+  const activePetLevel = getPartnerPetLevel(partnerSave, activePetId);
+  const petStats = useMemo(() => getTrainingBattleStats(selectedPet, activePetLevel), [activePetLevel, selectedPet]);
+  const petSkills = useMemo(() => getTrainingSkillsForPet(selectedPet), [selectedPet]);
+  const [teamHp, setTeamHp] = useState<Record<string, number>>(() => createTeamHp(partnerSave));
   const [enemyHp, setEnemyHp] = useState(enemy.stats.hp);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [effects, setEffects] = useState<BattleEffects>(defaultEffects);
+  const [petStatuses, setPetStatuses] = useState<BattleStatusEffect[]>([]);
+  const [enemyStatuses, setEnemyStatuses] = useState<BattleStatusEffect[]>([]);
   const [logs, setLogs] = useState<string[]>(["欢迎来到伙伴岛。选择技能，帮助学习伙伴击败训练敌人。"]);
   const [battleState, setBattleState] = useState<"playing" | "won" | "lost">("playing");
   const [manualAction, setManualAction] = useState<ManualBattleAction | null>(null);
@@ -808,14 +945,39 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [notice, setNotice] = useState("");
   const actionImpactRef = useRef<(() => void) | null>(null);
   const actionResolveRef = useRef<(() => void) | null>(null);
-  const petExpNeed = getRequiredPetExp(saveState.petLevel);
-  const canChallengeCurrent = canChallengeEnemy(selectedPet, saveState.petLevel, enemy);
-  const canChallengeNext = canChallengeEnemy(selectedPet, saveState.petLevel, nextEnemy);
+  const petHp = teamHp[activePetId] ?? petStats.hp;
+  const activePetLevelInfo = getPetLevelInfo(partnerSave, activePetId);
+  const petExpNeed = activePetLevelInfo.requiredExp || getRequiredPetExp(activePetLevel);
+  const canChallengeCurrent = canChallengeEnemy(selectedPet, activePetLevel, enemy);
+  const canChallengeNext = canChallengeEnemy(selectedPet, activePetLevel, nextEnemy);
+  const teamMembers = useMemo<PetBattleTeamMember[]>(() => defaultTeamIds.map((petId) => {
+    const pet = getPetById(petId);
+    const level = getPartnerPetLevel(partnerSave, petId);
+    const stats = getTrainingBattleStats(pet, level);
+    return {
+      hp: teamHp[petId] ?? stats.hp,
+      level,
+      maxHp: stats.hp,
+      pet,
+      stats
+    };
+  }), [partnerSave, teamHp]);
 
   function persist(next: PetBattleSaveState) {
     setSaveState(next);
     savePetBattleState(next);
   }
+
+  useEffect(() => {
+    const reward = claimDailyFirstEntry(partnerSave);
+    if (reward) {
+      setPartnerSave(reward.save);
+      setDailyProgress(loadDailyTrainingProgress());
+      setLogs((current) => [reward.message, ...current].slice(0, 12));
+    }
+    // 首次进入训练场奖励只在挂载时检查。
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function pushLogs(nextLogs: string[]) {
     setLogs((current) => [...nextLogs, ...current].slice(0, 12));
@@ -844,13 +1006,18 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   function resetBattle(nextState = saveState, message?: string) {
-    const nextPet = getPetById(nextState.selectedPetId);
+    const latestPartnerSave = loadPartnerChessSave();
+    setPartnerSave(latestPartnerSave);
+    const nextPet = getPetById(activePetId);
     const nextEnemyForBattle = getScaledEnemy(nextState.battleStage);
-    const nextPetStats = getBattleStats(nextPet, nextState.petLevel, nextState.training);
-    setPetHp(nextPetStats.hp);
+    const nextTeamHp = createTeamHp(latestPartnerSave);
+    setTeamHp(nextTeamHp);
+    if (!defaultTeamIds.includes(activePetId)) setActivePetId(nextPet.id);
     setEnemyHp(nextEnemyForBattle.stats.hp);
     setCooldowns({});
     setEffects(defaultEffects);
+    setPetStatuses([]);
+    setEnemyStatuses([]);
     setBattleState("playing");
     setManualAction(null);
     setIsManualAnimating(false);
@@ -865,6 +1032,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       selectedPetId: pet.id
     };
     persist(next);
+    setActivePetId(pet.id);
     setActiveTab("training");
     resetBattle(next, `${pet.name} 成为当前学习伙伴。`);
   }
@@ -917,29 +1085,136 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     });
   }
 
-  function finishWin(nextPetHp: number, nextLogs: string[], usedSkill: BattleSkill) {
+  function switchPet(petId: string) {
+    if (petId === activePetId || isManualAnimating || battleState !== "playing") return;
+    const member = teamMembers.find((item) => item.pet.id === petId);
+    if (!member || member.hp <= 0) return;
+    setActivePetId(petId);
+    const next = { ...saveState, selectedPetId: petId };
+    persist(next);
+    setPetStatuses([]);
+    setCooldowns({});
+    pushLogs([`${member.pet.name} 上场！`]);
+  }
+
+  function autoSwitchOrLose(nextLogs: string[]) {
+    const nextMember = teamMembers.find((member) => member.pet.id !== activePetId && member.hp > 0);
+    if (nextMember) {
+      setActivePetId(nextMember.pet.id);
+      setPetStatuses([]);
+      setCooldowns({});
+      pushLogs([`${selectedPet.name} 暂时退场，${nextMember.pet.name} 接替出战！`, ...nextLogs]);
+      return;
+    }
+
+    let nextPartnerSave = partnerSave;
+    const growthLogs: string[] = [];
+    for (const petId of defaultTeamIds) {
+      const result = addPetExp(nextPartnerSave, petId, 5);
+      nextPartnerSave = result.save;
+      if (result.growth.leveledUp) {
+        growthLogs.push(`${result.growth.petName} Lv.${result.growth.beforeLevel} → Lv.${result.growth.afterLevel}！`);
+      }
+    }
+    const dailyResult = recordTrainingBattle({ captured: false, enemyType: enemy.type, isWin: false, save: nextPartnerSave });
+    savePartnerChessSave(dailyResult.save);
+    setPartnerSave(dailyResult.save);
+    setDailyProgress(dailyResult.progress);
+    setBattleState("lost");
+    pushLogs([`三只伙伴都暂时退场了，但全队仍获得宠物经验 +5。`, ...dailyResult.messages, ...growthLogs, ...nextLogs]);
+  }
+
+  async function enemyImmediateAction(reasonLog: string) {
+    if (isManualAnimating || battleState !== "playing") return;
+    const enemySkill = chooseEnemySkill(enemy);
+    if (!enemySkill) return;
+    const nextLogs = [reasonLog, `${enemy.name} 立刻反击，使用了「${enemySkill.name}」。`];
+    let nextPetHp = petHp;
+    let nextPetStatuses = [...petStatuses];
+    const enemyDamage = calculateEnemyDamage({
+      attackerAttack: enemy.stats.attack + effects.enemyAttackBonus,
+      defenderDefense: petStats.defense + effects.petDefenseBonus,
+      skill: enemySkill,
+      statusMultiplier: 1 - effects.shieldReduction
+    });
+    const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
+    nextPetStatuses = shielded.statuses;
+    nextPetHp = clampHp(nextPetHp - shielded.damage, petStats.hp);
+    await playManualAction({ actor: "enemy", damage: shielded.damage, id: `enemy-capture-${Date.now()}`, skill: enemySkill }, () => {
+      setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+      setPetStatuses(nextPetStatuses);
+      nextLogs.push(`${selectedPet.name} 受到 ${shielded.damage} 点伤害。`);
+    });
+    if (nextPetHp <= 0) {
+      autoSwitchOrLose(nextLogs);
+      return;
+    }
+    pushLogs(nextLogs);
+  }
+
+  async function attemptCapture() {
+    const rate = getCaptureRate(enemyHp, enemy.stats.hp);
+    const canCapture = rate > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating;
+    if (!canCapture) return;
+    const success = Math.random() * 100 < rate;
+    if (success) {
+      finishWin(petHp, [`捕捉成功！${enemy.name} 化作伙伴碎片。`], petSkills[0], true);
+      return;
+    }
+    await enemyImmediateAction(`捕捉失败！${enemy.name} 挣脱了。`);
+  }
+
+  function finishWin(nextPetHp: number, nextLogs: string[], usedSkill: BattleSkill, captured = false) {
     const rewardPetExp = enemy.rewardExp;
     const rewardTrainingExp = getRewardTrainingExp(enemy);
-    const { levelUpLogs, state: leveledState } = addPetExpWithLevelUp(saveState, rewardPetExp);
+    let nextPartnerSave = partnerSave;
+    const growthLogs: string[] = [];
+    for (const petId of defaultTeamIds) {
+      const result = addPetExp(nextPartnerSave, petId, rewardPetExp);
+      nextPartnerSave = result.save;
+      if (result.growth.leveledUp) {
+        growthLogs.push(`${result.growth.petName} Lv.${result.growth.beforeLevel} → Lv.${result.growth.afterLevel}！`);
+      } else {
+        growthLogs.push(`${result.growth.petName} 经验 +${rewardPetExp}。`);
+      }
+    }
+    nextPartnerSave = addCoinsAndShard({
+      save: nextPartnerSave,
+      shardAmount: captured ? 3 : isBossEnemy(enemy) ? 2 : 1,
+      shardType: enemy.type
+    });
+    const dailyResult = recordTrainingBattle({
+      captured,
+      enemyType: enemy.type,
+      isWin: true,
+      save: nextPartnerSave
+    });
+    nextPartnerSave = dailyResult.save;
+    savePartnerChessSave(nextPartnerSave);
+    setPartnerSave(nextPartnerSave);
+    setDailyProgress(dailyResult.progress);
     const nextState = {
-      ...leveledState,
-      companionTrainingExp: leveledState.companionTrainingExp + rewardTrainingExp,
-      bestStage: Math.max(leveledState.bestStage, saveState.battleStage),
-      battleHistory: [`第 ${saveState.battleStage} 场击败 ${enemy.name}`, ...leveledState.battleHistory].slice(0, 20)
+      ...saveState,
+      companionTrainingExp: saveState.companionTrainingExp + rewardTrainingExp,
+      bestStage: Math.max(saveState.bestStage, saveState.battleStage),
+      battleHistory: [`第 ${saveState.battleStage} 场${captured ? "捕捉" : "击败"} ${enemy.name}`, ...saveState.battleHistory].slice(0, 20)
     };
     persist(nextState);
     setEnemyHp(0);
-    setPetHp(nextPetHp);
+    setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
     tickCooldowns(usedSkill);
     setBattleState("won");
     pushLogs([
-      `${enemy.name} 被击败！宠物经验 +${rewardPetExp}，伙伴训练经验 +${rewardTrainingExp}。`,
-      ...levelUpLogs,
+      captured
+        ? `捕捉成功！获得${shardLabelForEnemyType(enemy.type)} +3，伙伴训练经验 +${rewardTrainingExp}。`
+        : `${enemy.name} 被击败！全队宠物经验 +${rewardPetExp}，伙伴训练经验 +${rewardTrainingExp}。`,
+      ...dailyResult.messages,
+      ...growthLogs,
       ...nextLogs
     ]);
   }
 
-  async function useSkill(skill: BattleSkill) {
+  async function useSkill(skill: PetTrainingSkill) {
     if (battleState !== "playing" || (cooldowns[skill.id] ?? 0) > 0 || !canChallengeCurrent || isManualAnimating) {
       return;
     }
@@ -948,18 +1223,55 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     let nextPetHp = petHp;
     let nextEnemyHp = enemyHp;
     let nextEffects = { ...effects };
+    let nextPetStatuses = [...petStatuses];
+    let nextEnemyStatuses = [...enemyStatuses];
+
+    const petBurn = nextPetStatuses.find((status) => status.type === "burn");
+    if (petBurn) {
+      const damage = burnDamage(petStats.hp);
+      nextPetHp = clampHp(nextPetHp - damage, petStats.hp);
+      setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+      nextLogs.push(`${selectedPet.name} 受到灼烧 ${damage} 点伤害。`);
+      nextPetStatuses = nextPetStatuses.map((status) => status.type === "burn" ? { ...status, duration: status.duration - 1 } : status).filter((status) => status.duration > 0);
+      setPetStatuses(nextPetStatuses);
+      if (nextPetHp <= 0) {
+        autoSwitchOrLose(nextLogs);
+        return;
+      }
+    }
+
+    const stunned = nextPetStatuses.some((status) => status.type === "stun");
+    if (stunned) {
+      nextPetStatuses = nextPetStatuses.filter((status) => status.type !== "stun");
+      setPetStatuses(nextPetStatuses);
+      nextLogs.push(`${selectedPet.name} 被眩晕，跳过本次行动。`);
+    } else {
+    if (nextPetStatuses.some((status) => status.type === "forget")) {
+      const firstSkill = petSkills.find((item) => activePetLevel >= item.unlockLevel);
+      if (firstSkill) {
+        setCooldowns((current) => ({ ...current, [firstSkill.id]: (current[firstSkill.id] ?? 0) + 1 }));
+        nextLogs.push(`${selectedPet.name} 受到遗忘影响，「${firstSkill.name}」冷却 +1。`);
+      }
+      nextPetStatuses = nextPetStatuses.filter((status) => status.type !== "forget");
+      setPetStatuses(nextPetStatuses);
+    }
     nextLogs.push(`${selectedPet.name} 使用了「${skill.name}」。`);
 
     if (skill.type === "heal") {
-      const heal = Math.max(1, Math.round(petStats.hp * (skill.healPercent ?? 0)));
+      const heal = Math.max(1, Math.round(petStats.hp * (skill.healPercent ?? 0.25)));
       nextPetHp = clampHp(nextPetHp + heal, petStats.hp);
       await playManualAction({ actor: "pet", heal, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
-        setPetHp(nextPetHp);
+        setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
         nextLogs.push(`${selectedPet.name} 恢复了 ${heal} 点 HP。`);
       });
     } else if (skill.type === "shield") {
       nextEffects.shieldReduction = Math.max(nextEffects.shieldReduction, skill.shieldReduction ?? 0);
+      const status = statusForSkill(skill, petStats.hp);
       await playManualAction({ actor: "pet", id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
+        if (status) {
+          nextPetStatuses = addOrReplaceStatus(nextPetStatuses, status);
+          setPetStatuses(nextPetStatuses);
+        }
         nextLogs.push(`${selectedPet.name} 获得护盾，下一次受到的伤害会降低。`);
       });
     } else if (skill.type === "buff") {
@@ -974,30 +1286,36 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         ...skill,
         power: Math.round(skill.power * nextEffects.nextAttackMultiplier)
       };
-      const damage = calculateSkillDamage({
-        attackerAttack: petStats.attack + nextEffects.petAttackBonus,
-        defenderDefense: enemy.stats.defense + nextEffects.enemyDefenseBonus,
-        enemyType: enemy.type,
-        pet: selectedPet,
-        skill: skillForDamage,
-        statusMultiplier: nextEffects.nextDamageMultiplier * (1 - nextEffects.enemyShieldReduction)
-      });
-      nextEnemyHp = clampHp(nextEnemyHp - damage.totalDamage, enemy.stats.hp);
+      const anxietyMultiplier = nextPetStatuses.some((status) => status.type === "anxietyDown") ? 0.8 : 1;
+      const counterMultiplier = trainingSkillCountersEnemy(skill, enemy.type) ? 1.35 : 1;
+      const baseDamage = Math.max(1, skillForDamage.power + petStats.attack + nextEffects.petAttackBonus - enemy.stats.defense - nextEffects.enemyDefenseBonus);
+      const totalDamage = Math.max(1, Math.round(baseDamage * counterMultiplier * anxietyMultiplier * nextEffects.nextDamageMultiplier));
+      const shielded = applyShield(nextEnemyStatuses, totalDamage);
+      nextEnemyStatuses = shielded.statuses;
+      nextEnemyHp = clampHp(nextEnemyHp - shielded.damage, enemy.stats.hp);
       await playManualAction({
         actor: "pet",
-        damage: damage.totalDamage,
+        damage: shielded.damage,
         id: `pet-${skill.id}-${Date.now()}`,
-        isCounter: damage.counterMultiplier > 1,
+        isCounter: counterMultiplier > 1,
         skill
       }, () => {
         setEnemyHp(nextEnemyHp);
+        setEnemyStatuses(nextEnemyStatuses);
         if (nextEffects.enemyShieldReduction > 0) {
           nextLogs.push(`${enemy.name} 的防守降低了本次伤害。`);
         }
-        nextLogs.push(`造成 ${damage.totalDamage} 点伤害${damage.counterMultiplier > 1 ? "，克制生效！" : "。"}`);
+        nextLogs.push(`造成 ${shielded.damage} 点伤害${counterMultiplier > 1 ? "，属性克制，伤害提升！" : "。"}`);
+        const status = statusForSkill(skill, enemy.stats.hp);
+        if (status) {
+          nextEnemyStatuses = addOrReplaceStatus(nextEnemyStatuses, status);
+          setEnemyStatuses(nextEnemyStatuses);
+          nextLogs.push(`${enemy.name} 进入${status.label}状态。`);
+        }
       });
       nextEffects.nextAttackMultiplier = 1;
       nextEffects.nextDamageMultiplier = 1;
+      nextPetStatuses = nextPetStatuses.filter((status) => status.type !== "anxietyDown");
       nextEffects.enemyShieldReduction = 0;
 
       if (skill.debuff?.attack) {
@@ -1005,10 +1323,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         nextLogs.push(`${enemy.name} 攻击降低。`);
       }
       if (skill.lifestealPercent) {
-        const heal = Math.max(1, Math.round(damage.totalDamage * skill.lifestealPercent));
+        const heal = Math.max(1, Math.round(shielded.damage * skill.lifestealPercent));
         nextPetHp = clampHp(nextPetHp + heal, petStats.hp);
         nextLogs.push(`${selectedPet.name} 恢复 ${heal} 点 HP。`);
       }
+    }
     }
 
     if (nextEnemyHp <= 0) {
@@ -1018,8 +1337,38 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
 
     tickCooldowns(skill);
     setEffects(nextEffects);
+    setPetStatuses(nextPetStatuses);
+    setEnemyStatuses(nextEnemyStatuses);
     setIsManualAnimating(true);
     await new Promise((resolve) => window.setTimeout(resolve, 500));
+
+    const enemyBurn = nextEnemyStatuses.find((status) => status.type === "burn");
+    if (enemyBurn) {
+      const damage = burnDamage(enemy.stats.hp);
+      nextEnemyHp = clampHp(nextEnemyHp - damage, enemy.stats.hp);
+      setEnemyHp(nextEnemyHp);
+      nextLogs.push(`${enemy.name} 受到灼烧 ${damage} 点伤害。`);
+      nextEnemyStatuses = nextEnemyStatuses.map((status) => status.type === "burn" ? { ...status, duration: status.duration - 1 } : status).filter((status) => status.duration > 0);
+      setEnemyStatuses(nextEnemyStatuses);
+      if (nextEnemyHp <= 0) {
+        finishWin(nextPetHp, nextLogs, skill);
+        return;
+      }
+    }
+
+    if (nextEnemyStatuses.some((status) => status.type === "stun")) {
+      nextEnemyStatuses = nextEnemyStatuses.filter((status) => status.type !== "stun");
+      setEnemyStatuses(nextEnemyStatuses);
+      nextLogs.push(`${enemy.name} 被眩晕，跳过反击。`);
+      pushLogs(nextLogs);
+      return;
+    }
+
+    if (nextEnemyStatuses.some((status) => status.type === "forget")) {
+      nextEnemyStatuses = nextEnemyStatuses.filter((status) => status.type !== "forget");
+      setEnemyStatuses(nextEnemyStatuses);
+      nextLogs.push(`${enemy.name} 被遗忘干扰，反击节奏变慢。`);
+    }
 
     const enemySkill = chooseEnemySkill(enemy);
     if (enemySkill) {
@@ -1033,11 +1382,14 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
             skill: enemySkill,
             statusMultiplier: shieldMultiplier
           });
-          nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
+          const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
+          nextPetStatuses = shielded.statuses;
+          nextPetHp = clampHp(nextPetHp - shielded.damage, petStats.hp);
           nextEffects.shieldReduction = 0;
-          await playManualAction({ actor: "enemy", damage: enemyDamage.totalDamage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
-            setPetHp(nextPetHp);
-            nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+          await playManualAction({ actor: "enemy", damage: shielded.damage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
+            setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+            setPetStatuses(nextPetStatuses);
+            nextLogs.push(`${selectedPet.name} 受到 ${shielded.damage} 点伤害。`);
           });
         }
         nextEffects.enemyShieldReduction = Math.max(nextEffects.enemyShieldReduction, enemySkill.shieldReduction ?? 0.35);
@@ -1052,17 +1404,25 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           skill: enemySkill,
           statusMultiplier: shieldMultiplier
         });
-        nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
+        const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
+        nextPetStatuses = shielded.statuses;
+        nextPetHp = clampHp(nextPetHp - shielded.damage, petStats.hp);
         nextEffects.shieldReduction = 0;
-        await playManualAction({ actor: "enemy", damage: enemyDamage.totalDamage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
-          setPetHp(nextPetHp);
-          nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+        await playManualAction({ actor: "enemy", damage: shielded.damage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
+          setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+          setPetStatuses(nextPetStatuses);
+          nextLogs.push(`${selectedPet.name} 受到 ${shielded.damage} 点伤害。`);
         });
       }
 
       if (enemySkill.debuff?.nextDamageMultiplier) {
         nextEffects.nextDamageMultiplier = Math.min(nextEffects.nextDamageMultiplier, enemySkill.debuff.nextDamageMultiplier);
         nextLogs.push(`${selectedPet.name} 下一次攻击伤害降低。`);
+        const status = statusForEnemySkill(enemySkill);
+        if (status) {
+          nextPetStatuses = addOrReplaceStatus(nextPetStatuses, status);
+          setPetStatuses(nextPetStatuses);
+        }
       }
       if (enemySkill.debuff?.defense) {
         nextEffects.petDefenseBonus += enemySkill.debuff.defense;
@@ -1085,6 +1445,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       if (enemySkill.selfDebuff?.speed) {
         nextLogs.push(`${enemy.name} 使用强攻后速度下降。`);
       }
+      const enemyAppliedStatus = statusForEnemySkill(enemySkill);
+      if (enemyAppliedStatus && !nextPetStatuses.some((status) => status.type === enemyAppliedStatus.type)) {
+        nextPetStatuses = addOrReplaceStatus(nextPetStatuses, enemyAppliedStatus);
+        setPetStatuses(nextPetStatuses);
+      }
     } else {
       setIsManualAnimating(false);
     }
@@ -1092,10 +1457,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setEffects(nextEffects);
 
     if (nextPetHp <= 0) {
-      const { levelUpLogs, state: nextState } = addPetExpWithLevelUp(saveState, 5);
-      persist(nextState);
-      setBattleState("lost");
-      pushLogs([`${selectedPet.name} 暂时失败了，但仍获得宠物经验 +5。`, ...levelUpLogs, ...nextLogs]);
+      autoSwitchOrLose(nextLogs);
       return;
     }
 
@@ -1122,9 +1484,9 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         bestStage={saveState.bestStage}
         companionTrainingExp={saveState.companionTrainingExp}
         pet={selectedPet}
-        petExp={saveState.petExp}
+        petExp={activePetLevelInfo.exp}
         petExpNeed={petExpNeed}
-        petLevel={saveState.petLevel}
+        petLevel={activePetLevel}
       />
 
       <div className="sticky top-2 z-10 flex gap-2 overflow-x-auto rounded-[1.5rem] border border-white/70 bg-[#F7F1E4]/86 p-2 shadow-[0_12px_28px_rgba(16,36,63,0.08)] backdrop-blur [scrollbar-width:none]">
@@ -1142,27 +1504,37 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       {activeTab === "training" && (
         <TrainingRoom
           action={manualAction}
+          activePetId={activePetId}
           battleState={battleState}
           canChallengeCurrent={canChallengeCurrent}
           canChallengeNext={canChallengeNext}
+          canCapture={getCaptureRate(enemyHp, enemy.stats.hp) > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating}
+          captureRate={getCaptureRate(enemyHp, enemy.stats.hp)}
+          dailyProgress={dailyProgress}
           continueChallenge={continueChallenge}
           cooldowns={cooldowns}
           enemy={enemy}
           enemyHp={enemyHp}
+          enemyStatuses={enemyStatuses}
           isAnimating={isManualAnimating}
+          isBossCapture={isBossEnemy(enemy) && enemyHp > 0 && enemyHp / enemy.stats.hp <= 0.3}
           logs={logs}
           nextEnemy={nextEnemy}
           onActionComplete={handleManualActionComplete}
           onActionImpact={handleManualActionImpact}
+          onCapture={attemptCapture}
+          onSwitchPet={switchPet}
           pet={selectedPet}
           petHp={petHp}
-          petLevel={saveState.petLevel}
+          petLevel={activePetLevel}
           petSkills={petSkills}
           petStats={petStats}
+          petStatuses={petStatuses}
           resetBattle={() => resetBattle()}
           returnToPetSelect={returnToPetSelect}
           setActiveTab={setActiveTab}
           stage={saveState.battleStage}
+          teamMembers={teamMembers}
           useSkill={useSkill}
         />
       )}

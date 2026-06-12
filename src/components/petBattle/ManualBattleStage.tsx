@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { ManualBattleCharacter } from "@/components/petBattle/ManualBattleCharacter";
 import { ManualBattleEffectLayer, themeFromPetAttribute, type ManualImpactTheme } from "@/components/petBattle/ManualBattleEffectLayer";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats } from "@/data/petBattleData";
+import type { BattleStatusEffect } from "@/data/petTrainingStatuses";
 
 export type ManualBattleAction = {
   id: string;
@@ -53,13 +54,15 @@ export function ManualBattleStage({
   enemyHp,
   enemyMaxHp,
   enemyStats,
+  enemyStatuses,
   onActionComplete,
   onActionImpact,
   pet,
   petHp,
   petLevel,
   petMaxHp,
-  petStats
+  petStats,
+  petStatuses
 }: {
   action?: ManualBattleAction | null;
   canAnimate: boolean;
@@ -67,6 +70,7 @@ export function ManualBattleStage({
   enemyHp: number;
   enemyMaxHp: number;
   enemyStats: BattleStats;
+  enemyStatuses?: BattleStatusEffect[];
   onActionComplete: () => void;
   onActionImpact: () => void;
   pet: BattlePet;
@@ -74,6 +78,7 @@ export function ManualBattleStage({
   petLevel: number;
   petMaxHp: number;
   petStats: BattleStats;
+  petStatuses?: BattleStatusEffect[];
 }) {
   const stageRef = useRef<HTMLDivElement | null>(null);
   const petRef = useRef<HTMLDivElement | null>(null);
@@ -207,6 +212,7 @@ export function ManualBattleStage({
           scale={1}
           side="pet"
           stats={petStats}
+          statuses={petStatuses}
         />
       </div>
       <div className="absolute bottom-[28%] right-[13%] z-20 sm:bottom-[28%] sm:right-[13%]" ref={enemyRef}>
@@ -226,6 +232,7 @@ export function ManualBattleStage({
           scale={1}
           side="enemy"
           stats={enemyStats}
+          statuses={enemyStatuses}
         />
       </div>
     </div>

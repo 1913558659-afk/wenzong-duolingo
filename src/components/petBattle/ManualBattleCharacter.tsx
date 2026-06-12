@@ -1,5 +1,7 @@
 import type { CSSProperties } from "react";
 import { ManualDamageNumber } from "@/components/petBattle/ManualDamageNumber";
+import { StatusEffectBadges } from "@/components/petBattle/StatusEffectBadges";
+import type { BattleStatusEffect } from "@/data/petTrainingStatuses";
 import type { BattleStats, EnemyType, PetAttribute } from "@/data/petBattleData";
 
 export type ManualCharacterSide = "pet" | "enemy";
@@ -25,7 +27,8 @@ export function ManualBattleCharacter({
   playKey,
   scale,
   side,
-  stats
+  stats,
+  statuses = []
 }: {
   animation: ManualCharacterAnimation;
   attribute?: PetAttribute;
@@ -43,6 +46,7 @@ export function ManualBattleCharacter({
   scale: number;
   side: ManualCharacterSide;
   stats: BattleStats;
+  statuses?: BattleStatusEffect[];
 }) {
   const percent = hpPercent(hp, maxHp);
   const theme = attribute === "focus" ? "cloud" : attribute === "action" ? "fire" : attribute === "growth" ? "growth" : enemyType ?? "careless";
@@ -92,6 +96,7 @@ export function ManualBattleCharacter({
           <div className={`h-full rounded-full bg-gradient-to-r ${side === "pet" ? "from-tide to-leaf" : "from-coral to-gold"}`} style={{ width: `${percent}%` }} />
         </div>
         <p className="mt-1 text-[10px] font-black text-ink/45">攻 {stats.attack} · 防 {stats.defense} · 速 {stats.speed}</p>
+        <StatusEffectBadges statuses={statuses} />
       </div>
     </div>
   );
