@@ -1,4 +1,4 @@
-export type BattleStatusType = "anxietyDown" | "burn" | "forget" | "shield" | "stun";
+export type BattleStatusType = "anxietyDown" | "burn" | "forget" | "levelPressure" | "shield" | "stun";
 
 export type BattleStatusEffect = {
   amount?: number;
@@ -24,6 +24,11 @@ export const statusMeta: Record<BattleStatusType, { label: string; text: string;
     text: "技能冷却被延长",
     tone: "bg-violet-100 text-violet-700 ring-violet-200"
   },
+  levelPressure: {
+    label: "等级压制",
+    text: "伤害降低，受伤略增，捕捉率降低",
+    tone: "bg-amber-100 text-amber-800 ring-amber-200"
+  },
   shield: {
     label: "护盾",
     text: "先抵扣受到的伤害",
@@ -38,5 +43,6 @@ export const statusMeta: Record<BattleStatusType, { label: string; text: string;
 
 export function statusLabel(status: BattleStatusEffect) {
   if (status.type === "shield") return `${statusMeta[status.type].label} ${status.amount ?? 0}`;
+  if (status.type === "levelPressure") return statusMeta[status.type].label;
   return `${statusMeta[status.type].label} ${status.duration}`;
 }

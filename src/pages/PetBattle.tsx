@@ -193,16 +193,28 @@ function isCountering(pet: BattlePet, enemy: Pick<BattleEnemy, "type">) {
   return pet.counters.includes(enemy.type);
 }
 
-function getMaxChallengeLevel(pet: BattlePet, petLevel: number, enemy: Pick<BattleEnemy, "type">) {
-  return petLevel + (isCountering(pet, enemy) ? 3 : 1);
-}
-
-function canChallengeEnemy(pet: BattlePet, petLevel: number, enemy: Pick<BattleEnemy, "level" | "type">) {
-  return enemy.level <= getMaxChallengeLevel(pet, petLevel, enemy);
-}
-
 function getPartnerPetLevel(save: PartnerChessSave, petId: string) {
   return Math.max(1, save.petLevel[petId] ?? 1);
+}
+
+function hasLevelPressure(pet: BattlePet, petLevel: number, enemy: Pick<BattleEnemy, "level" | "type">) {
+  return enemy.level - petLevel > 2 && !isCountering(pet, enemy);
+}
+
+function getLevelPressureStatus(pet: BattlePet, petLevel: number, enemy: Pick<BattleEnemy, "level" | "type">): BattleStatusEffect[] {
+  if (!hasLevelPressure(pet, petLevel, enemy)) return [];
+  return [{
+    duration: 999,
+    id: "level-pressure",
+    label: "等级压制",
+    type: "levelPressure"
+  }];
+}
+
+function getAdjustedCaptureRate(enemyHp: number, enemyMaxHp: number, levelPressure: boolean) {
+  const baseRate = getCaptureRate(enemyHp, enemyMaxHp);
+  if (baseRate <= 0) return 0;
+  return levelPressure ? Math.max(5, baseRate - 10) : baseRate;
 }
 
 function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
@@ -460,8 +472,6 @@ function TrainingRoom({
   action,
   activePetId,
   battleState,
-  canChallengeCurrent,
-  canChallengeNext,
   canCapture,
   captureRate,
   dailyProgress,
@@ -472,6 +482,7 @@ function TrainingRoom({
   enemyStatuses,
   isAnimating,
   isBossCapture,
+  levelPressure,
   logs,
   nextEnemy,
   onActionComplete,
@@ -494,8 +505,6 @@ function TrainingRoom({
   action?: ManualBattleAction | null;
   activePetId: string;
   battleState: "playing" | "won" | "lost";
-  canChallengeCurrent: boolean;
-  canChallengeNext: boolean;
   canCapture: boolean;
   captureRate: number;
   dailyProgress: DailyTrainingProgress;
@@ -506,6 +515,7 @@ function TrainingRoom({
   enemyStatuses: BattleStatusEffect[];
   isAnimating: boolean;
   isBossCapture: boolean;
+  levelPressure: boolean;
   logs: string[];
   nextEnemy: BattleEnemy;
   onActionComplete: () => void;
@@ -526,7 +536,7 @@ function TrainingRoom({
   useSkill: (skill: PetTrainingSkill) => void;
 }) {
   const countersCurrent = isCountering(pet, enemy);
-  const currentMaxLevel = getMaxChallengeLevel(pet, petLevel, enemy);
+  const levelGap = Math.max(0, enemy.level - petLevel);
 
   return (
     <section className="space-y-4">
@@ -540,18 +550,19 @@ function TrainingRoom({
               胜利奖励：宠物经验 +{enemy.rewardExp} · 伙伴训练经验 +{getRewardTrainingExp(enemy)}
             </p>
           </div>
-          <div className={`rounded-3xl p-4 ring-1 ${countersCurrent ? "bg-tide/10 text-tide ring-tide/20" : "bg-white/72 text-ink/62 ring-ink/6"}`}>
+          <div className={`rounded-3xl p-4 ring-1 ${countersCurrent ? "bg-tide/10 text-tide ring-tide/20" : levelPressure ? "bg-gold/10 text-ink ring-gold/25" : "bg-white/72 text-ink/62 ring-ink/6"}`}>
             <p className="text-xs font-black">克制提示</p>
             <p className="mt-1 text-sm font-bold leading-6">
-              {countersCurrent ? counterMessages[enemy.type] : "当前无属性克制，建议提升伙伴等级或进入养成室训练。"}
+              {countersCurrent
+                ? levelGap > 2
+                  ? "属性克制：当前宠物可抵消等级压制。"
+                  : counterMessages[enemy.type]
+                : levelPressure
+                  ? `等级压制：敌人高出 ${levelGap} 级，伤害 -12%，受伤 +8%，捕捉率 -10%。`
+                  : "越级挑战：敌人等级较高。若当前宠物属性不克制敌人，将受到等级压制。你仍然可以挑战。"}
             </p>
           </div>
         </div>
-        {!canChallengeCurrent && (
-          <div className="mt-4 rounded-3xl border border-coral/20 bg-coral/10 p-4 text-sm font-bold leading-6 text-coral">
-            当前敌人等级过高，建议先进入养成室提升伙伴，或完成闯关获得伙伴训练经验。当前最多可挑战 Lv.{currentMaxLevel}。
-          </div>
-        )}
       </GameCard>
 
       <ManualBattleStage
@@ -591,7 +602,7 @@ function TrainingRoom({
             {petSkills.map((skill) => {
               const cooldown = cooldowns[skill.id] ?? 0;
               const locked = petLevel < skill.unlockLevel;
-              const disabled = battleState !== "playing" || cooldown > 0 || !canChallengeCurrent || isAnimating || locked;
+              const disabled = battleState !== "playing" || cooldown > 0 || isAnimating || locked;
               const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
               const iconTone = skill.type === "heal" || skill.type === "shield" ? "text-leaf" : skill.type === "power_attack" || skill.type === "multi_hit" ? "text-coral" : skill.type === "buff" ? "text-gold" : "text-tide";
               const counters = trainingSkillCountersEnemy(skill, enemy.type);
@@ -624,17 +635,12 @@ function TrainingRoom({
 
           {battleState === "won" && (
             <div className="mt-4 space-y-3">
-              {!canChallengeNext && (
-                <div className="rounded-3xl border border-coral/20 bg-coral/10 p-4 text-sm font-bold leading-6 text-coral">
-                  下一场 {nextEnemy.name} Lv.{nextEnemy.level} 等级过高，当前伙伴暂不适合继续挑战。建议先进入养成室提升属性。
-                </div>
-              )}
+              <div className="rounded-3xl border border-gold/20 bg-gold/10 p-4 text-sm font-bold leading-6 text-ink/62">
+                下一场 {nextEnemy.name} Lv.{nextEnemy.level} 可以直接挑战；若不克制且等级差过大，会触发等级压制。
+              </div>
               <div className="grid gap-2 md:grid-cols-3">
                 <button
-                  className={`min-h-12 rounded-2xl px-4 text-sm font-black shadow-insetGame transition ${
-                    canChallengeNext ? "bg-tide text-white hover:-translate-y-0.5 hover:bg-ink" : "cursor-not-allowed bg-ink/8 text-ink/34"
-                  }`}
-                  disabled={!canChallengeNext}
+                  className="min-h-12 rounded-2xl bg-tide px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink"
                   onClick={continueChallenge}
                   type="button"
                 >
@@ -948,8 +954,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const petHp = teamHp[activePetId] ?? petStats.hp;
   const activePetLevelInfo = getPetLevelInfo(partnerSave, activePetId);
   const petExpNeed = activePetLevelInfo.requiredExp || getRequiredPetExp(activePetLevel);
-  const canChallengeCurrent = canChallengeEnemy(selectedPet, activePetLevel, enemy);
-  const canChallengeNext = canChallengeEnemy(selectedPet, activePetLevel, nextEnemy);
+  const levelPressure = hasLevelPressure(selectedPet, activePetLevel, enemy);
+  const captureRate = getAdjustedCaptureRate(enemyHp, enemy.stats.hp, levelPressure);
   const teamMembers = useMemo<PetBattleTeamMember[]>(() => defaultTeamIds.map((petId) => {
     const pet = getPetById(petId);
     const level = getPartnerPetLevel(partnerSave, petId);
@@ -1038,11 +1044,6 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   function continueChallenge() {
-    if (!canChallengeNext) {
-      setNotice("当前敌人等级过高，建议先进入养成室提升伙伴，或完成闯关获得伙伴训练经验。");
-      return;
-    }
-
     const nextStage = saveState.battleStage + 1;
     const next = {
       ...saveState,
@@ -1135,7 +1136,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       attackerAttack: enemy.stats.attack + effects.enemyAttackBonus,
       defenderDefense: petStats.defense + effects.petDefenseBonus,
       skill: enemySkill,
-      statusMultiplier: 1 - effects.shieldReduction
+      statusMultiplier: (1 - effects.shieldReduction) * (levelPressure ? 1.08 : 1)
     });
     const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
     nextPetStatuses = shielded.statuses;
@@ -1153,7 +1154,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   async function attemptCapture() {
-    const rate = getCaptureRate(enemyHp, enemy.stats.hp);
+    const rate = captureRate;
     const canCapture = rate > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating;
     if (!canCapture) return;
     const success = Math.random() * 100 < rate;
@@ -1215,7 +1216,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   async function useSkill(skill: PetTrainingSkill) {
-    if (battleState !== "playing" || (cooldowns[skill.id] ?? 0) > 0 || !canChallengeCurrent || isManualAnimating) {
+    if (battleState !== "playing" || (cooldowns[skill.id] ?? 0) > 0 || isManualAnimating) {
       return;
     }
 
@@ -1288,8 +1289,9 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       };
       const anxietyMultiplier = nextPetStatuses.some((status) => status.type === "anxietyDown") ? 0.8 : 1;
       const counterMultiplier = trainingSkillCountersEnemy(skill, enemy.type) ? 1.35 : 1;
+      const levelPressureDamageMultiplier = levelPressure ? 0.88 : 1;
       const baseDamage = Math.max(1, skillForDamage.power + petStats.attack + nextEffects.petAttackBonus - enemy.stats.defense - nextEffects.enemyDefenseBonus);
-      const totalDamage = Math.max(1, Math.round(baseDamage * counterMultiplier * anxietyMultiplier * nextEffects.nextDamageMultiplier));
+      const totalDamage = Math.max(1, Math.round(baseDamage * counterMultiplier * anxietyMultiplier * levelPressureDamageMultiplier * nextEffects.nextDamageMultiplier));
       const shielded = applyShield(nextEnemyStatuses, totalDamage);
       nextEnemyStatuses = shielded.statuses;
       nextEnemyHp = clampHp(nextEnemyHp - shielded.damage, enemy.stats.hp);
@@ -1305,7 +1307,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         if (nextEffects.enemyShieldReduction > 0) {
           nextLogs.push(`${enemy.name} 的防守降低了本次伤害。`);
         }
-        nextLogs.push(`造成 ${shielded.damage} 点伤害${counterMultiplier > 1 ? "，属性克制，伤害提升！" : "。"}`);
+        nextLogs.push(`造成 ${shielded.damage} 点伤害${counterMultiplier > 1 ? "，属性克制，伤害提升！" : levelPressure ? "，受到等级压制影响。" : "。"}`);
         const status = statusForSkill(skill, enemy.stats.hp);
         if (status) {
           nextEnemyStatuses = addOrReplaceStatus(nextEnemyStatuses, status);
@@ -1380,7 +1382,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
             attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
             defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
             skill: enemySkill,
-            statusMultiplier: shieldMultiplier
+            statusMultiplier: shieldMultiplier * (levelPressure ? 1.08 : 1)
           });
           const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
           nextPetStatuses = shielded.statuses;
@@ -1402,7 +1404,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
           defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
           skill: enemySkill,
-          statusMultiplier: shieldMultiplier
+          statusMultiplier: shieldMultiplier * (levelPressure ? 1.08 : 1)
         });
         const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
         nextPetStatuses = shielded.statuses;
@@ -1506,10 +1508,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           action={manualAction}
           activePetId={activePetId}
           battleState={battleState}
-          canChallengeCurrent={canChallengeCurrent}
-          canChallengeNext={canChallengeNext}
-          canCapture={getCaptureRate(enemyHp, enemy.stats.hp) > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating}
-          captureRate={getCaptureRate(enemyHp, enemy.stats.hp)}
+          canCapture={captureRate > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating}
+          captureRate={captureRate}
           dailyProgress={dailyProgress}
           continueChallenge={continueChallenge}
           cooldowns={cooldowns}
@@ -1518,6 +1518,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           enemyStatuses={enemyStatuses}
           isAnimating={isManualAnimating}
           isBossCapture={isBossEnemy(enemy) && enemyHp > 0 && enemyHp / enemy.stats.hp <= 0.3}
+          levelPressure={levelPressure}
           logs={logs}
           nextEnemy={nextEnemy}
           onActionComplete={handleManualActionComplete}
@@ -1529,7 +1530,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           petLevel={activePetLevel}
           petSkills={petSkills}
           petStats={petStats}
-          petStatuses={petStatuses}
+          petStatuses={[...getLevelPressureStatus(selectedPet, activePetLevel, enemy), ...petStatuses]}
           resetBattle={() => resetBattle()}
           returnToPetSelect={returnToPetSelect}
           setActiveTab={setActiveTab}
