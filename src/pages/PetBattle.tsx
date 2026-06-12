@@ -1,7 +1,8 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { BookOpen, HeartPulse, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
+import { ManualBattleStage, type ManualBattleAction } from "@/components/petBattle/ManualBattleStage";
 import { enemies, pets } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats, EnemyType, PetAttribute } from "@/data/petBattleData";
 import {
@@ -353,6 +354,7 @@ function FighterPanel({
 }
 
 function TrainingRoom({
+  action,
   battleState,
   canChallengeCurrent,
   canChallengeNext,
@@ -360,8 +362,11 @@ function TrainingRoom({
   cooldowns,
   enemy,
   enemyHp,
+  isAnimating,
   logs,
   nextEnemy,
+  onActionComplete,
+  onActionImpact,
   pet,
   petHp,
   petLevel,
@@ -373,6 +378,7 @@ function TrainingRoom({
   stage,
   useSkill
 }: {
+  action?: ManualBattleAction | null;
   battleState: "playing" | "won" | "lost";
   canChallengeCurrent: boolean;
   canChallengeNext: boolean;
@@ -380,8 +386,11 @@ function TrainingRoom({
   cooldowns: Record<string, number>;
   enemy: BattleEnemy;
   enemyHp: number;
+  isAnimating: boolean;
   logs: string[];
   nextEnemy: BattleEnemy;
+  onActionComplete: () => void;
+  onActionImpact: () => void;
   pet: BattlePet;
   petHp: number;
   petLevel: number;
@@ -422,13 +431,23 @@ function TrainingRoom({
         )}
       </GameCard>
 
-      <div className="grid gap-4 xl:grid-cols-[1.1fr_auto_1.1fr] xl:items-center">
-        <FighterPanel hp={petHp} image={pet.image} level={petLevel} maxHp={petStats.hp} name={pet.name} stats={petStats} tone="pet" />
-        <div className="hidden rounded-full bg-white/78 px-5 py-3 text-center text-sm font-black text-ink shadow-[0_12px_24px_rgba(16,36,63,0.08)] ring-1 ring-white/80 xl:block">VS</div>
-        <FighterPanel hp={enemyHp} image={enemy.image} level={enemy.level} maxHp={enemy.stats.hp} name={enemy.name} stats={enemy.stats} tone="enemy" />
-      </div>
+      <ManualBattleStage
+        action={action}
+        canAnimate={isAnimating}
+        enemy={enemy}
+        enemyHp={enemyHp}
+        enemyMaxHp={enemy.stats.hp}
+        enemyStats={enemy.stats}
+        onActionComplete={onActionComplete}
+        onActionImpact={onActionImpact}
+        pet={pet}
+        petHp={petHp}
+        petLevel={petLevel}
+        petMaxHp={petStats.hp}
+        petStats={petStats}
+      />
 
-      <div className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <GameCard className="bg-white/68">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2">
@@ -443,7 +462,7 @@ function TrainingRoom({
           <div className="grid gap-3 md:grid-cols-2">
             {petSkills.map((skill) => {
               const cooldown = cooldowns[skill.id] ?? 0;
-              const disabled = battleState !== "playing" || cooldown > 0 || !canChallengeCurrent;
+              const disabled = battleState !== "playing" || cooldown > 0 || !canChallengeCurrent || isAnimating;
               const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
               const iconTone = skill.type === "heal" || skill.type === "shield" ? "text-leaf" : skill.type === "power_attack" || skill.type === "multi_hit" ? "text-coral" : skill.type === "buff" ? "text-gold" : "text-tide";
 
@@ -514,11 +533,11 @@ function TrainingRoom({
               {battleState === "won" ? "胜利" : battleState === "lost" ? "暂败" : "进行中"}
             </span>
           </div>
-          <div className="h-[300px] space-y-2 overflow-y-auto rounded-[1.25rem] bg-[#F7F3E7]/58 p-2 pr-1 ring-1 ring-white/72 [scrollbar-width:thin] md:h-[340px]">
+          <div className="h-[190px] space-y-2 overflow-y-auto rounded-[1.25rem] bg-[#F7F3E7]/58 p-2 pr-1 ring-1 ring-white/72 [scrollbar-width:thin] md:h-[230px]">
             {logs.length === 0 ? (
               <p className="rounded-2xl border border-tide/20 bg-tide/10 px-3 py-3 text-sm font-bold leading-6 text-ink/54">选择技能，开始本场训练。</p>
             ) : (
-              logs.map((log, index) => (
+              logs.slice(0, 5).map((log, index) => (
                 <p
                   className={`rounded-2xl border px-3 py-2 text-sm font-semibold leading-6 ${
                     index === 0
@@ -784,7 +803,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [effects, setEffects] = useState<BattleEffects>(defaultEffects);
   const [logs, setLogs] = useState<string[]>(["欢迎来到伙伴岛。选择技能，帮助学习伙伴击败训练敌人。"]);
   const [battleState, setBattleState] = useState<"playing" | "won" | "lost">("playing");
+  const [manualAction, setManualAction] = useState<ManualBattleAction | null>(null);
+  const [isManualAnimating, setIsManualAnimating] = useState(false);
   const [notice, setNotice] = useState("");
+  const actionImpactRef = useRef<(() => void) | null>(null);
+  const actionResolveRef = useRef<(() => void) | null>(null);
   const petExpNeed = getRequiredPetExp(saveState.petLevel);
   const canChallengeCurrent = canChallengeEnemy(selectedPet, saveState.petLevel, enemy);
   const canChallengeNext = canChallengeEnemy(selectedPet, saveState.petLevel, nextEnemy);
@@ -798,6 +821,28 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setLogs((current) => [...nextLogs, ...current].slice(0, 12));
   }
 
+  const handleManualActionImpact = useCallback(() => {
+    actionImpactRef.current?.();
+  }, []);
+
+  const handleManualActionComplete = useCallback(() => {
+    actionImpactRef.current = null;
+    const resolve = actionResolveRef.current;
+    actionResolveRef.current = null;
+    setManualAction(null);
+    setIsManualAnimating(false);
+    resolve?.();
+  }, []);
+
+  function playManualAction(action: ManualBattleAction, onImpact: () => void) {
+    return new Promise<void>((resolve) => {
+      actionImpactRef.current = onImpact;
+      actionResolveRef.current = resolve;
+      setManualAction(action);
+      setIsManualAnimating(true);
+    });
+  }
+
   function resetBattle(nextState = saveState, message?: string) {
     const nextPet = getPetById(nextState.selectedPetId);
     const nextEnemyForBattle = getScaledEnemy(nextState.battleStage);
@@ -807,6 +852,10 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setCooldowns({});
     setEffects(defaultEffects);
     setBattleState("playing");
+    setManualAction(null);
+    setIsManualAnimating(false);
+    actionImpactRef.current = null;
+    actionResolveRef.current = null;
     setLogs([message ?? `第 ${nextState.battleStage} 场训练开始：${nextPet.name} 对战 ${nextEnemyForBattle.name}。`]);
   }
 
@@ -890,8 +939,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     ]);
   }
 
-  function useSkill(skill: BattleSkill) {
-    if (battleState !== "playing" || (cooldowns[skill.id] ?? 0) > 0 || !canChallengeCurrent) {
+  async function useSkill(skill: BattleSkill) {
+    if (battleState !== "playing" || (cooldowns[skill.id] ?? 0) > 0 || !canChallengeCurrent || isManualAnimating) {
       return;
     }
 
@@ -904,15 +953,22 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     if (skill.type === "heal") {
       const heal = Math.max(1, Math.round(petStats.hp * (skill.healPercent ?? 0)));
       nextPetHp = clampHp(nextPetHp + heal, petStats.hp);
-      nextLogs.push(`${selectedPet.name} 恢复了 ${heal} 点 HP。`);
+      await playManualAction({ actor: "pet", heal, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
+        setPetHp(nextPetHp);
+        nextLogs.push(`${selectedPet.name} 恢复了 ${heal} 点 HP。`);
+      });
     } else if (skill.type === "shield") {
       nextEffects.shieldReduction = Math.max(nextEffects.shieldReduction, skill.shieldReduction ?? 0);
-      nextLogs.push(`${selectedPet.name} 获得护盾，下一次受到的伤害会降低。`);
+      await playManualAction({ actor: "pet", id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
+        nextLogs.push(`${selectedPet.name} 获得护盾，下一次受到的伤害会降低。`);
+      });
     } else if (skill.type === "buff") {
       nextEffects.petAttackBonus += skill.buff?.attack ?? 0;
       nextEffects.petDefenseBonus += skill.buff?.defense ?? 0;
       nextEffects.nextAttackMultiplier = Math.max(nextEffects.nextAttackMultiplier, skill.buff?.nextAttackPowerMultiplier ?? 1);
-      nextLogs.push(`${selectedPet.name} 状态提升：${skill.effectText}`);
+      await playManualAction({ actor: "pet", id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
+        nextLogs.push(`${selectedPet.name} 状态提升：${skill.effectText}`);
+      });
     } else {
       const skillForDamage = {
         ...skill,
@@ -927,13 +983,22 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         statusMultiplier: nextEffects.nextDamageMultiplier * (1 - nextEffects.enemyShieldReduction)
       });
       nextEnemyHp = clampHp(nextEnemyHp - damage.totalDamage, enemy.stats.hp);
-      if (nextEffects.enemyShieldReduction > 0) {
-        nextLogs.push(`${enemy.name} 的防守降低了本次伤害。`);
-      }
+      await playManualAction({
+        actor: "pet",
+        damage: damage.totalDamage,
+        id: `pet-${skill.id}-${Date.now()}`,
+        isCounter: damage.counterMultiplier > 1,
+        skill
+      }, () => {
+        setEnemyHp(nextEnemyHp);
+        if (nextEffects.enemyShieldReduction > 0) {
+          nextLogs.push(`${enemy.name} 的防守降低了本次伤害。`);
+        }
+        nextLogs.push(`造成 ${damage.totalDamage} 点伤害${damage.counterMultiplier > 1 ? "，克制生效！" : "。"}`);
+      });
       nextEffects.nextAttackMultiplier = 1;
       nextEffects.nextDamageMultiplier = 1;
       nextEffects.enemyShieldReduction = 0;
-      nextLogs.push(`造成 ${damage.totalDamage} 点伤害${damage.counterMultiplier > 1 ? "，克制生效！" : "。"}`);
 
       if (skill.debuff?.attack) {
         nextEffects.enemyAttackBonus += skill.debuff.attack;
@@ -951,6 +1016,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       return;
     }
 
+    tickCooldowns(skill);
+    setEffects(nextEffects);
+    setIsManualAnimating(true);
+    await new Promise((resolve) => window.setTimeout(resolve, 500));
+
     const enemySkill = chooseEnemySkill(enemy);
     if (enemySkill) {
       nextLogs.push(`${enemy.name} 反击，使用了「${enemySkill.name}」。`);
@@ -965,10 +1035,15 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           });
           nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
           nextEffects.shieldReduction = 0;
-          nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+          await playManualAction({ actor: "enemy", damage: enemyDamage.totalDamage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
+            setPetHp(nextPetHp);
+            nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+          });
         }
         nextEffects.enemyShieldReduction = Math.max(nextEffects.enemyShieldReduction, enemySkill.shieldReduction ?? 0.35);
-        nextLogs.push(`${enemy.name} 进入防守姿态，下一次受到的伤害会降低。`);
+        await playManualAction({ actor: "enemy", id: `enemy-${enemySkill.id}-${Date.now()}`, isBuff: true, skill: enemySkill }, () => {
+          nextLogs.push(`${enemy.name} 进入防守姿态，下一次受到的伤害会降低。`);
+        });
       } else {
         const shieldMultiplier = 1 - nextEffects.shieldReduction;
         const enemyDamage = calculateEnemyDamage({
@@ -979,7 +1054,10 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         });
         nextPetHp = clampHp(nextPetHp - enemyDamage.totalDamage, petStats.hp);
         nextEffects.shieldReduction = 0;
-        nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+        await playManualAction({ actor: "enemy", damage: enemyDamage.totalDamage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
+          setPetHp(nextPetHp);
+          nextLogs.push(`${selectedPet.name} 受到 ${enemyDamage.totalDamage} 点伤害。`);
+        });
       }
 
       if (enemySkill.debuff?.nextDamageMultiplier) {
@@ -1007,12 +1085,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       if (enemySkill.selfDebuff?.speed) {
         nextLogs.push(`${enemy.name} 使用强攻后速度下降。`);
       }
+    } else {
+      setIsManualAnimating(false);
     }
 
-    setPetHp(nextPetHp);
-    setEnemyHp(nextEnemyHp);
     setEffects(nextEffects);
-    tickCooldowns(skill);
 
     if (nextPetHp <= 0) {
       const { levelUpLogs, state: nextState } = addPetExpWithLevelUp(saveState, 5);
@@ -1064,6 +1141,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
 
       {activeTab === "training" && (
         <TrainingRoom
+          action={manualAction}
           battleState={battleState}
           canChallengeCurrent={canChallengeCurrent}
           canChallengeNext={canChallengeNext}
@@ -1071,8 +1149,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           cooldowns={cooldowns}
           enemy={enemy}
           enemyHp={enemyHp}
+          isAnimating={isManualAnimating}
           logs={logs}
           nextEnemy={nextEnemy}
+          onActionComplete={handleManualActionComplete}
+          onActionImpact={handleManualActionImpact}
           pet={selectedPet}
           petHp={petHp}
           petLevel={saveState.petLevel}
