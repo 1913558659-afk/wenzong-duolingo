@@ -44,7 +44,8 @@ function enemyTypeLabel(type: BattleEnemy["type"]) {
   return {
     careless: "粗心型",
     forget: "遗忘型",
-    anxiety: "焦虑型"
+    anxiety: "焦虑型",
+    focus: "专注型"
   }[type];
 }
 

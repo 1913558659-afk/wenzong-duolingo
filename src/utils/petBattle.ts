@@ -1,5 +1,6 @@
 import { battleSkills, counterBonus } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats, EnemyType } from "@/data/petBattleData";
+import { getPetSpeciesStatsAtLevel } from "@/data/petSpeciesMasterData";
 
 export type DamageResult = {
   baseDamage: number;
@@ -15,6 +16,9 @@ export function getRequiredPetExp(currentLevel: number) {
 }
 
 export function getPetStatsAtLevel(pet: BattlePet, level: number): BattleStats {
+  const speciesStats = getPetSpeciesStatsAtLevel(pet.id, level);
+  if (speciesStats) return speciesStats;
+
   const safeLevel = Math.max(1, level);
   const growthTimes = safeLevel - 1;
 
@@ -125,4 +129,3 @@ export function chooseEnemySkill(enemy: BattleEnemy, randomValue = Math.random()
 export function clampHp(value: number, maxHp: number) {
   return Math.max(0, Math.min(maxHp, value));
 }
-

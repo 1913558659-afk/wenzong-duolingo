@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BookOpen, HeartPulse, LogOut, Package, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
+import { BookOpen, HeartPulse, Lock, LogOut, Package, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { DailyTrainingRewardPanel } from "@/components/petBattle/DailyTrainingRewardPanel";
@@ -11,6 +11,7 @@ import { PetTeamBar, type PetBattleTeamMember } from "@/components/petBattle/Pet
 import { SkillUnlockHint } from "@/components/petBattle/SkillUnlockHint";
 import { enemies, pets } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats, EnemyType, PetAttribute } from "@/data/petBattleData";
+import { getPetSpeciesMasterData, getPetSpeciesStatsAtLevel } from "@/data/petSpeciesMasterData";
 import { getTrainingSkillsForPet, trainingSkillCountersEnemy, type PetTrainingSkill } from "@/data/petTrainingSkills";
 import type { BattleStatusEffect, BattleStatusType } from "@/data/petTrainingStatuses";
 import {
@@ -28,12 +29,17 @@ import {
   addPetToCollection,
   defaultTrainingTeamIds,
   ensurePetCollection,
-  getAllCollectiblePets,
+  forgetLearnedSkill,
+  getEquippedSkillIds,
+  getEquippedTrainingSkills,
+  getLearnedSkillIds,
   getTrainingPetById,
   isBossPet,
   isCapturablePet,
   isInitialPet,
-  replaceTeamSlot
+  recommendSkillLoadout,
+  replaceTeamSlot,
+  setEquippedSkillIds
 } from "@/utils/petCollection";
 import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 import {
@@ -91,6 +97,9 @@ const openingEnemyCycle = [
   "anxiety-dog-01",
   "anxiety-cat-02",
   "anxiety-bear-03",
+  "focus-rabbit-01",
+  "focus-crow-01",
+  "focus-octopus-01",
   "careless_shark",
   "careless_tiger",
   "careless_rhino"
@@ -104,6 +113,9 @@ const advancedEnemyCycle = [
   "anxiety-dog-01",
   "anxiety-cat-02",
   "anxiety-bear-03",
+  "focus-rabbit-01",
+  "focus-crow-01",
+  "focus-octopus-01",
   "careless_shark",
   "careless_tiger",
   "careless_rhino"
@@ -112,7 +124,8 @@ const advancedEnemyCycle = [
 const counterMessages: Record<EnemyType, string> = {
   careless: "属性克制：行动型克制粗心型，本场伤害提升。",
   forget: "属性克制：积累型克制遗忘型，本场伤害提升。",
-  anxiety: "属性克制：专注型克制焦虑型，本场伤害提升。"
+  anxiety: "属性克制：专注型克制焦虑型，本场伤害提升。",
+  focus: "专注型野生宠物擅长稳定节奏，当前无固定克制加成。"
 };
 function getBaseEnemyForStage(stage: number) {
   const safeStage = Math.max(1, stage);
@@ -185,7 +198,8 @@ function enemyTypeLabel(type: EnemyType) {
   return {
     careless: "粗心",
     forget: "遗忘",
-    anxiety: "焦虑"
+    anxiety: "焦虑",
+    focus: "专注"
   }[type];
 }
 
@@ -229,6 +243,9 @@ function getLevelPressureStatus(pet: BattlePet, petLevel: number, enemy: Pick<Ba
 }
 
 function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
+  const speciesStats = getPetSpeciesStatsAtLevel(pet.id, level);
+  if (speciesStats) return speciesStats;
+
   const levelBonus = Math.max(0, level - 1);
   return {
     hp: pet.baseStats.hp + levelBonus * 3,
@@ -284,10 +301,16 @@ function statusForSkill(skill: PetTrainingSkill, targetMaxHp: number): BattleSta
   if (skill.status?.type === "shield") {
     return { amount: Math.max(12, Math.round(targetMaxHp * 0.22)), duration: 2, id: `shield-${Date.now()}`, label: "护盾", type: "shield" };
   }
-  if (skill.id === "focus_star") {
+  if (skill.status?.type === "anxietyDown") {
+    return { duration: 1, id: `anxiety-${Date.now()}`, label: "压制", type: "anxietyDown" };
+  }
+  if (skill.status?.type === "forget") {
+    return { duration: 1, id: `forget-${Date.now()}`, label: "遗忘", type: "forget" };
+  }
+  if (skill.baseSkillId === "focus_star") {
     return { duration: 1, id: `stun-${Date.now()}`, label: "眩晕", type: "stun" };
   }
-  if (skill.id === "root_bind") {
+  if (skill.baseSkillId === "root_bind") {
     return { duration: 1, id: `forget-${Date.now()}`, label: "遗忘", type: "forget" };
   }
   return null;
@@ -326,6 +349,242 @@ function ProgressBar({ percent, tone = "tide" }: { percent: number; tone?: "tide
     <div className="h-2.5 overflow-hidden rounded-full bg-ink/10">
       <div className={`h-full rounded-full bg-gradient-to-r ${color}`} style={{ width: `${percent}%` }} />
     </div>
+  );
+}
+
+function EvolutionRoutePreview({
+  currentLevel,
+  image,
+  sourceId,
+  tone = "card"
+}: {
+  currentLevel?: number;
+  image?: string;
+  sourceId: string;
+  tone?: "card" | "compact";
+}) {
+  const species = getPetSpeciesMasterData(sourceId);
+  if (!species) return null;
+
+  const [stage1, stage2, stage3] = species.evolution.stageNames;
+  const isBoss = species.rarity === "boss";
+  const route = [
+    { label: "一阶段", level: 1, name: stage1, open: true },
+    { label: "二阶段", level: 30, name: stage2, open: false },
+    { label: "三阶段", level: 60, name: stage3, open: false }
+  ];
+  const compact = tone === "compact";
+
+  return (
+    <div className={`rounded-[1.4rem] border border-ink/8 bg-white/58 ${compact ? "mt-3 p-3" : "mt-4 p-4"}`}>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Evolution</p>
+        <span className="rounded-full bg-ink/6 px-3 py-1 text-[11px] font-black text-ink/48">功能暂未开放</span>
+      </div>
+      <div className={`mt-3 grid gap-2 ${compact ? "grid-cols-3" : "sm:grid-cols-3"}`}>
+        {route.map((stage, index) => {
+          const reached = currentLevel ? currentLevel >= stage.level : index === 0;
+          return (
+            <div className={`relative rounded-2xl border p-3 text-center ${stage.open ? "border-tide/20 bg-tide/8" : reached ? "border-gold/24 bg-gold/8" : "border-ink/8 bg-ink/5"}`} key={stage.label}>
+              <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-white/70 ring-1 ring-white/80">
+                {stage.open && image ? (
+                  <img alt={stage.name} className={`max-h-10 max-w-10 object-contain [image-rendering:pixelated] ${petSpriteFacingClass(sourceId, "right")}`} src={image} />
+                ) : (
+                  <Lock className="size-5 text-ink/32" />
+                )}
+              </div>
+              <p className="mt-2 text-[11px] font-black text-ink/42">{stage.label}</p>
+              <p className="mt-0.5 truncate text-sm font-black text-ink">{stage.name}</p>
+              <p className="mt-1 text-[11px] font-bold text-ink/52">{stage.level === 1 ? "当前形态" : `Lv.${stage.level} 预留`}</p>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-3 rounded-2xl bg-ink/5 px-3 py-2 text-xs font-bold leading-5 text-ink/52">
+        {isBoss
+          ? `${species.name} 为 Boss 分支，未来通过碎片玩法解锁进化路线。`
+          : currentLevel
+            ? `当前 Lv.${currentLevel}。Lv.30 可进化为 ${stage2}，Lv.60 可进化为 ${stage3}，功能暂未开放。`
+            : `进化路线：${stage1} → ${stage2} → ${stage3}。Lv.30 / Lv.60 功能暂未开放。`}
+      </p>
+      <button className="mt-3 min-h-10 w-full cursor-not-allowed rounded-2xl bg-ink/6 px-3 text-xs font-black text-ink/42" disabled type="button">
+        进化功能即将开放
+      </button>
+    </div>
+  );
+}
+
+function SkillConfigCard({
+  children,
+  skill
+}: {
+  children?: ReactNode;
+  skill: PetTrainingSkill;
+}) {
+  return (
+    <div className="rounded-3xl border border-white/75 bg-white/76 p-3 shadow-[0_8px_18px_rgba(16,36,63,0.05)]">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-sm font-black text-ink">{skill.name}</p>
+          <p className="mt-1 text-[11px] font-black text-ink/46">{attributeLabel(skill.attribute)} · {skillTypeLabel(skill.type)} · Lv.{skill.unlockLevel}</p>
+        </div>
+        <span className="rounded-full bg-ink/6 px-2 py-1 text-[10px] font-black text-ink/58">威力 {skill.power} · 冷却 {skill.cooldown}</span>
+      </div>
+      <p className="mt-2 text-xs font-semibold leading-5 text-ink/58">{skill.effectText}</p>
+      {children && <div className="mt-3">{children}</div>}
+    </div>
+  );
+}
+
+function SkillConfigPanel({
+  onSave,
+  ownedPets,
+  partnerSave,
+  selectedPetId,
+  setSelectedPetId
+}: {
+  onSave: (save: PartnerChessSave, message: string) => void;
+  ownedPets: BattlePet[];
+  partnerSave: PartnerChessSave;
+  selectedPetId: string;
+  setSelectedPetId: (petId: string) => void;
+}) {
+  const pet = getTrainingPetById(selectedPetId);
+  const levelInfo = getPetLevelInfo(partnerSave, selectedPetId);
+  const template = getTrainingSkillsForPet(pet);
+  const learnedIds = getLearnedSkillIds(partnerSave, selectedPetId);
+  const equippedIds = getEquippedSkillIds(partnerSave, selectedPetId);
+  const learnedSet = new Set(learnedIds);
+  const equippedSet = new Set(equippedIds);
+  const equippedSkills = template.filter((skill) => equippedSet.has(skill.id));
+  const learnedSkills = template.filter((skill) => learnedSet.has(skill.id));
+  const futureSkills = template.filter((skill) => !learnedSet.has(skill.id) && levelInfo.level < skill.unlockLevel);
+
+  function applyEquipped(skillIds: string[], message: string) {
+    onSave(setEquippedSkillIds(partnerSave, selectedPetId, skillIds), message);
+  }
+
+  function addSkill(skill: PetTrainingSkill) {
+    if (equippedSet.has(skill.id)) return;
+    if (equippedIds.length >= 4) return;
+    applyEquipped([...equippedIds, skill.id], `已将「${skill.name}」加入${pet.name}的携带技能。`);
+  }
+
+  function replaceSkill(replacedSkillId: string, nextSkill: PetTrainingSkill) {
+    applyEquipped(equippedIds.map((skillId) => skillId === replacedSkillId ? nextSkill.id : skillId), `已用「${nextSkill.name}」替换携带技能。`);
+  }
+
+  function forgetSkill(skill: PetTrainingSkill) {
+    if (typeof window !== "undefined" && !window.confirm(`确认让 ${pet.name} 遗忘「${skill.name}」吗？`)) return;
+    const result = forgetLearnedSkill(partnerSave, selectedPetId, skill.id);
+    onSave(result.save, result.message);
+  }
+
+  return (
+    <GameCard className="bg-white/68 xl:col-span-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-xs font-black uppercase tracking-[0.18em] text-tide">Skill Setup</p>
+          <h2 className="mt-1 text-2xl font-black text-ink">技能配置</h2>
+          <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">战斗中最多携带 4 个技能；升级学会的新技能会进入技能库，可在这里替换或遗忘。</p>
+        </div>
+        <button
+          className="min-h-11 rounded-2xl bg-tide px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink"
+          onClick={() => onSave(recommendSkillLoadout(partnerSave, selectedPetId), `已为${pet.name}推荐携带技能。`)}
+          type="button"
+        >
+          一键推荐配置
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-4 xl:grid-cols-[260px_1fr]">
+        <div className="space-y-2">
+          {ownedPets.map((ownedPet) => {
+            const active = ownedPet.id === selectedPetId;
+            const info = getPetLevelInfo(partnerSave, ownedPet.id);
+            return (
+              <button
+                className={`flex w-full items-center gap-3 rounded-3xl border p-3 text-left transition ${active ? "border-tide/30 bg-tide/10 text-ink" : "border-white/75 bg-white/66 text-ink/62 hover:border-tide/20 hover:bg-white"}`}
+                key={ownedPet.id}
+                onClick={() => setSelectedPetId(ownedPet.id)}
+                type="button"
+              >
+                <img alt={ownedPet.name} className={`size-12 shrink-0 object-contain [image-rendering:pixelated] ${petSpriteFacingClass(ownedPet.id, "right")}`} src={ownedPet.image} />
+                <span className="min-w-0">
+                  <span className="block truncate text-sm font-black">{ownedPet.name}</span>
+                  <span className="mt-1 block text-xs font-bold text-ink/48">Lv.{info.level} · {attributeLabel(ownedPet.attribute)}</span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="space-y-4">
+          <div className="rounded-[1.5rem] border border-tide/14 bg-tide/8 p-4">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-black text-tide">当前宠物</p>
+                <h3 className="mt-1 text-xl font-black text-ink">{pet.name} · Lv.{levelInfo.level}</h3>
+              </div>
+              <span className="rounded-full bg-white/76 px-3 py-1 text-xs font-black text-ink/56">携带 {equippedSkills.length}/4</span>
+            </div>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {equippedSkills.length > 0 ? equippedSkills.map((skill) => (
+                <SkillConfigCard key={skill.id} skill={skill} />
+              )) : (
+                <p className="rounded-2xl border border-coral/20 bg-coral/10 px-3 py-3 text-sm font-bold text-coral">当前没有携带技能，系统会自动补回基础攻击技能。</p>
+              )}
+            </div>
+          </div>
+
+          <div>
+            <h3 className="text-lg font-black text-ink">已学会技能库</h3>
+            <div className="mt-3 grid gap-3 lg:grid-cols-2">
+              {learnedSkills.map((skill) => {
+                const isEquipped = equippedSet.has(skill.id);
+                const canAdd = !isEquipped && equippedIds.length < 4;
+                return (
+                  <SkillConfigCard key={skill.id} skill={skill}>
+                    <div className="flex flex-wrap gap-2">
+                      {isEquipped ? (
+                        <span className="rounded-full bg-leaf/10 px-3 py-1 text-xs font-black text-leaf ring-1 ring-leaf/20">已携带</span>
+                      ) : canAdd ? (
+                        <button className="rounded-full bg-tide px-3 py-1 text-xs font-black text-white shadow-insetGame" onClick={() => addSkill(skill)} type="button">加入携带</button>
+                      ) : (
+                        equippedSkills.map((equippedSkill, index) => (
+                          <button
+                            className="rounded-full bg-white px-3 py-1 text-xs font-black text-ink shadow-[0_6px_14px_rgba(16,36,63,0.08)] ring-1 ring-ink/6"
+                            key={equippedSkill.id}
+                            onClick={() => replaceSkill(equippedSkill.id, skill)}
+                            type="button"
+                          >
+                            替换{index + 1}
+                          </button>
+                        ))
+                      )}
+                      <button className="rounded-full bg-ink/6 px-3 py-1 text-xs font-black text-ink/52 hover:bg-coral/10 hover:text-coral" onClick={() => forgetSkill(skill)} type="button">遗忘</button>
+                    </div>
+                  </SkillConfigCard>
+                );
+              })}
+            </div>
+          </div>
+
+          {futureSkills.length > 0 && (
+            <div>
+              <h3 className="text-lg font-black text-ink">未来可学习技能</h3>
+              <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                {futureSkills.map((skill) => (
+                  <SkillConfigCard key={skill.id} skill={skill}>
+                    <span className="rounded-full bg-ink/6 px-3 py-1 text-xs font-black text-ink/46">Lv.{skill.unlockLevel} 解锁</span>
+                  </SkillConfigCard>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </GameCard>
   );
 }
 
@@ -422,6 +681,7 @@ function PetSelectCard({ active, onSelect, pet }: { active: boolean; onSelect: (
           <StatItem label="防御" value={pet.baseStats.defense} />
           <StatItem label="速度" value={pet.baseStats.speed} />
         </div>
+        <EvolutionRoutePreview image={pet.image} sourceId={pet.id} tone="compact" />
         <span className="mt-4 flex min-h-11 items-center justify-center rounded-2xl bg-ink text-sm font-black text-white shadow-insetGame transition group-hover:bg-tide">
           {active ? "当前伙伴" : "选择伙伴"}
         </span>
@@ -849,21 +1109,31 @@ function TrainingRoom({
 function GrowthRoom({
   companionTrainingExp,
   notice,
+  onSkillSave,
+  ownedPets,
+  partnerSave,
   pet,
   petExp,
   petExpNeed,
   petLevel,
   petStats,
+  selectedSkillPetId,
+  setSelectedSkillPetId,
   trainStat,
   training
 }: {
   companionTrainingExp: number;
   notice: string;
+  onSkillSave: (save: PartnerChessSave, message: string) => void;
+  ownedPets: BattlePet[];
+  partnerSave: PartnerChessSave;
   pet: BattlePet;
   petExp: number;
   petExpNeed: number;
   petLevel: number;
   petStats: BattleStats;
+  selectedSkillPetId: string;
+  setSelectedSkillPetId: (petId: string) => void;
   trainStat: (key: keyof PetTrainingStats, label: string, value: number) => void;
   training: PetTrainingStats;
 }) {
@@ -902,6 +1172,7 @@ function GrowthRoom({
           <StatItem label="防御" value={petStats.defense} />
           <StatItem label="速度" value={petStats.speed} />
         </div>
+        <EvolutionRoutePreview currentLevel={petLevel} image={pet.image} sourceId={pet.id} />
       </GameCard>
 
       <GameCard className="bg-white/68">
@@ -952,12 +1223,21 @@ function GrowthRoom({
           })}
         </div>
       </GameCard>
+
+      <SkillConfigPanel
+        onSave={onSkillSave}
+        ownedPets={ownedPets}
+        partnerSave={partnerSave}
+        selectedPetId={selectedSkillPetId}
+        setSelectedPetId={setSelectedSkillPetId}
+      />
     </section>
   );
 }
 
 function ArchiveCard({
   badge,
+  children,
   image,
   name,
   primary,
@@ -967,6 +1247,7 @@ function ArchiveCard({
   tone
 }: {
   badge?: ReactNode;
+  children?: ReactNode;
   image: string;
   name: string;
   primary: string;
@@ -991,6 +1272,7 @@ function ArchiveCard({
         </div>
       </div>
       <p className="mt-4 text-sm font-semibold leading-6 text-ink/62">{text}</p>
+      {children}
     </GameCard>
   );
 }
@@ -1008,6 +1290,7 @@ function CompanionArchive({
   const carelessAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "careless");
   const forgetAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "forget");
   const anxietyAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "anxiety");
+  const focusWildPets = enemies.filter((enemy) => enemy.branch === "focus");
 
   return (
     <section className="space-y-5">
@@ -1039,7 +1322,9 @@ function CompanionArchive({
               sourceId={enemy.id}
               text={enemy.description ?? counterMessages[enemy.type]}
               tone="enemy"
-            />
+            >
+              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+            </ArchiveCard>
           ))}
         </div>
       </div>
@@ -1057,7 +1342,9 @@ function CompanionArchive({
               sourceId={enemy.id}
               text={enemy.description ?? "粗心型进阶敌人。"}
               tone="enemy"
-            />
+            >
+              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+            </ArchiveCard>
           ))}
         </div>
       </div>
@@ -1075,7 +1362,9 @@ function CompanionArchive({
               sourceId={enemy.id}
               text={enemy.description ?? "遗忘型进阶敌人。"}
               tone="enemy"
-            />
+            >
+              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+            </ArchiveCard>
           ))}
         </div>
       </div>
@@ -1093,7 +1382,29 @@ function CompanionArchive({
               sourceId={enemy.id}
               text={enemy.description ?? "焦虑型进阶敌人。"}
               tone="enemy"
-            />
+            >
+              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+            </ArchiveCard>
+          ))}
+        </div>
+      </div>
+      <div>
+        <h3 className="text-xl font-black text-ink">专注型野生宠物</h3>
+        <div className="mt-3 grid gap-4 lg:grid-cols-3">
+          {focusWildPets.map((enemy) => (
+            <ArchiveCard
+              badge={<PetOwnedBadge state={ownedPetIds.includes(enemy.id) ? "owned" : isCapturablePet(enemy.id) ? "capturable" : isBossPet(enemy.id) ? "boss" : "unowned"} />}
+              image={enemy.image}
+              key={enemy.id}
+              name={enemy.name}
+              primary="专注型"
+              secondary={`${enemy.role}${enemy.species ? ` · ${enemy.species}` : ""}`}
+              sourceId={enemy.id}
+              text={enemy.description ?? "专注型野生宠物，捕捉后可加入宠物仓库。"}
+              tone="enemy"
+            >
+              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+            </ArchiveCard>
           ))}
         </div>
       </div>
@@ -1108,6 +1419,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [itemInventory, setItemInventory] = useState(() => loadPetTrainingItemInventory());
   const [activeTab, setActiveTab] = useState<PetBattleTab>("training");
   const [selectedTeamSlot, setSelectedTeamSlot] = useState(0);
+  const [selectedSkillPetId, setSelectedSkillPetId] = useState(() => ensurePetCollection(loadPartnerChessSave()).activeTrainingTeam[0] ?? defaultTrainingTeamIds[0]);
   const [activeUnitId, setActiveUnitId] = useState(() => {
     const initialTeam = ensurePetCollection(loadPartnerChessSave()).activeTrainingTeam;
     return getPlayerBattleUnitId(0, initialTeam[0] ?? defaultTrainingTeamIds[0]);
@@ -1149,7 +1461,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const selectedPet = activeMember?.pet ?? getTrainingPetById(activePetId);
   const activePetLevel = activeMember?.level ?? getPartnerPetLevel(normalizedPartnerSave, activePetId);
   const petStats = activeMember?.stats ?? getTrainingBattleStats(selectedPet, activePetLevel);
-  const petSkills = useMemo(() => getTrainingSkillsForPet(selectedPet), [selectedPet]);
+  const petSkills = useMemo(() => getEquippedTrainingSkills(normalizedPartnerSave, activePetId), [activePetId, normalizedPartnerSave]);
   const petHp = activeMember?.hp ?? petStats.hp;
   const activePetLevelInfo = getPetLevelInfo(normalizedPartnerSave, activePetId);
   const petExpNeed = activePetLevelInfo.requiredExp || getRequiredPetExp(activePetLevel);
@@ -1162,6 +1474,9 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   useEffect(() => {
+    const synced = ensurePetCollection(loadPartnerChessSave());
+    savePartnerChessSave(synced);
+    setPartnerSave(synced);
     const reward = claimDailyFirstEntry(partnerSave);
     if (reward) {
       setPartnerSave(reward.save);
@@ -1183,6 +1498,12 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       window.removeEventListener("storage", syncItems);
     };
   }, []);
+
+  useEffect(() => {
+    if (!normalizedPartnerSave.ownedPets.includes(selectedSkillPetId)) {
+      setSelectedSkillPetId(normalizedPartnerSave.ownedPets[0] ?? defaultTrainingTeamIds[0]);
+    }
+  }, [normalizedPartnerSave.ownedPets, selectedSkillPetId]);
 
   function pushLogs(nextLogs: string[]) {
     setLogs((current) => [...nextLogs, ...current].slice(0, 12));
@@ -1350,6 +1671,14 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setNotice(`${replacement.name} 已加入训练背包。`);
   }
 
+  function applySkillSave(nextSave: PartnerChessSave, message: string) {
+    const synced = ensurePetCollection(nextSave);
+    savePartnerChessSave(synced);
+    setPartnerSave(synced);
+    setNotice(message);
+    pushLogs([message]);
+  }
+
   function petSourceLabel(petId: string) {
     if (isInitialPet(petId)) return "获取方式：初始伙伴";
     if (normalizedPartnerSave.capturedAt[petId]) return "获取方式：捕捉获得";
@@ -1375,6 +1704,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         growthLogs.push(`${result.growth.petName} Lv.${result.growth.beforeLevel} → Lv.${result.growth.afterLevel}！`);
       }
     }
+    nextPartnerSave = ensurePetCollection(nextPartnerSave);
     const dailyResult = recordTrainingBattle({ captured: false, enemyType: enemy.type, isWin: false, save: nextPartnerSave });
     savePartnerChessSave(dailyResult.save);
     setPartnerSave(dailyResult.save);
@@ -1471,10 +1801,19 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       nextPartnerSave = result.save;
       if (result.growth.leveledUp) {
         growthLogs.push(`${result.growth.petName} Lv.${result.growth.beforeLevel} → Lv.${result.growth.afterLevel}！`);
+        const learnedNames = getLearnedSkillIds(ensurePetCollection(nextPartnerSave), petId)
+          .map((skillId) => getTrainingSkillsForPet(getTrainingPetById(petId)).find((skill) => skill.id === skillId))
+          .filter((skill): skill is PetTrainingSkill => Boolean(skill))
+          .filter((skill) => skill.unlockLevel <= result.growth.afterLevel && skill.unlockLevel > result.growth.beforeLevel)
+          .map((skill) => skill.name);
+        if (learnedNames.length > 0) {
+          growthLogs.push(`${result.growth.petName} 学会了「${learnedNames.join("、")}」，可在养成室中替换携带技能。`);
+        }
       } else {
         growthLogs.push(`${result.growth.petName} 经验 +${rewardPetExp}。`);
       }
     }
+    nextPartnerSave = ensurePetCollection(nextPartnerSave);
     if (!captured) {
       nextPartnerSave = addCoinsAndShard({
         save: nextPartnerSave,
@@ -1580,6 +1919,22 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       nextEffects.nextAttackMultiplier = Math.max(nextEffects.nextAttackMultiplier, skill.buff?.nextAttackPowerMultiplier ?? 1);
       await playManualAction({ actor: "pet", actorUnitId: activeUnitId, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill, targetUnitId: activeUnitId }, () => {
         nextLogs.push(`${selectedPet.name} 状态提升：${skill.effectText}`);
+      });
+    } else if (skill.type === "debuff") {
+      const status = statusForSkill(skill, enemy.stats.hp);
+      await playManualAction({ actor: "pet", actorUnitId: activeUnitId, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill, targetUnitId: enemyUnitId }, () => {
+        if (status) {
+          nextEnemyStatuses = addOrReplaceStatus(nextEnemyStatuses, status);
+          setEnemyStatuses(nextEnemyStatuses);
+          nextLogs.push(`${enemy.name} 进入${status.label}状态。`);
+        }
+        if (skill.baseSkillId === "lock_gaze") {
+          nextEffects.enemyDefenseBonus -= 2;
+          nextLogs.push(`${enemy.name} 防御降低。`);
+        } else {
+          nextEffects.enemyAttackBonus -= 2;
+          nextLogs.push(`${enemy.name} 攻击节奏被压低。`);
+        }
       });
     } else {
       const skillForDamage = {
@@ -1855,11 +2210,16 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         <GrowthRoom
           companionTrainingExp={saveState.companionTrainingExp}
           notice={notice}
+          onSkillSave={applySkillSave}
+          ownedPets={normalizedPartnerSave.ownedPets.map(getTrainingPetById)}
+          partnerSave={normalizedPartnerSave}
           pet={selectedPet}
           petExp={activePetLevelInfo.exp}
           petExpNeed={petExpNeed}
           petLevel={activePetLevel}
           petStats={petStats}
+          selectedSkillPetId={selectedSkillPetId}
+          setSelectedSkillPetId={setSelectedSkillPetId}
           trainStat={trainStat}
           training={saveState.training}
         />

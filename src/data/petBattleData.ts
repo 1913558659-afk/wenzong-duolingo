@@ -19,7 +19,7 @@
 */
 
 export type PetAttribute = "focus" | "action" | "growth";
-export type EnemyType = "careless" | "forget" | "anxiety";
+export type EnemyType = "careless" | "forget" | "anxiety" | "focus";
 
 export type BattleSkillType =
   | "attack"
@@ -526,6 +526,108 @@ export const enemies: BattleEnemy[] = [
       { skillId: "anxiety-bear-pressure", weight: 40 },
       { skillId: "anxiety-bear-burden", weight: 25 }
     ]
+  },
+  {
+    id: "focus-rabbit-01",
+    name: "聆心兔",
+    type: "focus",
+    branch: "focus",
+    species: "兔",
+    stage: "advanced",
+    role: "辅助防守",
+    description: "安静倾听节奏的专注型野生宠物，擅长护盾与稳定防守。捕捉后可作为 Lv.1 专注型伙伴培养。",
+    personality: "安静、敏锐、会观察节奏",
+    image: "/pet-battle/pets/focus-rabbit-01.png",
+    level: 4,
+    stats: {
+      hp: 58,
+      attack: 10,
+      defense: 12,
+      speed: 11
+    },
+    growth: {
+      hp: 7,
+      attack: 2,
+      defense: 2,
+      speed: 1
+    },
+    rewardExp: 55,
+    rewardTrainingExp: 16,
+    skills: ["calm_bump", "listening_shield", "focus_gaze", "flow_settle"],
+    aiWeights: [
+      { skillId: "calm_bump", weight: 45 },
+      { skillId: "listening_shield", weight: 25 },
+      { skillId: "focus_gaze", weight: 20 },
+      { skillId: "flow_settle", weight: 10 }
+    ]
+  },
+  {
+    id: "focus-crow-01",
+    name: "识光鸦",
+    type: "focus",
+    branch: "focus",
+    species: "鸦",
+    stage: "advanced",
+    role: "精准输出",
+    description: "能迅速捕捉题目关键光点的专注型野生宠物，攻击精准、节奏干净。",
+    personality: "冷静、锐利、判断准确",
+    image: "/pet-battle/pets/focus-crow-01.png",
+    level: 5,
+    stats: {
+      hp: 54,
+      attack: 15,
+      defense: 8,
+      speed: 15
+    },
+    growth: {
+      hp: 6,
+      attack: 3,
+      defense: 1,
+      speed: 2
+    },
+    rewardExp: 65,
+    rewardTrainingExp: 18,
+    skills: ["focus_peck", "point_blade", "lock_gaze", "insight_storm"],
+    aiWeights: [
+      { skillId: "focus_peck", weight: 45 },
+      { skillId: "point_blade", weight: 30 },
+      { skillId: "lock_gaze", weight: 15 },
+      { skillId: "insight_storm", weight: 10 }
+    ]
+  },
+  {
+    id: "focus-octopus-01",
+    name: "理序章",
+    type: "focus",
+    branch: "focus",
+    species: "章鱼",
+    stage: "advanced",
+    role: "控场辅助",
+    description: "用便签和触手整理知识顺序的专注型野生宠物，擅长护盾、削弱和恢复。",
+    personality: "有条理、爱归纳、控场稳",
+    image: "/pet-battle/pets/focus-octopus-01.png",
+    level: 5,
+    stats: {
+      hp: 66,
+      attack: 11,
+      defense: 11,
+      speed: 9
+    },
+    growth: {
+      hp: 8,
+      attack: 2,
+      defense: 2,
+      speed: 1
+    },
+    rewardExp: 65,
+    rewardTrainingExp: 20,
+    skills: ["order_slap", "note_flow_shield", "summary_bind", "knowledge_echo"],
+    aiWeights: [
+      { skillId: "order_slap", weight: 42 },
+      { skillId: "note_flow_shield", weight: 25 },
+      { skillId: "summary_bind", weight: 20 },
+      { skillId: "knowledge_echo", weight: 13 }
+    ]
   }
 ];
 
@@ -1029,6 +1131,136 @@ export const battleSkills: Record<string, BattleSkill> = {
     cooldown: 1,
     effectText: "造成较高伤害",
     description: "以沉重压力压制对手，造成较高伤害。"
+  },
+  calm_bump: {
+    id: "calm_bump",
+    name: "静心撞击",
+    type: "attack",
+    power: 8,
+    cooldown: 0,
+    effectText: "专注型基础攻击",
+    description: "聆心兔静下心来向前轻撞，造成稳定伤害。"
+  },
+  listening_shield: {
+    id: "listening_shield",
+    name: "聆听护盾",
+    type: "shield",
+    power: 0,
+    cooldown: 2,
+    shieldReduction: 0.4,
+    effectText: "获得护盾，减少下一次受到的伤害",
+    description: "聆心兔聆听节奏，撑起柔和护盾。"
+  },
+  focus_gaze: {
+    id: "focus_gaze",
+    name: "专注凝视",
+    type: "debuff",
+    power: 0,
+    cooldown: 2,
+    debuff: {
+      attack: -2,
+      speed: -1,
+      duration: 1
+    },
+    effectText: "降低敌方攻击或速度",
+    description: "用稳定目光打断对方节奏，降低攻击与速度。"
+  },
+  flow_settle: {
+    id: "flow_settle",
+    name: "心流安定",
+    type: "heal",
+    power: 0,
+    cooldown: 3,
+    healPercent: 0.25,
+    effectText: "恢复自身生命并清除轻度负面状态",
+    description: "进入心流状态，恢复自身生命。"
+  },
+  focus_peck: {
+    id: "focus_peck",
+    name: "专注啄击",
+    type: "attack",
+    power: 9,
+    cooldown: 0,
+    effectText: "专注型基础攻击",
+    description: "识光鸦瞄准关键点啄击，造成普通伤害。"
+  },
+  point_blade: {
+    id: "point_blade",
+    name: "识点羽刃",
+    type: "power_attack",
+    power: 12,
+    cooldown: 1,
+    effectText: "精准打击敌人",
+    description: "羽刃精准掠过敌人，造成较高伤害。"
+  },
+  lock_gaze: {
+    id: "lock_gaze",
+    name: "锁题目光",
+    type: "debuff",
+    power: 0,
+    cooldown: 2,
+    debuff: {
+      defense: -2,
+      duration: 1
+    },
+    effectText: "降低敌方防御",
+    description: "锁定题目关键点，使敌方防御降低。"
+  },
+  insight_storm: {
+    id: "insight_storm",
+    name: "洞察风暴",
+    type: "power_attack",
+    power: 16,
+    cooldown: 3,
+    counterEnemyType: "anxiety",
+    effectText: "对焦虑型或遗忘型敌人有额外伤害",
+    description: "识光鸦掀起洞察风暴，对焦虑型或遗忘型敌人更有效。"
+  },
+  order_slap: {
+    id: "order_slap",
+    name: "理序拍击",
+    type: "attack",
+    power: 8,
+    cooldown: 0,
+    effectText: "专注型基础攻击",
+    description: "理序章用触手整理节奏后拍击敌人。"
+  },
+  note_flow_shield: {
+    id: "note_flow_shield",
+    name: "便签护流",
+    type: "shield",
+    power: 0,
+    cooldown: 2,
+    shieldReduction: 0.4,
+    effectText: "获得护盾",
+    description: "便签流形成护盾，减少下一次受到的伤害。"
+  },
+  summary_bind: {
+    id: "summary_bind",
+    name: "归纳缠绕",
+    type: "debuff",
+    power: 0,
+    cooldown: 2,
+    debuff: {
+      speed: -1,
+      duration: 1
+    },
+    effectText: "延长敌方节奏或降低速度",
+    description: "用归纳出的线索缠住敌人，降低速度。"
+  },
+  knowledge_echo: {
+    id: "knowledge_echo",
+    name: "知识回响",
+    type: "heal",
+    power: 0,
+    cooldown: 3,
+    healPercent: 0.24,
+    buff: {
+      defense: 1,
+      duration: 1
+    },
+    effectText: "恢复自身生命，并略微提升防御",
+    description: "知识回响带来恢复，并提升自身防御。"
   }
 };
 
@@ -1045,7 +1277,10 @@ export const battleRewards = {
     "forget-chicken-03": 65,
     "anxiety-dog-01": 55,
     "anxiety-cat-02": 65,
-    "anxiety-bear-03": 80
+    "anxiety-bear-03": 80,
+    "focus-rabbit-01": 55,
+    "focus-crow-01": 65,
+    "focus-octopus-01": 65
   },
   lose: 5,
   firstDailyWinBonus: 20,

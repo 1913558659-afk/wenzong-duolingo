@@ -5,19 +5,22 @@ export type ManualImpactTheme = "cloud" | "fire" | "growth" | EnemyType;
 const backgroundClass: Record<EnemyType, string> = {
   careless: "bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.62),transparent_26%),radial-gradient(circle_at_78%_24%,rgba(243,178,74,0.28),transparent_28%),linear-gradient(135deg,#F9F2D8_0%,#DFF5E4_58%,#FFF8EC_100%)]",
   forget: "bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.58),transparent_26%),radial-gradient(circle_at_78%_24%,rgba(124,106,230,0.24),transparent_30%),linear-gradient(135deg,#F5F0FF_0%,#DDEFF7_58%,#FFF8EC_100%)]",
-  anxiety: "bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.56),transparent_26%),radial-gradient(circle_at_76%_24%,rgba(233,91,79,0.24),transparent_30%),linear-gradient(135deg,#FFF0E8_0%,#F1E8DE_58%,#FFF8EC_100%)]"
+  anxiety: "bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.56),transparent_26%),radial-gradient(circle_at_76%_24%,rgba(233,91,79,0.24),transparent_30%),linear-gradient(135deg,#FFF0E8_0%,#F1E8DE_58%,#FFF8EC_100%)]",
+  focus: "bg-[radial-gradient(circle_at_18%_18%,rgba(255,255,255,0.62),transparent_26%),radial-gradient(circle_at_76%_24%,rgba(21,156,168,0.22),transparent_30%),linear-gradient(135deg,#EEF9F7_0%,#EAF2FF_58%,#FFF8EC_100%)]"
 };
 
 const groundClass: Record<EnemyType, string> = {
   careless: "bg-[radial-gradient(ellipse,rgba(255,255,255,0.66)_0%,rgba(218,239,196,0.54)_46%,rgba(34,184,165,0.18)_76%,transparent_100%)]",
   forget: "bg-[radial-gradient(ellipse,rgba(255,255,255,0.62)_0%,rgba(216,210,255,0.48)_46%,rgba(20,150,163,0.16)_76%,transparent_100%)]",
-  anxiety: "bg-[radial-gradient(ellipse,rgba(255,255,255,0.62)_0%,rgba(255,216,194,0.48)_46%,rgba(233,91,79,0.16)_76%,transparent_100%)]"
+  anxiety: "bg-[radial-gradient(ellipse,rgba(255,255,255,0.62)_0%,rgba(255,216,194,0.48)_46%,rgba(233,91,79,0.16)_76%,transparent_100%)]",
+  focus: "bg-[radial-gradient(ellipse,rgba(255,255,255,0.66)_0%,rgba(205,242,238,0.50)_46%,rgba(21,156,168,0.18)_76%,transparent_100%)]"
 };
 
 const impactClass: Record<ManualImpactTheme, string> = {
   anxiety: "manual-battle-impact-anxiety",
   careless: "manual-battle-impact-careless",
   cloud: "manual-battle-impact-cloud",
+  focus: "manual-battle-impact-cloud",
   fire: "manual-battle-impact-fire",
   forget: "manual-battle-impact-forget",
   growth: "manual-battle-impact-growth"
@@ -27,6 +30,7 @@ const skillClass: Record<ManualImpactTheme, string> = {
   anxiety: "manual-battle-skill-burst-anxiety",
   careless: "manual-battle-skill-burst-careless",
   cloud: "manual-battle-skill-burst-cloud",
+  focus: "manual-battle-skill-burst-cloud",
   fire: "manual-battle-skill-burst-fire",
   forget: "manual-battle-skill-burst-forget",
   growth: "manual-battle-skill-burst-growth"

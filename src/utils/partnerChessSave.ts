@@ -1,15 +1,20 @@
 import { pets } from "@/data/petBattleData";
+import { getPetSpeciesMasterData, petSpeciesLevelCap } from "@/data/petSpeciesMasterData";
 import type { PartnerChessReward } from "@/data/partnerChessRewards";
+import { syncPetSkillState } from "@/utils/petCollection";
 import type { ChessUnit } from "@/utils/partnerChessEngine";
 
 export const partnerChessSaveKey = "partnerChessSave";
-export const partnerChessLevelCap = 20;
+export const partnerChessLevelCap = petSpeciesLevelCap;
 
 export type PartnerChessSave = {
   activeTrainingTeam: string[];
   capturedAt: Record<string, string>;
   coins: number;
   petExp: Record<string, number>;
+  petEquippedSkillIds: Record<string, string[]>;
+  petLearnedSkillIds: Record<string, string[]>;
+  petForgottenSkillIds: Record<string, string[]>;
   petLevel: Record<string, number>;
   petShards: Record<string, number>;
   shards: Record<string, number>;
@@ -53,6 +58,9 @@ export function defaultPartnerChessSave(): PartnerChessSave {
     clearedStages: {},
     coins: 0,
     petExp: initialPetExp(),
+    petEquippedSkillIds: {},
+    petForgottenSkillIds: {},
+    petLearnedSkillIds: {},
     petLevel: initialPetLevel(),
     petShards: {},
     shards: {},
@@ -95,6 +103,9 @@ export function loadPartnerChessSave(): PartnerChessSave {
       coins: parsed.coins ?? fallback.coins,
       ownedPets,
       petExp: { ...fallback.petExp, ...initialExp, ...(parsed.petExp ?? {}) },
+      petEquippedSkillIds: parsed.petEquippedSkillIds ?? fallback.petEquippedSkillIds,
+      petForgottenSkillIds: parsed.petForgottenSkillIds ?? fallback.petForgottenSkillIds,
+      petLearnedSkillIds: parsed.petLearnedSkillIds ?? fallback.petLearnedSkillIds,
       petLevel: { ...fallback.petLevel, ...initialLevels, ...(parsed.petLevel ?? {}) },
       petShards: parsed.petShards ?? fallback.petShards,
       shards: parsed.shards ?? fallback.shards,
@@ -128,6 +139,7 @@ export function getPetLevelInfo(save: PartnerChessSave, petId: string) {
 
 export function addPetExp(save: PartnerChessSave, petId: string, expGain: number): { save: PartnerChessSave; growth: PetGrowthResult } {
   const pet = pets.find((item) => item.id === petId);
+  const species = getPetSpeciesMasterData(petId);
   const beforeLevel = Math.min(partnerChessLevelCap, save.petLevel[petId] ?? 1);
   const beforeExp = save.petExp[petId] ?? 0;
   let level = beforeLevel;
@@ -141,6 +153,9 @@ export function addPetExp(save: PartnerChessSave, petId: string, expGain: number
   const nextSave = {
     ...save,
     petExp: { ...save.petExp, [petId]: exp },
+    petEquippedSkillIds: save.petEquippedSkillIds,
+    petForgottenSkillIds: save.petForgottenSkillIds,
+    petLearnedSkillIds: save.petLearnedSkillIds,
     petLevel: { ...save.petLevel, [petId]: level }
   };
 
@@ -152,7 +167,7 @@ export function addPetExp(save: PartnerChessSave, petId: string, expGain: number
       beforeLevel,
       leveledUp: level > beforeLevel,
       petId,
-      petName: pet?.name ?? petId
+      petName: pet?.name ?? species?.name ?? petId
     },
     save: nextSave
   };
@@ -194,7 +209,7 @@ export function applyBattleRewards({
     growth.push(result.growth);
   }
 
-  return { growth, reward, save: nextSave };
+  return { growth, reward, save: syncPetSkillState(nextSave) };
 }
 
 export function applyPetLevelsToChessUnits(units: ChessUnit[], save: PartnerChessSave): ChessUnit[] {

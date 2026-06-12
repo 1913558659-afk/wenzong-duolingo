@@ -74,7 +74,8 @@ export function shardLabelForEnemyType(type: EnemyType) {
   return {
     anxiety: "焦虑碎片",
     careless: "粗心碎片",
-    forget: "遗忘碎片"
+    forget: "遗忘碎片",
+    focus: "专注碎片"
   }[type];
 }
 
