@@ -3,6 +3,7 @@ import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { AutoBattlePanel } from "@/components/partnerChess/AutoBattlePanel";
 import { BattleLogPanel } from "@/components/partnerChess/BattleLogPanel";
+import { BattleResultPanel } from "@/components/partnerChess/BattleResultPanel";
 import { BuffSelectPanel } from "@/components/partnerChess/BuffSelectPanel";
 import { ChessHeader } from "@/components/partnerChess/ChessHeader";
 import type { PartnerChessPhase } from "@/components/partnerChess/ChessHeader";
@@ -14,11 +15,19 @@ import { fallbackBuff, getBuffChoices, getPerfectBuff } from "@/data/partnerChes
 import type { PartnerChessBuff } from "@/data/partnerChessBuffs";
 import { partnerChessStages } from "@/data/partnerChessStages";
 import type { PartnerChessStage } from "@/data/partnerChessStages";
+import { calculateBattleRewards, shardLabel } from "@/data/partnerChessRewards";
 import type { QuizQuestion } from "@/types";
 import { createAllyFormation, createEnemyFormation, runPartnerChessBattle } from "@/utils/partnerChessEngine";
 import type { ChessUnit } from "@/utils/partnerChessEngine";
 import { isPartnerChessAnswerCorrect, type PartnerChessQuizQuestion, type PartnerChessSubjectFilter } from "@/utils/partnerChessQuestionAdapter";
 import { countRealChoiceQuestionsBySubject, pickPartnerChessQuestions, recommendedPartnerChessSubject } from "@/utils/partnerChessQuestionPicker";
+import {
+  applyBattleRewards,
+  applyPetLevelsToChessUnits,
+  loadPartnerChessSave,
+  savePartnerChessSave
+} from "@/utils/partnerChessSave";
+import type { AppliedBattleReward, PartnerChessSave } from "@/utils/partnerChessSave";
 
 function getEnemiesByIds(enemyIds: string[]) {
   return enemyIds.map((enemyId) => enemies.find((enemy) => enemy.id === enemyId)).filter((enemy): enemy is BattleEnemy => Boolean(enemy));
@@ -81,6 +90,9 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
   const [battleDisplayAllies, setBattleDisplayAllies] = useState<ChessUnit[]>([]);
   const [battleDisplayEnemies, setBattleDisplayEnemies] = useState<ChessUnit[]>([]);
   const [challengeResult, setChallengeResult] = useState<"playing" | "victory" | "defeat">("playing");
+  const [lastBattleWinner, setLastBattleWinner] = useState<"ally" | "enemy" | null>(null);
+  const [appliedReward, setAppliedReward] = useState<AppliedBattleReward | null>(null);
+  const [partnerChessSave, setPartnerChessSave] = useState<PartnerChessSave>(() => loadPartnerChessSave());
   const [isBattlePlaying, setIsBattlePlaying] = useState(false);
   const battleAnimationTimerRef = useRef<number | null>(null);
 
@@ -88,7 +100,8 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
   const currentQuestions = questionPick.questions;
   const subjectCounts = useMemo(() => countRealChoiceQuestionsBySubject(questions), [questions]);
   const previewBuffs = phase === "battle" || phase === "settlement" ? activeBuffs : [];
-  const previewAllies = useMemo(() => battleAllies.length > 0 ? battleAllies : createAllyFormation(pets, previewBuffs), [battleAllies, previewBuffs]);
+  const createLeveledAllies = useCallback((buffs: PartnerChessBuff[]) => applyPetLevelsToChessUnits(createAllyFormation(pets, buffs), partnerChessSave), [partnerChessSave]);
+  const previewAllies = useMemo(() => battleAllies.length > 0 ? battleAllies : createLeveledAllies(previewBuffs), [battleAllies, createLeveledAllies, previewBuffs]);
   const previewEnemies = useMemo(() => {
     if (battleEnemies.length > 0) return battleEnemies;
     return createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
@@ -149,6 +162,8 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     setBattleDisplayAllies([]);
     setBattleDisplayEnemies([]);
     setChallengeResult("playing");
+    setLastBattleWinner(null);
+    setAppliedReward(null);
     setPhase("prep");
   }
 
@@ -173,7 +188,7 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     clearBattleAnimationTimer();
     setIsBattlePlaying(false);
     const nextBuffs = [buff, ...(perfectPrep ? [getPerfectBuff()] : [])];
-    const initialAllies = createAllyFormation(pets, nextBuffs);
+    const initialAllies = createLeveledAllies(nextBuffs);
     const initialEnemies = createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
     setActiveBuffs(nextBuffs);
     setBattleAllies(initialAllies);
@@ -182,12 +197,14 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     setBattleDisplayEnemies(initialEnemies);
     setLogs((current) => [`选择增益「${buff.name}」。${perfectPrep ? "额外获得「完美备战」。" : ""}`, ...current]);
     setAnimatedBattleLogs([]);
+    setAppliedReward(null);
+    setLastBattleWinner(null);
     setPhase("battle");
   }
 
   function runBattle() {
     clearBattleAnimationTimer();
-    const startingAllies = battleDisplayAllies.length ? battleDisplayAllies : battleAllies.length ? battleAllies : createAllyFormation(pets, activeBuffs);
+    const startingAllies = battleDisplayAllies.length ? battleDisplayAllies : battleAllies.length ? battleAllies : createLeveledAllies(activeBuffs);
     const startingEnemies = battleDisplayEnemies.length ? battleDisplayEnemies : battleEnemies.length ? battleEnemies : createEnemyFormation(getEnemiesByIds(currentRound?.enemyIds ?? []));
     const result = runPartnerChessBattle({
       allies: startingAllies,
@@ -208,6 +225,29 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
       setBattleEnemies(result.enemies);
       setBattleDisplayAllies(result.allies);
       setBattleDisplayEnemies(result.enemies);
+      setLastBattleWinner(result.winner);
+      if (selectedStage && currentRound) {
+        const reward = calculateBattleRewards({
+          correctCount: inspiration,
+          isBossRound: Boolean(currentRound.isBoss),
+          isWin: result.winner === "ally",
+          round: currentRound.round,
+          stageId: selectedStage.id,
+          stageTheme: selectedStage.theme,
+          totalQuestions: currentQuestions.length
+        });
+        const applied = applyBattleRewards({
+          allyPetIds: ["grass_dragon", "fire_fox", "cloud_beast"],
+          isWin: result.winner === "ally",
+          reward,
+          round: currentRound.round,
+          save: partnerChessSave,
+          stageId: selectedStage.id
+        });
+        savePartnerChessSave(applied.save);
+        setPartnerChessSave(applied.save);
+        setAppliedReward(applied);
+      }
       if (result.winner === "ally") {
         if (selectedStage && roundIndex >= selectedStage.rounds.length - 1) {
           setChallengeResult("victory");
@@ -245,6 +285,8 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     setBattleEnemies([]);
     setBattleDisplayAllies([]);
     setBattleDisplayEnemies([]);
+    setAppliedReward(null);
+    setLastBattleWinner(null);
     setLogs((current) => [`进入第 ${nextIndex + 1} 回合：${selectedStage.rounds[nextIndex].title}。`, ...current]);
     setAnimatedBattleLogs([]);
     setPhase("prep");
@@ -254,6 +296,23 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
     clearBattleAnimationTimer();
     setIsBattlePlaying(false);
     if (selectedStage) startStage(selectedStage);
+  }
+
+  function returnToStageSelect() {
+    clearBattleAnimationTimer();
+    setIsBattlePlaying(false);
+    setPhase("select");
+    setSelectedStage(null);
+    setRoundIndex(0);
+    setActiveBuffs([]);
+    setBuffChoices([]);
+    setBattleAllies([]);
+    setBattleEnemies([]);
+    setBattleDisplayAllies([]);
+    setBattleDisplayEnemies([]);
+    setAnimatedBattleLogs([]);
+    setAppliedReward(null);
+    setLastBattleWinner(null);
   }
 
   const applyDisplayDamage = useCallback(({
@@ -275,8 +334,17 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
 
   return (
     <div className="space-y-5">
-      <PageHeader title="伙伴战棋场" subtitle="伙伴岛二阶段玩法 v0.3：上方横版动态战斗场景，下方真实题库备战与增益选择。" />
+      <PageHeader title="伙伴战棋场" subtitle="伙伴岛二阶段玩法 v0.5：动态战斗、真实题库备战、结算奖励与伙伴成长。" />
       <ChessHeader phase={phase} round={currentRound?.round ?? 0} stageName={selectedStage?.name ?? ""} will={will} />
+      <GameCard className="bg-white/64">
+        <div className="flex flex-wrap gap-2 text-xs font-black text-ink/60">
+          <span className="rounded-full bg-gold/15 px-3 py-1.5 text-ink">学习币：{partnerChessSave.coins}</span>
+          <span className="rounded-full bg-yellow-100/70 px-3 py-1.5">{shardLabel("careless_shard")}：{partnerChessSave.shards.careless_shard ?? 0}</span>
+          <span className="rounded-full bg-violet-100/70 px-3 py-1.5">{shardLabel("forget_shard")}：{partnerChessSave.shards.forget_shard ?? 0}</span>
+          <span className="rounded-full bg-red-100/70 px-3 py-1.5">{shardLabel("anxiety_shard")}：{partnerChessSave.shards.anxiety_shard ?? 0}</span>
+          <span className="rounded-full bg-tide/10 px-3 py-1.5 text-tide">胜场：{partnerChessSave.totalWins}/{partnerChessSave.totalBattles}</span>
+        </div>
+      </GameCard>
       <DynamicBattleStage
         allies={stageAllies}
         enemies={stageEnemies}
@@ -367,27 +435,20 @@ export function PartnerChessPage({ goPetBattle, questions = [] }: { goPetBattle:
           {phase === "battle" && <AutoBattlePanel activeBuffs={activeBuffs} isBattlePlaying={isBattlePlaying} onRunBattle={runBattle} />}
 
           {phase === "settlement" && (
-            <GameCard className="bg-white/70">
-              <h2 className="text-2xl font-black text-ink">
-                {challengeResult === "victory" ? "副本挑战胜利" : challengeResult === "defeat" ? "挑战失败" : "本回合结算"}
-              </h2>
-              <p className="mt-2 text-sm font-semibold text-ink/58">
-                {challengeResult === "playing" ? "本回合已经结束，可以进入下一回合。" : "可以重新挑战，继续调整备战策略。"}
-              </p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                {challengeResult === "playing" && (
-                  <button className="min-h-11 rounded-2xl bg-tide px-4 text-sm font-black text-white hover:bg-ink" onClick={nextRound} type="button">
-                    进入下一回合
-                  </button>
-                )}
-                <button className="min-h-11 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_22px_rgba(16,36,63,0.08)] hover:text-tide" onClick={restart} type="button">
-                  重新挑战
-                </button>
-                <button className="min-h-11 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_22px_rgba(16,36,63,0.08)] hover:text-coral" onClick={goPetBattle} type="button">
-                  返回伙伴岛
-                </button>
-              </div>
-            </GameCard>
+            <BattleResultPanel
+              appliedReward={appliedReward}
+              correctCount={inspiration}
+              goPetBattle={goPetBattle}
+              isFinalVictory={challengeResult === "victory"}
+              isRoundWin={lastBattleWinner === "ally"}
+              onNextRound={nextRound}
+              onRestart={restart}
+              onSelectStage={returnToStageSelect}
+              roundTitle={currentRound?.title ?? "当前回合"}
+              save={partnerChessSave}
+              stage={selectedStage}
+              totalQuestions={currentQuestions.length}
+            />
           )}
 
           <BattleLogPanel logs={logs} />
