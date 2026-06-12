@@ -5,6 +5,7 @@ import type { BattleEnemy, BattlePet, BattleSkill, BattleStats } from "@/data/pe
 import type { BattleStatusEffect } from "@/data/petTrainingStatuses";
 
 export type ManualBattleAction = {
+  actorUnitId: string;
   id: string;
   actor: "pet" | "enemy";
   damage?: number;
@@ -12,6 +13,7 @@ export type ManualBattleAction = {
   isBuff?: boolean;
   isCounter?: boolean;
   skill: BattleSkill;
+  targetUnitId?: string;
 };
 
 function isDamageSkill(skill: BattleSkill, damage?: number) {
@@ -42,11 +44,6 @@ function calculateImpactPoint(targetRect: DOMRect, stageRect: DOMRect, actor: "p
   };
 }
 
-function impactThemeForAction(action: ManualBattleAction, pet: BattlePet, enemy: BattleEnemy): ManualImpactTheme {
-  if (action.actor === "pet") return themeFromPetAttribute(pet.attribute);
-  return enemy.type;
-}
-
 export function ManualBattleStage({
   action,
   canAnimate,
@@ -55,6 +52,7 @@ export function ManualBattleStage({
   enemyMaxHp,
   enemyStats,
   enemyStatuses,
+  enemyUnitId,
   onActionComplete,
   onActionImpact,
   pet,
@@ -62,7 +60,8 @@ export function ManualBattleStage({
   petLevel,
   petMaxHp,
   petStats,
-  petStatuses
+  petStatuses,
+  petUnitId
 }: {
   action?: ManualBattleAction | null;
   canAnimate: boolean;
@@ -71,6 +70,7 @@ export function ManualBattleStage({
   enemyMaxHp: number;
   enemyStats: BattleStats;
   enemyStatuses?: BattleStatusEffect[];
+  enemyUnitId: string;
   onActionComplete: () => void;
   onActionImpact: () => void;
   pet: BattlePet;
@@ -79,7 +79,12 @@ export function ManualBattleStage({
   petMaxHp: number;
   petStats: BattleStats;
   petStatuses?: BattleStatusEffect[];
+  petUnitId: string;
 }) {
+  const petName = pet.name;
+  const enemyName = enemy.name;
+  const petAttribute = pet.attribute;
+  const enemyType = enemy.type;
   const stageRef = useRef<HTMLDivElement | null>(null);
   const petRef = useRef<HTMLDivElement | null>(null);
   const enemyRef = useRef<HTMLDivElement | null>(null);
@@ -109,10 +114,10 @@ export function ManualBattleStage({
     if (!action || !canAnimate) return undefined;
 
     const stageEl = stageRef.current;
-    const attackerEl = action.actor === "pet" ? petRef.current : enemyRef.current;
-    const targetEl = action.actor === "pet" ? enemyRef.current : petRef.current;
+    const attackerEl = action.actorUnitId === petUnitId ? petRef.current : action.actorUnitId === enemyUnitId ? enemyRef.current : action.actor === "pet" ? petRef.current : enemyRef.current;
+    const targetEl = action.targetUnitId === petUnitId ? petRef.current : action.targetUnitId === enemyUnitId ? enemyRef.current : action.actor === "pet" ? enemyRef.current : petRef.current;
     const damageEvent = isDamageSkill(action.skill, action.damage);
-    const theme = impactThemeForAction(action, pet, enemy);
+    const theme = action.actor === "pet" ? themeFromPetAttribute(petAttribute) : enemyType;
 
     setActiveActor(action.actor);
     setSkillPulse({ key: `${action.id}-skill`, name: action.skill.name, theme });
@@ -128,10 +133,12 @@ export function ManualBattleStage({
       if (import.meta.env.DEV) {
         console.debug("[PetBattleManualAnim]", {
           actor: action.actor,
-          attacker: action.actor === "pet" ? pet.name : enemy.name,
+          actorUnitId: action.actorUnitId,
+          attacker: action.actor === "pet" ? petName : enemyName,
           dashX,
           skill: action.skill.name,
-          target: action.actor === "pet" ? enemy.name : pet.name
+          target: action.actor === "pet" ? enemyName : petName,
+          targetUnitId: action.targetUnitId
         });
       }
 
@@ -171,7 +178,7 @@ export function ManualBattleStage({
       timersRef.current.forEach(window.clearTimeout);
       timersRef.current = [];
     };
-  }, [action, canAnimate, enemy, enemyMaxHp, onActionComplete, onActionImpact, pet, petMaxHp]);
+  }, [action, canAnimate, enemyMaxHp, enemyName, enemyType, enemyUnitId, onActionComplete, onActionImpact, petAttribute, petMaxHp, petName, petUnitId]);
 
   return (
     <div
@@ -208,7 +215,7 @@ export function ManualBattleStage({
           level={petLevel}
           maxHp={petMaxHp}
           name={pet.name}
-          playKey={action?.id ?? "idle"}
+          playKey={action?.id ?? petUnitId}
           scale={1}
           side="pet"
           sourceId={pet.id}
@@ -229,7 +236,7 @@ export function ManualBattleStage({
           level={enemy.level}
           maxHp={enemyMaxHp}
           name={enemy.name}
-          playKey={action?.id ?? "idle"}
+          playKey={action?.id ?? enemyUnitId}
           scale={1}
           side="enemy"
           sourceId={enemy.id}

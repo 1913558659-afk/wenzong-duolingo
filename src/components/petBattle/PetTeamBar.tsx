@@ -2,10 +2,12 @@ import type { BattlePet, BattleStats } from "@/data/petBattleData";
 import { petSpriteFacingClass } from "@/utils/petSpriteFacing";
 
 export type PetBattleTeamMember = {
+  battleUnitId: string;
   hp: number;
   level: number;
   maxHp: number;
   pet: BattlePet;
+  speciesId: string;
   stats: BattleStats;
 };
 
@@ -14,20 +16,20 @@ function hpPercent(current: number, max: number) {
 }
 
 export function PetTeamBar({
-  activePetId,
+  activeUnitId,
   members,
   onSwitch,
   switchingDisabled
 }: {
-  activePetId: string;
+  activeUnitId: string;
   members: PetBattleTeamMember[];
-  onSwitch: (petId: string) => void;
+  onSwitch: (battleUnitId: string) => void;
   switchingDisabled?: boolean;
 }) {
   return (
     <div className="grid gap-2 sm:grid-cols-3">
       {members.map((member) => {
-        const active = member.pet.id === activePetId;
+        const active = member.battleUnitId === activeUnitId;
         const fainted = member.hp <= 0;
         return (
           <button
@@ -39,8 +41,8 @@ export function PetTeamBar({
                   : "border-white/70 bg-white/68 hover:-translate-y-0.5 hover:border-tide/25"
             }`}
             disabled={active || fainted || switchingDisabled}
-            key={member.pet.id}
-            onClick={() => onSwitch(member.pet.id)}
+            key={member.battleUnitId}
+            onClick={() => onSwitch(member.battleUnitId)}
             type="button"
           >
             <div className="flex items-center gap-3">

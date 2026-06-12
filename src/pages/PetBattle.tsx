@@ -238,11 +238,19 @@ function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
 
 function createTeamHp(save: PartnerChessSave) {
   const normalized = ensurePetCollection(save);
-  return Object.fromEntries(normalized.activeTrainingTeam.map((petId) => {
+  return Object.fromEntries(normalized.activeTrainingTeam.map((petId, index) => {
     const pet = getTrainingPetById(petId);
     const stats = getTrainingBattleStats(pet, getPartnerPetLevel(save, petId));
-    return [petId, stats.hp];
+    return [getPlayerBattleUnitId(index, petId), stats.hp];
   }));
+}
+
+function getPlayerBattleUnitId(slotIndex: number, petId: string) {
+  return `player-slot-${slotIndex}-${petId}`;
+}
+
+function getEnemyBattleUnitId(enemy: Pick<BattleEnemy, "id">) {
+  return `enemy-0-${enemy.id}`;
 }
 
 function applyShield(statuses: BattleStatusEffect[], incomingDamage: number) {
@@ -480,7 +488,7 @@ function FighterPanel({
 
 function TrainingRoom({
   action,
-  activePetId,
+  activeUnitId,
   battleState,
   canCapture,
   captureRate,
@@ -513,7 +521,7 @@ function TrainingRoom({
   useSkill
 }: {
   action?: ManualBattleAction | null;
-  activePetId: string;
+  activeUnitId: string;
   battleState: "playing" | "won" | "lost";
   canCapture: boolean;
   captureRate: number;
@@ -583,6 +591,7 @@ function TrainingRoom({
         enemyMaxHp={enemy.stats.hp}
         enemyStats={enemy.stats}
         enemyStatuses={enemyStatuses}
+        enemyUnitId={getEnemyBattleUnitId(enemy)}
         onActionComplete={onActionComplete}
         onActionImpact={onActionImpact}
         pet={pet}
@@ -591,9 +600,10 @@ function TrainingRoom({
         petMaxHp={petStats.hp}
         petStats={petStats}
         petStatuses={petStatuses}
+        petUnitId={activeUnitId}
       />
 
-      <PetTeamBar activePetId={activePetId} members={teamMembers} onSwitch={onSwitchPet} switchingDisabled={battleState !== "playing" || isAnimating} />
+      <PetTeamBar activeUnitId={activeUnitId} members={teamMembers} onSwitch={onSwitchPet} switchingDisabled={battleState !== "playing" || isAnimating} />
 
       <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <GameCard className="bg-white/68">
@@ -610,7 +620,7 @@ function TrainingRoom({
           <CapturePanel canCapture={canCapture} isBoss={isBossCapture} onCapture={onCapture} rate={captureRate} />
           <div className="grid gap-3 md:grid-cols-2">
             {petSkills.map((skill) => {
-              const cooldown = cooldowns[skill.id] ?? 0;
+              const cooldown = cooldowns[`${activeUnitId}:${skill.id}`] ?? 0;
               const locked = petLevel < skill.unlockLevel;
               const disabled = battleState !== "playing" || cooldown > 0 || isAnimating || locked;
               const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
@@ -965,15 +975,14 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [dailyProgress, setDailyProgress] = useState(() => loadDailyTrainingProgress());
   const [activeTab, setActiveTab] = useState<PetBattleTab>("training");
   const [selectedTeamSlot, setSelectedTeamSlot] = useState(0);
-  const [activePetId, setActivePetId] = useState(() => ensurePetCollection(loadPartnerChessSave()).activeTrainingTeam[0] ?? defaultTrainingTeamIds[0]);
+  const [activeUnitId, setActiveUnitId] = useState(() => {
+    const initialTeam = ensurePetCollection(loadPartnerChessSave()).activeTrainingTeam;
+    return getPlayerBattleUnitId(0, initialTeam[0] ?? defaultTrainingTeamIds[0]);
+  });
   const normalizedPartnerSave = useMemo(() => ensurePetCollection(partnerSave), [partnerSave]);
   const activeTrainingTeam = normalizedPartnerSave.activeTrainingTeam;
-  const selectedPet = getTrainingPetById(activePetId);
   const enemy = useMemo(() => getScaledEnemy(saveState.battleStage), [saveState.battleStage]);
   const nextEnemy = useMemo(() => getScaledEnemy(saveState.battleStage + 1), [saveState.battleStage]);
-  const activePetLevel = getPartnerPetLevel(normalizedPartnerSave, activePetId);
-  const petStats = useMemo(() => getTrainingBattleStats(selectedPet, activePetLevel), [activePetLevel, selectedPet]);
-  const petSkills = useMemo(() => getTrainingSkillsForPet(selectedPet), [selectedPet]);
   const [teamHp, setTeamHp] = useState<Record<string, number>>(() => createTeamHp(ensurePetCollection(loadPartnerChessSave())));
   const [enemyHp, setEnemyHp] = useState(enemy.stats.hp);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
@@ -987,23 +996,33 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [notice, setNotice] = useState("");
   const actionImpactRef = useRef<(() => void) | null>(null);
   const actionResolveRef = useRef<(() => void) | null>(null);
-  const petHp = teamHp[activePetId] ?? petStats.hp;
+  const teamMembers = useMemo<PetBattleTeamMember[]>(() => activeTrainingTeam.map((petId, index) => {
+    const pet = getTrainingPetById(petId);
+    const level = getPartnerPetLevel(normalizedPartnerSave, petId);
+    const stats = getTrainingBattleStats(pet, level);
+    const battleUnitId = getPlayerBattleUnitId(index, petId);
+    return {
+      battleUnitId,
+      hp: teamHp[battleUnitId] ?? stats.hp,
+      level,
+      maxHp: stats.hp,
+      pet,
+      speciesId: petId,
+      stats
+    };
+  }), [activeTrainingTeam, normalizedPartnerSave, teamHp]);
+  const activeMember = teamMembers.find((member) => member.battleUnitId === activeUnitId) ?? teamMembers[0];
+  const activePetId = activeMember?.speciesId ?? activeTrainingTeam[0] ?? defaultTrainingTeamIds[0];
+  const selectedPet = activeMember?.pet ?? getTrainingPetById(activePetId);
+  const activePetLevel = activeMember?.level ?? getPartnerPetLevel(normalizedPartnerSave, activePetId);
+  const petStats = activeMember?.stats ?? getTrainingBattleStats(selectedPet, activePetLevel);
+  const petSkills = useMemo(() => getTrainingSkillsForPet(selectedPet), [selectedPet]);
+  const petHp = activeMember?.hp ?? petStats.hp;
   const activePetLevelInfo = getPetLevelInfo(normalizedPartnerSave, activePetId);
   const petExpNeed = activePetLevelInfo.requiredExp || getRequiredPetExp(activePetLevel);
   const levelPressure = hasLevelPressure(selectedPet, activePetLevel, enemy);
   const captureRate = getAdjustedCaptureRate(enemyHp, enemy.stats.hp, levelPressure);
-  const teamMembers = useMemo<PetBattleTeamMember[]>(() => activeTrainingTeam.map((petId) => {
-    const pet = getTrainingPetById(petId);
-    const level = getPartnerPetLevel(normalizedPartnerSave, petId);
-    const stats = getTrainingBattleStats(pet, level);
-    return {
-      hp: teamHp[petId] ?? stats.hp,
-      level,
-      maxHp: stats.hp,
-      pet,
-      stats
-    };
-  }), [activeTrainingTeam, normalizedPartnerSave, teamHp]);
+  const enemyUnitId = getEnemyBattleUnitId(enemy);
 
   function persist(next: PetBattleSaveState) {
     setSaveState(next);
@@ -1040,8 +1059,35 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
 
   function playManualAction(action: ManualBattleAction, onImpact: () => void) {
     return new Promise<void>((resolve) => {
-      actionImpactRef.current = onImpact;
-      actionResolveRef.current = resolve;
+      let settled = false;
+      let impacted = false;
+      const triggerImpact = () => {
+        if (impacted) return;
+        impacted = true;
+        onImpact();
+      };
+      const finish = () => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(safetyTimer);
+        resolve();
+      };
+      const safetyTimer = window.setTimeout(() => {
+        if (settled) return;
+        triggerImpact();
+        actionImpactRef.current = null;
+        actionResolveRef.current = null;
+        setManualAction(null);
+        setIsManualAnimating(false);
+        pushLogs([`战斗动作异常，已跳过本次动画。debug: actor=${action.actorUnitId}, target=${action.targetUnitId ?? "none"}`]);
+        finish();
+      }, 1800);
+      actionImpactRef.current = triggerImpact;
+      actionResolveRef.current = () => {
+        actionImpactRef.current = null;
+        actionResolveRef.current = null;
+        finish();
+      };
       setManualAction(action);
       setIsManualAnimating(true);
     });
@@ -1050,14 +1096,15 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   function resetBattle(nextState = saveState, message?: string) {
     const latestPartnerSave = ensurePetCollection(loadPartnerChessSave());
     setPartnerSave(latestPartnerSave);
-    const nextActivePetId = latestPartnerSave.activeTrainingTeam.includes(activePetId)
-      ? activePetId
-      : latestPartnerSave.activeTrainingTeam[0] ?? defaultTrainingTeamIds[0];
+    const currentSlot = latestPartnerSave.activeTrainingTeam.findIndex((petId, index) => getPlayerBattleUnitId(index, petId) === activeUnitId);
+    const nextSlot = currentSlot >= 0 ? currentSlot : 0;
+    const nextActivePetId = latestPartnerSave.activeTrainingTeam[nextSlot] ?? latestPartnerSave.activeTrainingTeam[0] ?? defaultTrainingTeamIds[0];
+    const nextActiveUnitId = getPlayerBattleUnitId(nextSlot, nextActivePetId);
     const nextPet = getTrainingPetById(nextActivePetId);
     const nextEnemyForBattle = getScaledEnemy(nextState.battleStage);
     const nextTeamHp = createTeamHp(latestPartnerSave);
     setTeamHp(nextTeamHp);
-    if (nextActivePetId !== activePetId) setActivePetId(nextActivePetId);
+    if (nextActiveUnitId !== activeUnitId) setActiveUnitId(nextActiveUnitId);
     setEnemyHp(nextEnemyForBattle.stats.hp);
     setCooldowns({});
     setEffects(defaultEffects);
@@ -1072,7 +1119,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   function selectPet(pet: BattlePet) {
-    if (!normalizedPartnerSave.activeTrainingTeam.includes(pet.id)) {
+    const slotIndex = normalizedPartnerSave.activeTrainingTeam.indexOf(pet.id);
+    if (slotIndex < 0) {
       setNotice(`${pet.name} 不在当前背包中，可先在宠物仓库替换上阵。`);
       setActiveTab("storage");
       return;
@@ -1082,7 +1130,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       selectedPetId: pet.id
     };
     persist(next);
-    setActivePetId(pet.id);
+    setActiveUnitId(getPlayerBattleUnitId(slotIndex, pet.id));
     setActiveTab("training");
     resetBattle(next, `${pet.name} 成为当前学习伙伴。`);
   }
@@ -1125,17 +1173,17 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   function tickCooldowns(usedSkill: BattleSkill) {
     setCooldowns((current) => {
       const next = Object.fromEntries(Object.entries(current).map(([skillId, value]) => [skillId, Math.max(0, value - 1)]));
-      next[usedSkill.id] = usedSkill.cooldown;
+      next[`${activeUnitId}:${usedSkill.id}`] = usedSkill.cooldown;
       return next;
     });
   }
 
-  function switchPet(petId: string) {
-    if (petId === activePetId || isManualAnimating || battleState !== "playing") return;
-    const member = teamMembers.find((item) => item.pet.id === petId);
+  function switchPet(battleUnitId: string) {
+    if (battleUnitId === activeUnitId || isManualAnimating || battleState !== "playing") return;
+    const member = teamMembers.find((item) => item.battleUnitId === battleUnitId);
     if (!member || member.hp <= 0) return;
-    setActivePetId(petId);
-    const next = { ...saveState, selectedPetId: petId };
+    setActiveUnitId(battleUnitId);
+    const next = { ...saveState, selectedPetId: member.speciesId };
     persist(next);
     setPetStatuses([]);
     setCooldowns({});
@@ -1153,7 +1201,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setSelectedTeamSlot(slotIndex);
     const replacement = getTrainingPetById(petId);
     const nextActivePetId = nextPartnerSave.activeTrainingTeam[0] ?? petId;
-    setActivePetId(nextActivePetId);
+    setActiveUnitId(getPlayerBattleUnitId(0, nextActivePetId));
     resetBattle(saveState, `${replacement.name} 已替换到背包第 ${slotIndex + 1} 位。`);
     setNotice(`${replacement.name} 已加入训练背包。`);
   }
@@ -1165,9 +1213,9 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   function autoSwitchOrLose(nextLogs: string[]) {
-    const nextMember = teamMembers.find((member) => member.pet.id !== activePetId && member.hp > 0);
+    const nextMember = teamMembers.find((member) => member.battleUnitId !== activeUnitId && member.hp > 0);
     if (nextMember) {
-      setActivePetId(nextMember.pet.id);
+      setActiveUnitId(nextMember.battleUnitId);
       setPetStatuses([]);
       setCooldowns({});
       pushLogs([`${selectedPet.name} 暂时退场，${nextMember.pet.name} 接替出战！`, ...nextLogs]);
@@ -1207,8 +1255,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
     nextPetStatuses = shielded.statuses;
     nextPetHp = clampHp(nextPetHp - shielded.damage, petStats.hp);
-    await playManualAction({ actor: "enemy", damage: shielded.damage, id: `enemy-capture-${Date.now()}`, skill: enemySkill }, () => {
-      setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+    await playManualAction({ actor: "enemy", actorUnitId: enemyUnitId, damage: shielded.damage, id: `enemy-capture-${Date.now()}`, skill: enemySkill, targetUnitId: activeUnitId }, () => {
+      setTeamHp((current) => ({ ...current, [activeUnitId]: nextPetHp }));
       setPetStatuses(nextPetStatuses);
       nextLogs.push(`${selectedPet.name} 受到 ${shielded.damage} 点伤害。`);
     });
@@ -1274,7 +1322,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     };
     persist(nextState);
     setEnemyHp(0);
-    setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+    setTeamHp((current) => ({ ...current, [activeUnitId]: nextPetHp }));
     tickCooldowns(usedSkill);
     setBattleState("won");
     pushLogs([
@@ -1288,7 +1336,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   async function useSkill(skill: PetTrainingSkill) {
-    if (battleState !== "playing" || (cooldowns[skill.id] ?? 0) > 0 || isManualAnimating) {
+    if (battleState !== "playing" || (cooldowns[`${activeUnitId}:${skill.id}`] ?? 0) > 0 || isManualAnimating) {
       return;
     }
 
@@ -1303,7 +1351,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     if (petBurn) {
       const damage = burnDamage(petStats.hp);
       nextPetHp = clampHp(nextPetHp - damage, petStats.hp);
-      setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+      setTeamHp((current) => ({ ...current, [activeUnitId]: nextPetHp }));
       nextLogs.push(`${selectedPet.name} 受到灼烧 ${damage} 点伤害。`);
       nextPetStatuses = nextPetStatuses.map((status) => status.type === "burn" ? { ...status, duration: status.duration - 1 } : status).filter((status) => status.duration > 0);
       setPetStatuses(nextPetStatuses);
@@ -1322,7 +1370,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     if (nextPetStatuses.some((status) => status.type === "forget")) {
       const firstSkill = petSkills.find((item) => activePetLevel >= item.unlockLevel);
       if (firstSkill) {
-        setCooldowns((current) => ({ ...current, [firstSkill.id]: (current[firstSkill.id] ?? 0) + 1 }));
+        const firstSkillKey = `${activeUnitId}:${firstSkill.id}`;
+        setCooldowns((current) => ({ ...current, [firstSkillKey]: (current[firstSkillKey] ?? 0) + 1 }));
         nextLogs.push(`${selectedPet.name} 受到遗忘影响，「${firstSkill.name}」冷却 +1。`);
       }
       nextPetStatuses = nextPetStatuses.filter((status) => status.type !== "forget");
@@ -1333,14 +1382,14 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     if (skill.type === "heal") {
       const heal = Math.max(1, Math.round(petStats.hp * (skill.healPercent ?? 0.25)));
       nextPetHp = clampHp(nextPetHp + heal, petStats.hp);
-      await playManualAction({ actor: "pet", heal, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
-        setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+      await playManualAction({ actor: "pet", actorUnitId: activeUnitId, heal, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill, targetUnitId: activeUnitId }, () => {
+        setTeamHp((current) => ({ ...current, [activeUnitId]: nextPetHp }));
         nextLogs.push(`${selectedPet.name} 恢复了 ${heal} 点 HP。`);
       });
     } else if (skill.type === "shield") {
       nextEffects.shieldReduction = Math.max(nextEffects.shieldReduction, skill.shieldReduction ?? 0);
       const status = statusForSkill(skill, petStats.hp);
-      await playManualAction({ actor: "pet", id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
+      await playManualAction({ actor: "pet", actorUnitId: activeUnitId, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill, targetUnitId: activeUnitId }, () => {
         if (status) {
           nextPetStatuses = addOrReplaceStatus(nextPetStatuses, status);
           setPetStatuses(nextPetStatuses);
@@ -1351,7 +1400,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       nextEffects.petAttackBonus += skill.buff?.attack ?? 0;
       nextEffects.petDefenseBonus += skill.buff?.defense ?? 0;
       nextEffects.nextAttackMultiplier = Math.max(nextEffects.nextAttackMultiplier, skill.buff?.nextAttackPowerMultiplier ?? 1);
-      await playManualAction({ actor: "pet", id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill }, () => {
+      await playManualAction({ actor: "pet", actorUnitId: activeUnitId, id: `pet-${skill.id}-${Date.now()}`, isBuff: true, skill, targetUnitId: activeUnitId }, () => {
         nextLogs.push(`${selectedPet.name} 状态提升：${skill.effectText}`);
       });
     } else {
@@ -1369,10 +1418,12 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       nextEnemyHp = clampHp(nextEnemyHp - shielded.damage, enemy.stats.hp);
       await playManualAction({
         actor: "pet",
+        actorUnitId: activeUnitId,
         damage: shielded.damage,
         id: `pet-${skill.id}-${Date.now()}`,
         isCounter: counterMultiplier > 1,
-        skill
+        skill,
+        targetUnitId: enemyUnitId
       }, () => {
         setEnemyHp(nextEnemyHp);
         setEnemyStatuses(nextEnemyStatuses);
@@ -1415,6 +1466,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setEnemyStatuses(nextEnemyStatuses);
     setIsManualAnimating(true);
     await new Promise((resolve) => window.setTimeout(resolve, 500));
+    setIsManualAnimating(false);
 
     const enemyBurn = nextEnemyStatuses.find((status) => status.type === "burn");
     if (enemyBurn) {
@@ -1460,14 +1512,14 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           nextPetStatuses = shielded.statuses;
           nextPetHp = clampHp(nextPetHp - shielded.damage, petStats.hp);
           nextEffects.shieldReduction = 0;
-          await playManualAction({ actor: "enemy", damage: shielded.damage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
-            setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+          await playManualAction({ actor: "enemy", actorUnitId: enemyUnitId, damage: shielded.damage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill, targetUnitId: activeUnitId }, () => {
+            setTeamHp((current) => ({ ...current, [activeUnitId]: nextPetHp }));
             setPetStatuses(nextPetStatuses);
             nextLogs.push(`${selectedPet.name} 受到 ${shielded.damage} 点伤害。`);
           });
         }
         nextEffects.enemyShieldReduction = Math.max(nextEffects.enemyShieldReduction, enemySkill.shieldReduction ?? 0.35);
-        await playManualAction({ actor: "enemy", id: `enemy-${enemySkill.id}-${Date.now()}`, isBuff: true, skill: enemySkill }, () => {
+        await playManualAction({ actor: "enemy", actorUnitId: enemyUnitId, id: `enemy-${enemySkill.id}-${Date.now()}`, isBuff: true, skill: enemySkill, targetUnitId: enemyUnitId }, () => {
           nextLogs.push(`${enemy.name} 进入防守姿态，下一次受到的伤害会降低。`);
         });
       } else {
@@ -1482,8 +1534,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         nextPetStatuses = shielded.statuses;
         nextPetHp = clampHp(nextPetHp - shielded.damage, petStats.hp);
         nextEffects.shieldReduction = 0;
-        await playManualAction({ actor: "enemy", damage: shielded.damage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill }, () => {
-          setTeamHp((current) => ({ ...current, [activePetId]: nextPetHp }));
+        await playManualAction({ actor: "enemy", actorUnitId: enemyUnitId, damage: shielded.damage, id: `enemy-${enemySkill.id}-${Date.now()}`, skill: enemySkill, targetUnitId: activeUnitId }, () => {
+          setTeamHp((current) => ({ ...current, [activeUnitId]: nextPetHp }));
           setPetStatuses(nextPetStatuses);
           nextLogs.push(`${selectedPet.name} 受到 ${shielded.damage} 点伤害。`);
         });
@@ -1584,7 +1636,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       {activeTab === "training" && (
         <TrainingRoom
           action={manualAction}
-          activePetId={activePetId}
+          activeUnitId={activeUnitId}
           battleState={battleState}
           canCapture={captureRate > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating}
           captureRate={captureRate}
