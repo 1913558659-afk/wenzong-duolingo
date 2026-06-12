@@ -182,7 +182,7 @@ export function ManualBattleStage({
 
   return (
     <div
-      className={`manual-battle-stage relative min-h-[420px] overflow-hidden rounded-[2rem] border border-white/75 shadow-[0_22px_50px_rgba(16,36,63,0.10)] sm:min-h-[460px] ${stageShake ? "manual-battle-stage-shake" : ""}`}
+      className={`manual-battle-stage relative min-h-[330px] overflow-hidden rounded-[2rem] border border-white/75 shadow-[0_22px_50px_rgba(16,36,63,0.10)] sm:min-h-[390px] lg:min-h-[430px] ${stageShake ? "manual-battle-stage-shake" : ""}`}
       ref={stageRef}
     >
       <ManualBattleEffectLayer

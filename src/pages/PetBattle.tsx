@@ -1,8 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BookOpen, HeartPulse, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
+import { BookOpen, HeartPulse, LogOut, Package, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
-import { CapturePanel } from "@/components/petBattle/CapturePanel";
 import { DailyTrainingRewardPanel } from "@/components/petBattle/DailyTrainingRewardPanel";
 import { ManualBattleStage, type ManualBattleAction } from "@/components/petBattle/ManualBattleStage";
 import { PetBagPanel } from "@/components/petBattle/PetBagPanel";
@@ -47,6 +46,15 @@ import {
   shardLabelForEnemyType
 } from "@/utils/petTrainingSave";
 import type { DailyTrainingProgress } from "@/utils/petTrainingSave";
+import {
+  calculateCaptureBallRate,
+  captureBallConfigs,
+  consumeCaptureBall,
+  loadPetTrainingItemInventory,
+  savePetTrainingItemInventory,
+  type CaptureBallId,
+  type PetTrainingItemInventory
+} from "@/utils/petTrainingItems";
 
 type BattleEffects = {
   enemyAttackBonus: number;
@@ -220,12 +228,6 @@ function getLevelPressureStatus(pet: BattlePet, petLevel: number, enemy: Pick<Ba
   }];
 }
 
-function getAdjustedCaptureRate(enemyHp: number, enemyMaxHp: number, levelPressure: boolean) {
-  const baseRate = getCaptureRate(enemyHp, enemyMaxHp);
-  if (baseRate <= 0) return 0;
-  return levelPressure ? Math.max(5, baseRate - 10) : baseRate;
-}
-
 function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
   const levelBonus = Math.max(0, level - 1);
   return {
@@ -303,14 +305,6 @@ function statusForEnemySkill(skill: BattleSkill): BattleStatusEffect | null {
 
 function burnDamage(maxHp: number) {
   return Math.max(3, Math.round(maxHp * 0.08));
-}
-
-function getCaptureRate(enemyHp: number, enemyMaxHp: number) {
-  const ratio = enemyMaxHp <= 0 ? 1 : enemyHp / enemyMaxHp;
-  if (ratio <= 0.1) return 70;
-  if (ratio <= 0.2) return 50;
-  if (ratio <= 0.3) return 35;
-  return 0;
 }
 
 function isBossEnemy(enemy: BattleEnemy) {
@@ -490,8 +484,6 @@ function TrainingRoom({
   action,
   activeUnitId,
   battleState,
-  canCapture,
-  captureRate,
   dailyProgress,
   continueChallenge,
   cooldowns,
@@ -500,13 +492,15 @@ function TrainingRoom({
   enemyStatuses,
   isAnimating,
   isBossCapture,
+  itemInventory,
   levelPressure,
   logs,
   nextEnemy,
   onActionComplete,
   onActionImpact,
-  onCapture,
+  onEscapeTraining,
   onSwitchPet,
+  onUseCaptureBall,
   pet,
   petHp,
   petLevel,
@@ -523,8 +517,6 @@ function TrainingRoom({
   action?: ManualBattleAction | null;
   activeUnitId: string;
   battleState: "playing" | "won" | "lost";
-  canCapture: boolean;
-  captureRate: number;
   dailyProgress: DailyTrainingProgress;
   continueChallenge: () => void;
   cooldowns: Record<string, number>;
@@ -533,13 +525,15 @@ function TrainingRoom({
   enemyStatuses: BattleStatusEffect[];
   isAnimating: boolean;
   isBossCapture: boolean;
+  itemInventory: PetTrainingItemInventory;
   levelPressure: boolean;
   logs: string[];
   nextEnemy: BattleEnemy;
   onActionComplete: () => void;
   onActionImpact: () => void;
-  onCapture: () => void;
+  onEscapeTraining: () => void;
   onSwitchPet: (petId: string) => void;
+  onUseCaptureBall: (ballId: CaptureBallId) => void;
   pet: BattlePet;
   petHp: number;
   petLevel: number;
@@ -553,24 +547,29 @@ function TrainingRoom({
   teamMembers: PetBattleTeamMember[];
   useSkill: (skill: PetTrainingSkill) => void;
 }) {
+  const [consoleTab, setConsoleTab] = useState<"battle" | "pets" | "items" | "escape">("battle");
+  const [confirmEscape, setConfirmEscape] = useState(false);
   const countersCurrent = isCountering(pet, enemy);
   const levelGap = Math.max(0, enemy.level - petLevel);
+  const enemyHpRatio = enemy.stats.hp <= 0 ? 1 : enemyHp / enemy.stats.hp;
+  const canAct = battleState === "playing" && !isAnimating;
+  const latestLogs = logs.slice(0, 4);
 
   return (
-    <section className="space-y-4">
-      <GameCard className="bg-[linear-gradient(135deg,#FFF8EC_0%,#EAF5F2_100%)]">
-        <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr] lg:items-center">
+    <section className="space-y-3 pb-[calc(80px+env(safe-area-inset-bottom))] md:pb-0">
+      <GameCard className="bg-[linear-gradient(135deg,#FFF8EC_0%,#EAF5F2_100%)] p-4">
+        <div className="grid gap-3 lg:grid-cols-[1.15fr_0.85fr] lg:items-center">
           <div>
             <p className="text-xs font-black uppercase tracking-[0.18em] text-tide">Training Field</p>
-            <h2 className="mt-1 text-2xl font-black text-ink">第 {stage} 场 · {enemy.name}</h2>
-            <p className="mt-2 text-sm font-semibold leading-6 text-ink/60">
+            <h2 className="mt-1 text-xl font-black text-ink sm:text-2xl">第 {stage} 场 · {enemy.name}</h2>
+            <p className="mt-2 text-xs font-semibold leading-5 text-ink/60 sm:text-sm">
               <span className="mr-2 rounded-full bg-coral/10 px-2.5 py-1 text-xs font-black text-coral">{enemyTypeLabel(enemy.type)}型 · {enemy.role}</span>
               胜利奖励：宠物经验 +{enemy.rewardExp} · 伙伴训练经验 +{getRewardTrainingExp(enemy)}
             </p>
           </div>
-          <div className={`rounded-3xl p-4 ring-1 ${countersCurrent ? "bg-tide/10 text-tide ring-tide/20" : levelPressure ? "bg-gold/10 text-ink ring-gold/25" : "bg-white/72 text-ink/62 ring-ink/6"}`}>
+          <div className={`rounded-3xl p-3 ring-1 ${countersCurrent ? "bg-tide/10 text-tide ring-tide/20" : levelPressure ? "bg-gold/10 text-ink ring-gold/25" : "bg-white/72 text-ink/62 ring-ink/6"}`}>
             <p className="text-xs font-black">克制提示</p>
-            <p className="mt-1 text-sm font-bold leading-6">
+            <p className="mt-1 text-xs font-bold leading-5 sm:text-sm">
               {countersCurrent
                 ? levelGap > 2
                   ? "属性克制：当前宠物可抵消等级压制。"
@@ -603,99 +602,211 @@ function TrainingRoom({
         petUnitId={activeUnitId}
       />
 
-      <PetTeamBar activeUnitId={activeUnitId} members={teamMembers} onSwitch={onSwitchPet} switchingDisabled={battleState !== "playing" || isAnimating} />
-
-      <div className="grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
-        <GameCard className="bg-white/68">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <Swords className="size-5 text-coral" />
-              <h3 className="text-xl font-black text-ink">技能指令</h3>
-            </div>
-            <button className="inline-flex min-h-11 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_24px_rgba(16,36,63,0.08)] transition hover:-translate-y-0.5 hover:text-coral" onClick={resetBattle} type="button">
-              <RotateCcw className="size-4" />
-              重新训练
+      <div className="flex items-center gap-2 overflow-x-auto rounded-[1.3rem] border border-white/70 bg-white/58 p-2 [scrollbar-width:none]">
+        {teamMembers.map((member) => {
+          const active = member.battleUnitId === activeUnitId;
+          const fainted = member.hp <= 0;
+          return (
+            <button
+              className={`flex min-w-[138px] items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition ${
+                active
+                  ? "border-tide/30 bg-tide/10"
+                  : fainted
+                    ? "cursor-not-allowed border-ink/8 bg-ink/5 opacity-60"
+                    : "border-white/70 bg-white/70 hover:border-tide/25"
+              }`}
+              disabled={active || fainted || !canAct}
+              key={member.battleUnitId}
+              onClick={() => onSwitchPet(member.battleUnitId)}
+              type="button"
+            >
+              <img alt={member.pet.name} className={`size-10 shrink-0 object-contain [image-rendering:pixelated] ${petSpriteFacingClass(member.pet.id, "right")}`} src={member.pet.image} />
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-xs font-black text-ink">{member.pet.name} Lv.{member.level}</span>
+                <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-ink/10">
+                  <span className="block h-full rounded-full bg-gradient-to-r from-tide to-leaf" style={{ width: `${hpPercent(member.hp, member.maxHp)}%` }} />
+                </span>
+                <span className="mt-0.5 block text-[10px] font-black text-ink/48">{member.hp}/{member.maxHp}</span>
+              </span>
             </button>
-          </div>
-          <CapturePanel canCapture={canCapture} isBoss={isBossCapture} onCapture={onCapture} rate={captureRate} />
-          <div className="grid gap-3 md:grid-cols-2">
-            {petSkills.map((skill) => {
-              const cooldown = cooldowns[`${activeUnitId}:${skill.id}`] ?? 0;
-              const locked = petLevel < skill.unlockLevel;
-              const disabled = battleState !== "playing" || cooldown > 0 || isAnimating || locked;
-              const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
-              const iconTone = skill.type === "heal" || skill.type === "shield" ? "text-leaf" : skill.type === "power_attack" || skill.type === "multi_hit" ? "text-coral" : skill.type === "buff" ? "text-gold" : "text-tide";
-              const counters = trainingSkillCountersEnemy(skill, enemy.type);
+          );
+        })}
+      </div>
 
+      <div className="grid gap-3 xl:grid-cols-[1.25fr_0.75fr]">
+        <GameCard className="bg-white/72 p-3 sm:p-4">
+          <div className="grid grid-cols-4 gap-2">
+            {[
+              { id: "battle" as const, label: "战斗", icon: Swords },
+              { id: "pets" as const, label: "精灵", icon: PawPrint },
+              { id: "items" as const, label: "道具", icon: Package },
+              { id: "escape" as const, label: "逃跑", icon: LogOut }
+            ].map((tab) => {
+              const Icon = tab.icon;
+              const active = consoleTab === tab.id;
               return (
                 <button
-                  className={`min-h-[116px] min-w-0 rounded-3xl border p-4 text-left transition md:min-w-[180px] ${
-                    disabled
-                      ? "cursor-not-allowed border-ink/8 bg-ink/5 text-ink/38"
-                      : "border-white bg-white text-ink shadow-[0_10px_22px_rgba(16,36,63,0.08)] hover:-translate-y-0.5 hover:border-tide/30"
-                  }`}
-                  disabled={disabled}
-                  key={skill.id}
-                  onClick={() => useSkill(skill)}
+                  className={`min-h-11 rounded-2xl px-2 text-xs font-black transition sm:text-sm ${active ? "bg-tide text-white shadow-insetGame" : "bg-ink/5 text-ink/58 hover:bg-tide/10 hover:text-tide"}`}
+                  key={tab.id}
+                  onClick={() => setConsoleTab(tab.id)}
                   type="button"
                 >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="flex items-center gap-2 text-base font-black">
-                          <Icon className={`size-4 shrink-0 ${disabled ? "text-ink/30" : iconTone}`} />
-                          {skill.name}
-                    </span>
-                    {locked ? <SkillUnlockHint level={skill.unlockLevel} /> : <span className="shrink-0 rounded-full bg-ink/6 px-2 py-1 text-[11px] font-black">{cooldown > 0 ? `冷却 ${cooldown}` : `威力 ${skill.power}`}</span>}
-                  </div>
-                  <p className="mt-2 text-xs font-bold text-ink/52">{skillTypeLabel(skill.type)} · 冷却 {skill.cooldown} 回合 · {counters ? "克制当前敌人" : "普通效果"}</p>
-                  <p className="mt-1 text-xs font-semibold leading-5 text-ink/62">{skill.effectText}</p>
+                  <span className="inline-flex items-center justify-center gap-1.5">
+                    <Icon className="size-4" />
+                    {tab.label}
+                  </span>
                 </button>
               );
             })}
           </div>
 
+          {consoleTab === "battle" && (
+            <div className="mt-3 grid gap-2 sm:grid-cols-2">
+              {petSkills.map((skill) => {
+                const cooldown = cooldowns[`${activeUnitId}:${skill.id}`] ?? 0;
+                const locked = petLevel < skill.unlockLevel;
+                const disabled = battleState !== "playing" || cooldown > 0 || isAnimating || locked;
+                const Icon = skill.type === "heal" ? HeartPulse : skill.type === "shield" ? Shield : skill.type === "buff" ? Zap : Swords;
+                const iconTone = skill.type === "heal" || skill.type === "shield" ? "text-leaf" : skill.type === "power_attack" || skill.type === "multi_hit" ? "text-coral" : skill.type === "buff" ? "text-gold" : "text-tide";
+                const counters = trainingSkillCountersEnemy(skill, enemy.type);
+
+                return (
+                  <button
+                    className={`min-h-[82px] min-w-0 rounded-2xl border p-3 text-left transition ${
+                      disabled
+                        ? "cursor-not-allowed border-ink/8 bg-ink/5 text-ink/38"
+                        : "border-white bg-white text-ink shadow-[0_8px_18px_rgba(16,36,63,0.07)] hover:-translate-y-0.5 hover:border-tide/30"
+                    }`}
+                    disabled={disabled}
+                    key={skill.id}
+                    onClick={() => useSkill(skill)}
+                    type="button"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="flex min-w-0 items-center gap-2 text-sm font-black">
+                        <Icon className={`size-4 shrink-0 ${disabled ? "text-ink/30" : iconTone}`} />
+                        <span className="truncate">{skill.name}</span>
+                      </span>
+                      {locked ? <SkillUnlockHint level={skill.unlockLevel} /> : <span className="shrink-0 rounded-full bg-ink/6 px-2 py-1 text-[10px] font-black">{cooldown > 0 ? `冷却 ${cooldown}` : `威力 ${skill.power}`}</span>}
+                    </div>
+                    <p className="mt-1 text-[11px] font-black text-ink/48">{skillTypeLabel(skill.type)} · 冷却 {skill.cooldown} · {counters ? "克制" : "普通"}</p>
+                    <p className="mt-1 line-clamp-2 text-xs font-semibold leading-5 text-ink/62">{skill.effectText}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {consoleTab === "pets" && (
+            <div className="mt-3">
+              <PetTeamBar activeUnitId={activeUnitId} members={teamMembers} onSwitch={onSwitchPet} switchingDisabled={!canAct} />
+              <p className="mt-3 rounded-2xl bg-tide/8 px-3 py-2 text-xs font-bold text-ink/58">点击未退场伙伴即可切换。第一版切换不额外消耗回合，敌人不会立刻反击。</p>
+            </div>
+          )}
+
+          {consoleTab === "items" && (
+            <div className="mt-3 space-y-2">
+              {isBossCapture && (
+                <p className="rounded-2xl border border-gold/25 bg-gold/10 px-3 py-2 text-xs font-bold text-ink/60">Boss 暂不可直接捕捉，可通过碎片解锁。</p>
+              )}
+              {enemyHpRatio >= 0.35 && !isBossCapture && (
+                <p className="rounded-2xl border border-ink/8 bg-ink/5 px-3 py-2 text-xs font-bold text-ink/52">目标血量过高：敌方 HP 低于 35% 后才能使用捕捉道具。</p>
+              )}
+              <div className="grid gap-2 sm:grid-cols-3">
+                {captureBallConfigs.map((ball) => {
+                  const rate = calculateCaptureBallRate({
+                    ballId: ball.id,
+                    enemy,
+                    enemyHp,
+                    enemyLevel: enemy.level,
+                    enemyMaxHp: enemy.stats.hp,
+                    petLevel
+                  });
+                  const count = itemInventory.captureBalls[ball.id] ?? 0;
+                  const disabled = !canAct || isBossCapture || count <= 0 || !rate.allowed;
+                  const tone = ball.tone === "premium" ? "border-gold/30 bg-gold/10 text-gold" : ball.tone === "advanced" ? "border-tide/25 bg-tide/10 text-tide" : "border-white bg-white text-ink";
+                  return (
+                    <button
+                      className={`rounded-2xl border p-3 text-left transition ${disabled ? "cursor-not-allowed bg-ink/5 text-ink/36 opacity-70" : `${tone} hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(16,36,63,0.08)]`}`}
+                      disabled={disabled}
+                      key={ball.id}
+                      onClick={() => onUseCaptureBall(ball.id)}
+                      type="button"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-black">{ball.name}</span>
+                        <span className="rounded-full bg-white/72 px-2 py-0.5 text-[10px] font-black text-ink">x{count}</span>
+                      </div>
+                      <p className="mt-1 text-xs font-bold text-ink/52">{rate.allowed ? `成功率 ${rate.finalRate}%` : "目标血量过高"}</p>
+                      <p className="mt-1 line-clamp-2 text-[11px] font-semibold leading-4 text-ink/50">{rate.allowed && rate.notes.length ? rate.notes.join(" · ") : ball.description}</p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {consoleTab === "escape" && (
+            <div className="mt-3 rounded-3xl border border-coral/15 bg-coral/8 p-4">
+              <p className="text-sm font-black text-ink">结束本次训练</p>
+              <p className="mt-1 text-xs font-bold leading-5 text-ink/58">逃跑会结束当前战斗并返回训练列表，不会发放胜利奖励。</p>
+              <button className="mt-3 min-h-11 rounded-2xl bg-coral px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={() => setConfirmEscape(true)} type="button">
+                结束训练
+              </button>
+            </div>
+          )}
+
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+            <button className="inline-flex min-h-10 items-center justify-center gap-2 rounded-2xl bg-white px-4 text-xs font-black text-ink shadow-[0_8px_18px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5 hover:text-coral sm:text-sm" onClick={resetBattle} type="button">
+              <RotateCcw className="size-4" />
+              重新训练
+            </button>
+            <span className="text-xs font-bold text-ink/46">当前：{pet.name} · {battleState === "playing" ? "可操作" : battleState === "won" ? "已胜利" : "暂败"}</span>
+          </div>
+
           {battleState === "won" && (
-            <div className="mt-4 space-y-3">
-              <div className="rounded-3xl border border-gold/20 bg-gold/10 p-4 text-sm font-bold leading-6 text-ink/62">
+            <div className="mt-3 space-y-3">
+              <div className="rounded-3xl border border-gold/20 bg-gold/10 p-3 text-xs font-bold leading-5 text-ink/62 sm:text-sm">
                 下一场 {nextEnemy.name} Lv.{nextEnemy.level} 可以直接挑战；若不克制且等级差过大，会触发等级压制。
               </div>
               <div className="grid gap-2 md:grid-cols-3">
                 <button
-                  className="min-h-12 rounded-2xl bg-tide px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink"
+                  className="min-h-11 rounded-2xl bg-tide px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink"
                   onClick={continueChallenge}
                   type="button"
                 >
                   继续挑战
                 </button>
-                <button className="min-h-12 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_24px_rgba(16,36,63,0.08)] transition hover:-translate-y-0.5 hover:text-tide" onClick={() => setActiveTab("growth")} type="button">
+                <button className="min-h-11 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_24px_rgba(16,36,63,0.08)] transition hover:-translate-y-0.5 hover:text-tide" onClick={() => setActiveTab("growth")} type="button">
                   进入养成室
                 </button>
-                <button className="min-h-12 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_24px_rgba(16,36,63,0.08)] transition hover:-translate-y-0.5 hover:text-coral" onClick={returnToPetSelect} type="button">
+                <button className="min-h-11 rounded-2xl bg-white px-4 text-sm font-black text-ink shadow-[0_10px_24px_rgba(16,36,63,0.08)] transition hover:-translate-y-0.5 hover:text-coral" onClick={returnToPetSelect} type="button">
                   返回伙伴选择
                 </button>
               </div>
             </div>
           )}
           {battleState === "lost" && (
-            <button className="mt-4 min-h-12 w-full rounded-2xl bg-coral px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={resetBattle} type="button">
+            <button className="mt-3 min-h-11 w-full rounded-2xl bg-coral px-4 text-sm font-black text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" onClick={resetBattle} type="button">
               再试一次
             </button>
           )}
         </GameCard>
 
-        <div className="rounded-[1.6rem] border border-white/75 bg-white/68 p-4 text-ink shadow-[0_16px_34px_rgba(16,36,63,0.07)] backdrop-blur">
+        <div className="rounded-[1.6rem] border border-white/75 bg-white/68 p-3 text-ink shadow-[0_16px_34px_rgba(16,36,63,0.07)] backdrop-blur sm:p-4">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h3 className="text-lg font-black">战斗日志</h3>
             <span className={`rounded-full px-3 py-1 text-xs font-black ${battleState === "won" ? "bg-leaf/10 text-leaf ring-1 ring-leaf/20" : battleState === "lost" ? "bg-coral/10 text-coral ring-1 ring-coral/20" : "bg-tide/10 text-tide ring-1 ring-tide/20"}`}>
               {battleState === "won" ? "胜利" : battleState === "lost" ? "暂败" : "进行中"}
             </span>
           </div>
-          <div className="h-[190px] space-y-2 overflow-y-auto rounded-[1.25rem] bg-[#F7F3E7]/58 p-2 pr-1 ring-1 ring-white/72 [scrollbar-width:thin] md:h-[230px]">
+          <div className="max-h-[140px] space-y-2 overflow-y-auto rounded-[1.25rem] bg-[#F7F3E7]/58 p-2 pr-1 ring-1 ring-white/72 [scrollbar-width:thin] md:max-h-[220px]">
             {logs.length === 0 ? (
               <p className="rounded-2xl border border-tide/20 bg-tide/10 px-3 py-3 text-sm font-bold leading-6 text-ink/54">选择技能，开始本场训练。</p>
             ) : (
-              logs.slice(0, 5).map((log, index) => (
+              latestLogs.map((log, index) => (
                 <p
-                  className={`rounded-2xl border px-3 py-2 text-sm font-semibold leading-6 ${
+                  className={`rounded-2xl border px-3 py-2 text-xs font-semibold leading-5 sm:text-sm ${
                     index === 0
                       ? "border-tide/20 bg-tide/10 text-ink shadow-[inset_3px_0_0_rgba(21,156,168,0.55)]"
                       : "border-[#D2E1E6]/70 bg-white/70 text-ink/70"
@@ -709,6 +820,27 @@ function TrainingRoom({
           </div>
         </div>
       </div>
+      {confirmEscape && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-ink/24 px-4 backdrop-blur-sm">
+          <div className="w-full max-w-sm rounded-[2rem] border border-white/80 bg-[#FFFDF7] p-5 shadow-[0_26px_70px_rgba(16,36,63,0.22)]">
+            <h3 className="text-xl font-black text-ink">结束本次训练？</h3>
+            <p className="mt-2 text-sm font-semibold leading-6 text-ink/58">当前战斗会结束并返回训练列表，已获得的捕捉和存档不会丢失。</p>
+            <div className="mt-5 grid grid-cols-2 gap-2">
+              <button className="min-h-11 rounded-2xl bg-ink/6 px-4 text-sm font-black text-ink" onClick={() => setConfirmEscape(false)} type="button">继续战斗</button>
+              <button
+                className="min-h-11 rounded-2xl bg-coral px-4 text-sm font-black text-white shadow-insetGame"
+                onClick={() => {
+                  setConfirmEscape(false);
+                  onEscapeTraining();
+                }}
+                type="button"
+              >
+                确认逃跑
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <DailyTrainingRewardPanel progress={dailyProgress} />
     </section>
   );
@@ -973,6 +1105,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [saveState, setSaveState] = useState(() => loadPetBattleState());
   const [partnerSave, setPartnerSave] = useState(() => ensurePetCollection(loadPartnerChessSave()));
   const [dailyProgress, setDailyProgress] = useState(() => loadDailyTrainingProgress());
+  const [itemInventory, setItemInventory] = useState(() => loadPetTrainingItemInventory());
   const [activeTab, setActiveTab] = useState<PetBattleTab>("training");
   const [selectedTeamSlot, setSelectedTeamSlot] = useState(0);
   const [activeUnitId, setActiveUnitId] = useState(() => {
@@ -1021,7 +1154,6 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const activePetLevelInfo = getPetLevelInfo(normalizedPartnerSave, activePetId);
   const petExpNeed = activePetLevelInfo.requiredExp || getRequiredPetExp(activePetLevel);
   const levelPressure = hasLevelPressure(selectedPet, activePetLevel, enemy);
-  const captureRate = getAdjustedCaptureRate(enemyHp, enemy.stats.hp, levelPressure);
   const enemyUnitId = getEnemyBattleUnitId(enemy);
 
   function persist(next: PetBattleSaveState) {
@@ -1038,6 +1170,18 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     }
     // 首次进入训练场奖励只在挂载时检查。
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    function syncItems() {
+      setItemInventory(loadPetTrainingItemInventory());
+    }
+    window.addEventListener("petTrainingItemsUpdated", syncItems);
+    window.addEventListener("storage", syncItems);
+    return () => {
+      window.removeEventListener("petTrainingItemsUpdated", syncItems);
+      window.removeEventListener("storage", syncItems);
+    };
   }, []);
 
   function pushLogs(nextLogs: string[]) {
@@ -1267,20 +1411,54 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     pushLogs(nextLogs);
   }
 
-  async function attemptCapture() {
-    const rate = captureRate;
-    const canCapture = rate > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating;
-    if (!canCapture) return;
-    const success = Math.random() * 100 < rate;
+  async function attemptCapture(ballId: CaptureBallId) {
+    if (battleState !== "playing" || isManualAnimating) return;
+    if (isBossEnemy(enemy)) {
+      pushLogs(["Boss 暂不可直接捕捉，可通过碎片解锁。"]);
+      return;
+    }
+    const rate = calculateCaptureBallRate({
+      ballId,
+      enemy,
+      enemyHp,
+      enemyLevel: enemy.level,
+      enemyMaxHp: enemy.stats.hp,
+      petLevel: activePetLevel
+    });
+    if (!rate.allowed) {
+      pushLogs(["目标血量过高，暂时无法使用捕捉道具。"]);
+      return;
+    }
+    const consumedInventory = consumeCaptureBall(itemInventory, ballId);
+    if (!consumedInventory) {
+      pushLogs([`${captureBallConfigs.find((ball) => ball.id === ballId)?.name ?? "捕捉道具"}数量不足。`]);
+      return;
+    }
+    savePetTrainingItemInventory(consumedInventory);
+    setItemInventory(consumedInventory);
+    const ballName = captureBallConfigs.find((ball) => ball.id === ballId)?.name ?? "伙伴球";
+    const success = Math.random() * 100 < rate.finalRate;
     if (success) {
       const collection = addPetToCollection(normalizedPartnerSave, enemy.id);
       const captureLog = collection.alreadyOwned
-        ? `已拥有${enemy.name}，转化为碎片 +3。`
+        ? `捕捉成功！已拥有${enemy.name}，转化为碎片 +3。`
         : `捕捉成功！${enemy.name} 加入宠物仓库！初始等级 Lv.1，可在宠物仓库中加入背包。`;
-      finishWin(petHp, [captureLog], petSkills[0], true, collection.save);
+      const dailyResult = recordTrainingBattle({ captured: true, enemyType: enemy.type, isWin: false, save: collection.save });
+      savePartnerChessSave(dailyResult.save);
+      setPartnerSave(dailyResult.save);
+      setDailyProgress(dailyResult.progress);
+      setEnemyHp(0);
+      const nextState = {
+        ...saveState,
+        bestStage: Math.max(saveState.bestStage, saveState.battleStage),
+        battleHistory: [`第 ${saveState.battleStage} 场捕捉 ${enemy.name}`, ...saveState.battleHistory].slice(0, 20)
+      };
+      persist(nextState);
+      setBattleState("won");
+      pushLogs([captureLog, `${ballName} 捕捉判定成功（${rate.finalRate}%）。`, ...dailyResult.messages]);
       return;
     }
-    await enemyImmediateAction(`捕捉失败！${enemy.name} 挣脱了。`);
+    await enemyImmediateAction(`${ballName} 捕捉失败！${enemy.name} 挣脱了（成功率 ${rate.finalRate}%）。`);
   }
 
   function finishWin(nextPetHp: number, nextLogs: string[], usedSkill: BattleSkill, captured = false, basePartnerSave: PartnerChessSave = normalizedPartnerSave) {
@@ -1638,8 +1816,6 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           action={manualAction}
           activeUnitId={activeUnitId}
           battleState={battleState}
-          canCapture={captureRate > 0 && !isBossEnemy(enemy) && battleState === "playing" && !isManualAnimating}
-          captureRate={captureRate}
           dailyProgress={dailyProgress}
           continueChallenge={continueChallenge}
           cooldowns={cooldowns}
@@ -1648,13 +1824,18 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           enemyStatuses={enemyStatuses}
           isAnimating={isManualAnimating}
           isBossCapture={isBossEnemy(enemy) && enemyHp > 0 && enemyHp / enemy.stats.hp <= 0.3}
+          itemInventory={itemInventory}
           levelPressure={levelPressure}
           logs={logs}
           nextEnemy={nextEnemy}
           onActionComplete={handleManualActionComplete}
           onActionImpact={handleManualActionImpact}
-          onCapture={attemptCapture}
+          onEscapeTraining={() => {
+            setActiveTab("archive");
+            resetBattle(saveState, "本次训练已结束，可以从伙伴图鉴重新进入训练。");
+          }}
           onSwitchPet={switchPet}
+          onUseCaptureBall={attemptCapture}
           pet={selectedPet}
           petHp={petHp}
           petLevel={activePetLevel}

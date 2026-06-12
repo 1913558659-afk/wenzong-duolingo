@@ -9,6 +9,7 @@ import { normalizeSubjectCode } from "@/lib/subjects";
 import type { QuestionType, QuizQuestion, Subject } from "@/types";
 import { buildChallengeLevels } from "@/utils/challengeLevels";
 import { normalizeChapterForSubject } from "@/utils/chapter";
+import { recordAnsweredQuestionCaptureRewards, recordChallengeClearCaptureRewards } from "@/utils/petTrainingItems";
 import { markQuestionsCompleted } from "@/utils/progress";
 
 type QuizProps = {
@@ -186,7 +187,9 @@ export function Quiz({ selectedLevelId, onComplete, onWrongAnswer, goMap, questi
     }
     if (!level.random) {
       markQuestionsCompleted(questions.map((item) => item.id));
+      recordChallengeClearCaptureRewards(level.levelIndex);
     }
+    recordAnsweredQuestionCaptureRewards(questions.length);
     onComplete(correctAnswers, questions.length, earnedXp, { isRandom: level.random });
     setSaved(true);
   }
