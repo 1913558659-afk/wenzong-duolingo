@@ -1,10 +1,13 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { BookOpen, HeartPulse, PawPrint, RotateCcw, Shield, Sparkles, Swords, Trophy, Zap } from "lucide-react";
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { CapturePanel } from "@/components/petBattle/CapturePanel";
 import { DailyTrainingRewardPanel } from "@/components/petBattle/DailyTrainingRewardPanel";
 import { ManualBattleStage, type ManualBattleAction } from "@/components/petBattle/ManualBattleStage";
+import { PetBagPanel } from "@/components/petBattle/PetBagPanel";
+import { PetOwnedBadge } from "@/components/petBattle/PetOwnedBadge";
+import { PetStoragePanel } from "@/components/petBattle/PetStoragePanel";
 import { PetTeamBar, type PetBattleTeamMember } from "@/components/petBattle/PetTeamBar";
 import { SkillUnlockHint } from "@/components/petBattle/SkillUnlockHint";
 import { enemies, pets } from "@/data/petBattleData";
@@ -22,6 +25,17 @@ import { loadPetBattleState, savePetBattleState } from "@/utils/petBattleStorage
 import type { PetBattleSaveState, PetTrainingStats } from "@/utils/petBattleStorage";
 import { addPetExp, getPetLevelInfo, loadPartnerChessSave, savePartnerChessSave } from "@/utils/partnerChessSave";
 import type { PartnerChessSave } from "@/utils/partnerChessSave";
+import {
+  addPetToCollection,
+  defaultTrainingTeamIds,
+  ensurePetCollection,
+  getAllCollectiblePets,
+  getTrainingPetById,
+  isBossPet,
+  isCapturablePet,
+  isInitialPet,
+  replaceTeamSlot
+} from "@/utils/petCollection";
 import {
   addCoinsAndShard,
   claimDailyFirstEntry,
@@ -44,7 +58,7 @@ type BattleEffects = {
   shieldReduction: number;
 };
 
-type PetBattleTab = "training" | "growth" | "archive";
+type PetBattleTab = "training" | "growth" | "bag" | "storage" | "archive";
 
 const defaultEffects: BattleEffects = {
   enemyAttackBonus: 0,
@@ -91,12 +105,6 @@ const counterMessages: Record<EnemyType, string> = {
   forget: "属性克制：积累型克制遗忘型，本场伤害提升。",
   anxiety: "属性克制：专注型克制焦虑型，本场伤害提升。"
 };
-const defaultTeamIds = ["cloud_beast", "fire_fox", "grass_dragon"];
-
-function getPetById(petId: string) {
-  return pets.find((pet) => pet.id === petId) ?? pets[0];
-}
-
 function getBaseEnemyForStage(stage: number) {
   const safeStage = Math.max(1, stage);
   const enemyId = safeStage <= openingEnemyCycle.length
@@ -228,8 +236,9 @@ function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
 }
 
 function createTeamHp(save: PartnerChessSave) {
-  return Object.fromEntries(defaultTeamIds.map((petId) => {
-    const pet = getPetById(petId);
+  const normalized = ensurePetCollection(save);
+  return Object.fromEntries(normalized.activeTrainingTeam.map((petId) => {
+    const pet = getTrainingPetById(petId);
     const stats = getTrainingBattleStats(pet, getPartnerPetLevel(save, petId));
     return [petId, stats.hp];
   }));
@@ -805,6 +814,7 @@ function GrowthRoom({
 }
 
 function ArchiveCard({
+  badge,
   image,
   name,
   primary,
@@ -812,6 +822,7 @@ function ArchiveCard({
   text,
   tone
 }: {
+  badge?: ReactNode;
   image: string;
   name: string;
   primary: string;
@@ -826,7 +837,10 @@ function ArchiveCard({
           <img alt={name} className="max-h-full max-w-full object-contain [image-rendering:pixelated]" src={image} />
         </div>
         <div>
-          <p className={`text-xs font-black uppercase tracking-[0.16em] ${tone === "pet" ? "text-tide" : "text-coral"}`}>{primary}</p>
+          <div className="flex flex-wrap items-center gap-2">
+            <p className={`text-xs font-black uppercase tracking-[0.16em] ${tone === "pet" ? "text-tide" : "text-coral"}`}>{primary}</p>
+            {badge}
+          </div>
           <h3 className="mt-1 text-2xl font-black text-ink">{name}</h3>
           <p className="mt-1 text-sm font-bold text-ink/54">{secondary}</p>
         </div>
@@ -836,7 +850,15 @@ function ArchiveCard({
   );
 }
 
-function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string; selectPet: (pet: BattlePet) => void }) {
+function CompanionArchive({
+  ownedPetIds,
+  selectedPetId,
+  selectPet
+}: {
+  ownedPetIds: string[];
+  selectedPetId: string;
+  selectPet: (pet: BattlePet) => void;
+}) {
   const basicEnemies = enemies.filter((enemy) => enemy.branch === "basic");
   const carelessAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "careless");
   const forgetAdvancedEnemies = enemies.filter((enemy) => enemy.branch === "forget");
@@ -863,6 +885,7 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
         <div className="mt-3 grid gap-4 lg:grid-cols-3">
           {basicEnemies.map((enemy) => (
             <ArchiveCard
+              badge={<PetOwnedBadge state={ownedPetIds.includes(enemy.id) ? "owned" : isCapturablePet(enemy.id) ? "capturable" : isBossPet(enemy.id) ? "boss" : "unowned"} />}
               image={enemy.image}
               key={enemy.id}
               name={enemy.name}
@@ -879,6 +902,7 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
         <div className="mt-3 grid gap-4 lg:grid-cols-3">
           {carelessAdvancedEnemies.map((enemy) => (
             <ArchiveCard
+              badge={<PetOwnedBadge state={ownedPetIds.includes(enemy.id) ? "owned" : isCapturablePet(enemy.id) ? "capturable" : isBossPet(enemy.id) ? "boss" : "unowned"} />}
               image={enemy.image}
               key={enemy.id}
               name={enemy.name}
@@ -895,6 +919,7 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
         <div className="mt-3 grid gap-4 lg:grid-cols-3">
           {forgetAdvancedEnemies.map((enemy) => (
             <ArchiveCard
+              badge={<PetOwnedBadge state={ownedPetIds.includes(enemy.id) ? "owned" : isCapturablePet(enemy.id) ? "capturable" : isBossPet(enemy.id) ? "boss" : "unowned"} />}
               image={enemy.image}
               key={enemy.id}
               name={enemy.name}
@@ -911,6 +936,7 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
         <div className="mt-3 grid gap-4 lg:grid-cols-3">
           {anxietyAdvancedEnemies.map((enemy) => (
             <ArchiveCard
+              badge={<PetOwnedBadge state={ownedPetIds.includes(enemy.id) ? "owned" : isCapturablePet(enemy.id) ? "capturable" : isBossPet(enemy.id) ? "boss" : "unowned"} />}
               image={enemy.image}
               key={enemy.id}
               name={enemy.name}
@@ -928,17 +954,20 @@ function CompanionArchive({ selectedPetId, selectPet }: { selectedPetId: string;
 
 export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void }) {
   const [saveState, setSaveState] = useState(() => loadPetBattleState());
-  const [partnerSave, setPartnerSave] = useState(() => loadPartnerChessSave());
+  const [partnerSave, setPartnerSave] = useState(() => ensurePetCollection(loadPartnerChessSave()));
   const [dailyProgress, setDailyProgress] = useState(() => loadDailyTrainingProgress());
   const [activeTab, setActiveTab] = useState<PetBattleTab>("training");
-  const [activePetId, setActivePetId] = useState(saveState.selectedPetId);
-  const selectedPet = getPetById(activePetId);
+  const [selectedTeamSlot, setSelectedTeamSlot] = useState(0);
+  const [activePetId, setActivePetId] = useState(() => ensurePetCollection(loadPartnerChessSave()).activeTrainingTeam[0] ?? defaultTrainingTeamIds[0]);
+  const normalizedPartnerSave = useMemo(() => ensurePetCollection(partnerSave), [partnerSave]);
+  const activeTrainingTeam = normalizedPartnerSave.activeTrainingTeam;
+  const selectedPet = getTrainingPetById(activePetId);
   const enemy = useMemo(() => getScaledEnemy(saveState.battleStage), [saveState.battleStage]);
   const nextEnemy = useMemo(() => getScaledEnemy(saveState.battleStage + 1), [saveState.battleStage]);
-  const activePetLevel = getPartnerPetLevel(partnerSave, activePetId);
+  const activePetLevel = getPartnerPetLevel(normalizedPartnerSave, activePetId);
   const petStats = useMemo(() => getTrainingBattleStats(selectedPet, activePetLevel), [activePetLevel, selectedPet]);
   const petSkills = useMemo(() => getTrainingSkillsForPet(selectedPet), [selectedPet]);
-  const [teamHp, setTeamHp] = useState<Record<string, number>>(() => createTeamHp(partnerSave));
+  const [teamHp, setTeamHp] = useState<Record<string, number>>(() => createTeamHp(ensurePetCollection(loadPartnerChessSave())));
   const [enemyHp, setEnemyHp] = useState(enemy.stats.hp);
   const [cooldowns, setCooldowns] = useState<Record<string, number>>({});
   const [effects, setEffects] = useState<BattleEffects>(defaultEffects);
@@ -952,13 +981,13 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const actionImpactRef = useRef<(() => void) | null>(null);
   const actionResolveRef = useRef<(() => void) | null>(null);
   const petHp = teamHp[activePetId] ?? petStats.hp;
-  const activePetLevelInfo = getPetLevelInfo(partnerSave, activePetId);
+  const activePetLevelInfo = getPetLevelInfo(normalizedPartnerSave, activePetId);
   const petExpNeed = activePetLevelInfo.requiredExp || getRequiredPetExp(activePetLevel);
   const levelPressure = hasLevelPressure(selectedPet, activePetLevel, enemy);
   const captureRate = getAdjustedCaptureRate(enemyHp, enemy.stats.hp, levelPressure);
-  const teamMembers = useMemo<PetBattleTeamMember[]>(() => defaultTeamIds.map((petId) => {
-    const pet = getPetById(petId);
-    const level = getPartnerPetLevel(partnerSave, petId);
+  const teamMembers = useMemo<PetBattleTeamMember[]>(() => activeTrainingTeam.map((petId) => {
+    const pet = getTrainingPetById(petId);
+    const level = getPartnerPetLevel(normalizedPartnerSave, petId);
     const stats = getTrainingBattleStats(pet, level);
     return {
       hp: teamHp[petId] ?? stats.hp,
@@ -967,7 +996,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       pet,
       stats
     };
-  }), [partnerSave, teamHp]);
+  }), [activeTrainingTeam, normalizedPartnerSave, teamHp]);
 
   function persist(next: PetBattleSaveState) {
     setSaveState(next);
@@ -1012,13 +1041,16 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   function resetBattle(nextState = saveState, message?: string) {
-    const latestPartnerSave = loadPartnerChessSave();
+    const latestPartnerSave = ensurePetCollection(loadPartnerChessSave());
     setPartnerSave(latestPartnerSave);
-    const nextPet = getPetById(activePetId);
+    const nextActivePetId = latestPartnerSave.activeTrainingTeam.includes(activePetId)
+      ? activePetId
+      : latestPartnerSave.activeTrainingTeam[0] ?? defaultTrainingTeamIds[0];
+    const nextPet = getTrainingPetById(nextActivePetId);
     const nextEnemyForBattle = getScaledEnemy(nextState.battleStage);
     const nextTeamHp = createTeamHp(latestPartnerSave);
     setTeamHp(nextTeamHp);
-    if (!defaultTeamIds.includes(activePetId)) setActivePetId(nextPet.id);
+    if (nextActivePetId !== activePetId) setActivePetId(nextActivePetId);
     setEnemyHp(nextEnemyForBattle.stats.hp);
     setCooldowns({});
     setEffects(defaultEffects);
@@ -1033,6 +1065,11 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }
 
   function selectPet(pet: BattlePet) {
+    if (!normalizedPartnerSave.activeTrainingTeam.includes(pet.id)) {
+      setNotice(`${pet.name} 不在当前背包中，可先在宠物仓库替换上阵。`);
+      setActiveTab("storage");
+      return;
+    }
     const next = {
       ...saveState,
       selectedPetId: pet.id
@@ -1098,6 +1135,28 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     pushLogs([`${member.pet.name} 上场！`]);
   }
 
+  function replaceTrainingTeamSlot(slotIndex: number, petId: string) {
+    const nextPartnerSave = replaceTeamSlot(normalizedPartnerSave, slotIndex, petId);
+    if (nextPartnerSave.activeTrainingTeam.join("|") === normalizedPartnerSave.activeTrainingTeam.join("|")) {
+      setNotice("这只宠物已经在背包中，不能重复上阵。");
+      return;
+    }
+    savePartnerChessSave(nextPartnerSave);
+    setPartnerSave(nextPartnerSave);
+    setSelectedTeamSlot(slotIndex);
+    const replacement = getTrainingPetById(petId);
+    const nextActivePetId = nextPartnerSave.activeTrainingTeam[0] ?? petId;
+    setActivePetId(nextActivePetId);
+    resetBattle(saveState, `${replacement.name} 已替换到背包第 ${slotIndex + 1} 位。`);
+    setNotice(`${replacement.name} 已加入训练背包。`);
+  }
+
+  function petSourceLabel(petId: string) {
+    if (isInitialPet(petId)) return "获取方式：初始伙伴";
+    if (normalizedPartnerSave.capturedAt[petId]) return "获取方式：捕捉获得";
+    return "获取方式：碎片解锁预留";
+  }
+
   function autoSwitchOrLose(nextLogs: string[]) {
     const nextMember = teamMembers.find((member) => member.pet.id !== activePetId && member.hp > 0);
     if (nextMember) {
@@ -1108,9 +1167,9 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       return;
     }
 
-    let nextPartnerSave = partnerSave;
+    let nextPartnerSave = normalizedPartnerSave;
     const growthLogs: string[] = [];
-    for (const petId of defaultTeamIds) {
+    for (const petId of activeTrainingTeam) {
       const result = addPetExp(nextPartnerSave, petId, 5);
       nextPartnerSave = result.save;
       if (result.growth.leveledUp) {
@@ -1159,18 +1218,22 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     if (!canCapture) return;
     const success = Math.random() * 100 < rate;
     if (success) {
-      finishWin(petHp, [`捕捉成功！${enemy.name} 化作伙伴碎片。`], petSkills[0], true);
+      const collection = addPetToCollection(normalizedPartnerSave, enemy.id);
+      const captureLog = collection.alreadyOwned
+        ? `已拥有${enemy.name}，转化为碎片 +3。`
+        : `捕捉成功！${enemy.name} 加入宠物仓库！初始等级 Lv.1，可在宠物仓库中加入背包。`;
+      finishWin(petHp, [captureLog], petSkills[0], true, collection.save);
       return;
     }
     await enemyImmediateAction(`捕捉失败！${enemy.name} 挣脱了。`);
   }
 
-  function finishWin(nextPetHp: number, nextLogs: string[], usedSkill: BattleSkill, captured = false) {
+  function finishWin(nextPetHp: number, nextLogs: string[], usedSkill: BattleSkill, captured = false, basePartnerSave: PartnerChessSave = normalizedPartnerSave) {
     const rewardPetExp = enemy.rewardExp;
     const rewardTrainingExp = getRewardTrainingExp(enemy);
-    let nextPartnerSave = partnerSave;
+    let nextPartnerSave = ensurePetCollection(basePartnerSave);
     const growthLogs: string[] = [];
-    for (const petId of defaultTeamIds) {
+    for (const petId of nextPartnerSave.activeTrainingTeam) {
       const result = addPetExp(nextPartnerSave, petId, rewardPetExp);
       nextPartnerSave = result.save;
       if (result.growth.leveledUp) {
@@ -1179,11 +1242,13 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         growthLogs.push(`${result.growth.petName} 经验 +${rewardPetExp}。`);
       }
     }
-    nextPartnerSave = addCoinsAndShard({
-      save: nextPartnerSave,
-      shardAmount: captured ? 3 : isBossEnemy(enemy) ? 2 : 1,
-      shardType: enemy.type
-    });
+    if (!captured) {
+      nextPartnerSave = addCoinsAndShard({
+        save: nextPartnerSave,
+        shardAmount: isBossEnemy(enemy) ? 2 : 1,
+        shardType: enemy.type
+      });
+    }
     const dailyResult = recordTrainingBattle({
       captured,
       enemyType: enemy.type,
@@ -1207,7 +1272,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     setBattleState("won");
     pushLogs([
       captured
-        ? `捕捉成功！获得${shardLabelForEnemyType(enemy.type)} +3，伙伴训练经验 +${rewardTrainingExp}。`
+        ? `捕捉完成！伙伴训练经验 +${rewardTrainingExp}。`
         : `${enemy.name} 被击败！全队宠物经验 +${rewardPetExp}，伙伴训练经验 +${rewardTrainingExp}。`,
       ...dailyResult.messages,
       ...growthLogs,
@@ -1498,6 +1563,12 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         <TabButton active={activeTab === "growth"} onClick={() => setActiveTab("growth")}>
           <span className="inline-flex items-center gap-2"><Sparkles className="size-4" />养成室</span>
         </TabButton>
+        <TabButton active={activeTab === "bag"} onClick={() => setActiveTab("bag")}>
+          <span className="inline-flex items-center gap-2"><PawPrint className="size-4" />宠物背包</span>
+        </TabButton>
+        <TabButton active={activeTab === "storage"} onClick={() => setActiveTab("storage")}>
+          <span className="inline-flex items-center gap-2"><Shield className="size-4" />宠物仓库</span>
+        </TabButton>
         <TabButton active={activeTab === "archive"} onClick={() => setActiveTab("archive")}>
           <span className="inline-flex items-center gap-2"><BookOpen className="size-4" />伙伴图鉴</span>
         </TabButton>
@@ -1545,16 +1616,41 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           companionTrainingExp={saveState.companionTrainingExp}
           notice={notice}
           pet={selectedPet}
-          petExp={saveState.petExp}
+          petExp={activePetLevelInfo.exp}
           petExpNeed={petExpNeed}
-          petLevel={saveState.petLevel}
+          petLevel={activePetLevel}
           petStats={petStats}
           trainStat={trainStat}
           training={saveState.training}
         />
       )}
 
-      {activeTab === "archive" && <CompanionArchive selectPet={selectPet} selectedPetId={selectedPet.id} />}
+      {activeTab === "bag" && (
+        <PetBagPanel
+          members={teamMembers}
+          onSelectSlot={(slot) => {
+            setSelectedTeamSlot(slot);
+            setActiveTab("storage");
+          }}
+          selectedSlot={selectedTeamSlot}
+        />
+      )}
+
+      {activeTab === "storage" && (
+        <PetStoragePanel
+          activeTeamIds={activeTrainingTeam}
+          getLevelInfo={(petId) => getPetLevelInfo(normalizedPartnerSave, petId)}
+          getSkills={getTrainingSkillsForPet}
+          getSourceLabel={petSourceLabel}
+          getStats={getTrainingBattleStats}
+          onReplaceSlot={replaceTrainingTeamSlot}
+          ownedPets={normalizedPartnerSave.ownedPets.map(getTrainingPetById)}
+          petShards={normalizedPartnerSave.petShards}
+          selectedSlot={selectedTeamSlot}
+        />
+      )}
+
+      {activeTab === "archive" && <CompanionArchive ownedPetIds={normalizedPartnerSave.ownedPets} selectPet={selectPet} selectedPetId={selectedPet.id} />}
 
       <GameCard className="flex items-center gap-3 bg-white/64">
         <Trophy className="size-5 shrink-0 text-gold" />

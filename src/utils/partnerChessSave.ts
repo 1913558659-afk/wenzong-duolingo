@@ -6,15 +6,21 @@ export const partnerChessSaveKey = "partnerChessSave";
 export const partnerChessLevelCap = 20;
 
 export type PartnerChessSave = {
+  activeTrainingTeam: string[];
+  capturedAt: Record<string, string>;
   coins: number;
   petExp: Record<string, number>;
   petLevel: Record<string, number>;
+  petShards: Record<string, number>;
   shards: Record<string, number>;
   clearedStages: Record<string, number>;
+  ownedPets: string[];
   totalBattles: number;
   totalWins: number;
   updatedAt: string;
 };
+
+const defaultTrainingPetIds = ["cloud_beast", "fire_fox", "grass_dragon"];
 
 export type PetGrowthResult = {
   afterExp: number;
@@ -42,15 +48,32 @@ function initialPetExp() {
 
 export function defaultPartnerChessSave(): PartnerChessSave {
   return {
+    activeTrainingTeam: defaultTrainingPetIds,
+    capturedAt: {},
     clearedStages: {},
     coins: 0,
     petExp: initialPetExp(),
     petLevel: initialPetLevel(),
+    petShards: {},
     shards: {},
+    ownedPets: defaultTrainingPetIds,
     totalBattles: 0,
     totalWins: 0,
     updatedAt: new Date().toISOString()
   };
+}
+
+function normalizeOwnedPets(value: string[] | undefined) {
+  return Array.from(new Set([...(value ?? []), ...defaultTrainingPetIds]));
+}
+
+function normalizeTrainingTeam(value: string[] | undefined, ownedPets: string[]) {
+  const filtered = Array.from(new Set(value ?? [])).filter((petId) => ownedPets.includes(petId)).slice(0, 3);
+  for (const petId of defaultTrainingPetIds) {
+    if (filtered.length >= 3) break;
+    if (!filtered.includes(petId)) filtered.push(petId);
+  }
+  return filtered.slice(0, 3);
 }
 
 export function loadPartnerChessSave(): PartnerChessSave {
@@ -60,12 +83,20 @@ export function loadPartnerChessSave(): PartnerChessSave {
     const raw = window.localStorage.getItem(partnerChessSaveKey);
     const parsed = raw ? JSON.parse(raw) as Partial<PartnerChessSave> : {};
     const fallback = defaultPartnerChessSave();
+    const ownedPets = normalizeOwnedPets(parsed.ownedPets);
+    const activeTrainingTeam = normalizeTrainingTeam(parsed.activeTrainingTeam, ownedPets);
+    const initialLevels = Object.fromEntries(ownedPets.map((petId) => [petId, 1]));
+    const initialExp = Object.fromEntries(ownedPets.map((petId) => [petId, 0]));
 
     return {
+      activeTrainingTeam,
+      capturedAt: parsed.capturedAt ?? fallback.capturedAt,
       clearedStages: parsed.clearedStages ?? fallback.clearedStages,
       coins: parsed.coins ?? fallback.coins,
-      petExp: { ...fallback.petExp, ...(parsed.petExp ?? {}) },
-      petLevel: { ...fallback.petLevel, ...(parsed.petLevel ?? {}) },
+      ownedPets,
+      petExp: { ...fallback.petExp, ...initialExp, ...(parsed.petExp ?? {}) },
+      petLevel: { ...fallback.petLevel, ...initialLevels, ...(parsed.petLevel ?? {}) },
+      petShards: parsed.petShards ?? fallback.petShards,
       shards: parsed.shards ?? fallback.shards,
       totalBattles: parsed.totalBattles ?? fallback.totalBattles,
       totalWins: parsed.totalWins ?? fallback.totalWins,
