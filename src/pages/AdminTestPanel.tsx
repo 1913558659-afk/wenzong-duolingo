@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Copy, Database, FlaskConical, Lock, RotateCcw, ShieldCheck, Wrench } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Database, Flag, FlaskConical, Lock, RotateCcw, ShieldCheck, Wrench } from "lucide-react";
 import { EvolutionAnimationOverlay } from "@/components/petBattle/EvolutionAnimationOverlay";
 import { enemies, pets } from "@/data/petBattleData";
 import { getLevelGrowthWeight, getPetSpeciesStatsAtLevel, petSpeciesMasterData } from "@/data/petSpeciesMasterData";
@@ -26,13 +26,16 @@ type AdminTestPanelProps = {
   user: AuthUser | null;
 };
 
-type DebugTab = "challenge" | "pets" | "evolution" | "skills" | "items" | "saves" | "checks";
+type DebugTab = "challenge" | "pets" | "evolution" | "skills" | "items" | "territory" | "saves" | "checks";
 type CheckRow = { detail: string; name: string; status: "通过" | "警告" | "错误"; suggestion: string };
 
 const PROJECT_STORAGE_KEYS = [
   partnerChessSaveKey,
   petTrainingItemInventoryKey,
   petTrainingDailyRewardKey,
+  "sayhi_territory_war_state",
+  "sayhi_territory_war_progress",
+  "sayhi-territory-war-mvp",
   "sayhi-pet-battle-state",
   "wenzong-island-completed-question-ids",
   "wenzong-island-study-stats",
@@ -429,12 +432,93 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
     window.location.reload();
   }
 
+  function loadTerritoryProgressForAdmin() {
+    try {
+      const raw = window.localStorage.getItem("sayhi_territory_war_progress");
+      return raw ? JSON.parse(raw) as {
+        completedChapters?: Record<string, unknown>;
+        territoryExp?: number;
+        totalPlays?: number;
+        totalWins?: number;
+      } : {};
+    } catch {
+      return {};
+    }
+  }
+
+  function saveTerritoryProgressForAdmin(progress: Record<string, unknown>) {
+    window.localStorage.setItem("sayhi_territory_war_progress", JSON.stringify({ ...progress, updatedAt: new Date().toISOString() }));
+  }
+
+  function unlockTerritoryChapters() {
+    const chapterIds = [
+      "history-ancient-01", "history-qinhan-02", "history-tangsong-03",
+      "politics-core-01", "politics-govern-02", "politics-economy-03",
+      "geography-map-01", "geography-climate-02", "geography-region-03",
+      "english-vocab-01", "english-grammar-02", "english-reading-03",
+      "math-basic-01", "math-function-02", "math-geometry-03"
+    ];
+    const current = loadTerritoryProgressForAdmin();
+    const completedChapters = { ...(current.completedChapters ?? {}) } as Record<string, unknown>;
+    chapterIds.forEach((id) => {
+      completedChapters[id] = { bestAccuracy: 100, bestStars: 3, bestTime: 60, completedAt: new Date().toISOString() };
+    });
+    saveTerritoryProgressForAdmin({
+      ...current,
+      completedChapters,
+      territoryExp: Math.max(Number(current.territoryExp ?? 0), 1500),
+      totalPlays: Math.max(Number(current.totalPlays ?? 0), chapterIds.length),
+      totalWins: Math.max(Number(current.totalWins ?? 0), chapterIds.length)
+    });
+    setNotice("已解锁并三星记录全部知识领地战章节。");
+  }
+
+  function resetTerritoryProgress() {
+    if (!requireConfirm("确定清空知识领地战长期进度？当前局也会被清空。")) return;
+    window.localStorage.removeItem("sayhi_territory_war_progress");
+    window.localStorage.removeItem("sayhi_territory_war_state");
+    window.localStorage.removeItem("sayhi-territory-war-mvp");
+    setNotice("已清空知识领地战长期进度和当前局。");
+  }
+
+  function setTerritoryExp(exp: number) {
+    const current = loadTerritoryProgressForAdmin();
+    saveTerritoryProgressForAdmin({ ...current, territoryExp: Math.max(0, Math.round(exp || 0)) });
+    setNotice(`知识领地战远征经验已设置为 ${Math.max(0, Math.round(exp || 0))}。`);
+  }
+
+  function simulateTerritoryResult(win: boolean) {
+    const current = loadTerritoryProgressForAdmin();
+    const completedChapters = { ...(current.completedChapters ?? {}) } as Record<string, unknown>;
+    if (win) completedChapters["history-ancient-01"] = { bestAccuracy: 85, bestStars: 3, bestTime: 88, completedAt: new Date().toISOString() };
+    saveTerritoryProgressForAdmin({
+      ...current,
+      completedChapters,
+      territoryExp: Number(current.territoryExp ?? 0) + (win ? 30 : 10),
+      totalPlays: Number(current.totalPlays ?? 0) + 1,
+      totalWins: Number(current.totalWins ?? 0) + (win ? 1 : 0)
+    });
+    setNotice(win ? "已模拟知识领地战章节胜利。" : "已模拟知识领地战章节失败。");
+  }
+
+  function addTerritoryStateResources() {
+    try {
+      const raw = window.localStorage.getItem("sayhi_territory_war_state");
+      const state = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+      window.localStorage.setItem("sayhi_territory_war_state", JSON.stringify({ ...state, resources: Number(state.resources ?? 0) + 500 }));
+      setNotice("已为知识领地战当前局补充知识币 +500。");
+    } catch {
+      setNotice("当前局存档读取失败。");
+    }
+  }
+
   const tabs: Array<{ id: DebugTab; label: string }> = [
     { id: "challenge", label: "闯关测试" },
     { id: "pets", label: "宠物测试" },
     { id: "evolution", label: "进化测试" },
     { id: "skills", label: "技能测试" },
     { id: "items", label: "道具与捕捉测试" },
+    { id: "territory", label: "领地战测试" },
     { id: "saves", label: "存档工具" },
     { id: "checks", label: "系统检查" }
   ];
@@ -655,6 +739,26 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
               </select>
               <button className={buttonClass()} onClick={() => setNotice("下一场训练敌人设置已保存；回到伙伴岛点击重新训练即可生效。")} type="button">保存野生宠测试</button>
             </div>
+          </Card>
+        </section>
+      )}
+
+      {tab === "territory" && (
+        <section className="space-y-4">
+          <Card title="知识领地战测试" icon={<Flag className="size-5" />}>
+            <div className="flex flex-wrap gap-2">
+              <button className={buttonClass("primary")} onClick={() => window.location.assign("/territory-war")} type="button">跳转 /territory-war</button>
+              <button className={buttonClass("primary")} onClick={unlockTerritoryChapters} type="button">解锁全部章节</button>
+              <button className={buttonClass()} onClick={() => setTerritoryExp(0)} type="button">远征经验设为 0</button>
+              <button className={buttonClass()} onClick={() => setTerritoryExp(500)} type="button">远征经验设为 500</button>
+              <button className={buttonClass()} onClick={() => setTerritoryExp(1500)} type="button">远征经验设为 1500</button>
+              <button className={buttonClass()} onClick={() => simulateTerritoryResult(true)} type="button">模拟章节胜利</button>
+              <button className={buttonClass()} onClick={() => simulateTerritoryResult(false)} type="button">模拟章节失败</button>
+              <button className={buttonClass()} onClick={addTerritoryStateResources} type="button">本局知识币 +500</button>
+              <button className={buttonClass()} onClick={() => { window.localStorage.removeItem("sayhi_territory_war_state"); window.localStorage.removeItem("sayhi-territory-war-mvp"); setNotice("已清空知识领地战当前局 state。"); }} type="button">清空当前局 state</button>
+              <button className={buttonClass("danger")} onClick={resetTerritoryProgress} type="button">清空长期 progress</button>
+            </div>
+            <pre className="mt-4 max-h-72 overflow-auto rounded-2xl bg-[#10233f] p-4 text-xs font-semibold text-white/86">{JSON.stringify(loadTerritoryProgressForAdmin(), null, 2)}</pre>
           </Card>
         </section>
       )}

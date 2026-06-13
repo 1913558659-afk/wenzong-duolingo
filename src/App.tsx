@@ -16,6 +16,7 @@ import { StudyAidDetail } from "@/pages/StudyAidDetail";
 import { StudyAidList } from "@/pages/StudyAidList";
 import { TextbookGuide } from "@/pages/TextbookGuide";
 import { Timetable } from "@/pages/Timetable";
+import { TerritoryWarPage } from "@/pages/TerritoryWarPage";
 import { WrongBook } from "@/pages/WrongBook";
 import { useAuth } from "@/lib/auth";
 import { fetchQuestions } from "@/lib/api";
@@ -59,6 +60,9 @@ export default function App() {
   useEffect(() => {
     if (window.location.pathname === "/admin-test" || window.location.pathname === "/debug-lab") {
       setPage("adminTest");
+    }
+    if (window.location.pathname === "/territory-war") {
+      setPage("territoryWar");
     }
   }, []);
 
@@ -108,6 +112,7 @@ export default function App() {
         {page === "wrongBook" && <WrongBook clearWrongAnswers={clearWrongAnswers} questions={questions} records={records} removeWrongAnswer={removeWrongAnswer} syncError={wrongSyncError} token={auth.token} />}
         {page === "petBattle" && <PetBattle openPartnerChess={() => setPage("partnerChess")} />}
         {page === "partnerChess" && <PartnerChessPage goPetBattle={() => setPage("petBattle")} questions={questions} />}
+        {page === "territoryWar" && <TerritoryWarPage questions={questions} user={auth.user} />}
         {page === "profile" && <Profile navigate={navigate} stats={stats} syncError={statsSyncError} user={auth.user} />}
         {page === "adminQuestions" && <AdminQuestionBank token={auth.token} user={auth.user} />}
         {page === "adminTest" && <AdminTestPanel onNavigateHome={() => setPage("home")} onStartPractice={startPractice} questions={questions} user={auth.user} />}
