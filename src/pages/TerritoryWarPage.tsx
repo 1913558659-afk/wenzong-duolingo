@@ -728,6 +728,9 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
     playerUnitCount: 0,
     playerUnitsLost: 0
   });
+  const [activeCanvasQuestion, setActiveCanvasQuestion] = useState<TerritoryQuestion | null>(null);
+  const [activeCanvasQuestionTile, setActiveCanvasQuestionTile] = useState<TerritoryCanvasTile | null>(null);
+  const [skillCooldowns, setSkillCooldowns] = useState<Record<string, number>>({});
   const [selectedBattleTile, setSelectedBattleTile] = useState<TerritoryCanvasTile | null>(null);
   const [selectedOptionIndex, setSelectedOptionIndex] = useState<number | null>(null);
   const [answerResult, setAnswerResult] = useState<null | { correct: boolean; selectedIndex: number }>(null);
@@ -818,8 +821,8 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
   const canUpgradeSelected = selectedTile.building?.type === "partner_outpost" && selectedTile.building.level === 1;
   const playerUnits = canvasBattleStats.playerUnitCount;
   const enemyUnits = canvasBattleStats.enemyUnitCount;
-  const activeQuestionTile = activeQuestionTileId ? state.tiles.find((tile) => tile.id === activeQuestionTileId) : null;
-  const activeQuestion = activeQuestionTile?.questionId ? questionPool.find((question) => question.id === activeQuestionTile.questionId) ?? normalizedQuestions.find((question) => question.id === activeQuestionTile.questionId) ?? fallbackQuestions[0] : null;
+  const activeQuestionTile = activeCanvasQuestionTile ?? (activeQuestionTileId ? state.tiles.find((tile) => tile.id === activeQuestionTileId) : null);
+  const activeQuestion = activeCanvasQuestion ?? (activeQuestionTile && "questionId" in activeQuestionTile && activeQuestionTile.questionId ? questionPool.find((question) => question.id === activeQuestionTile.questionId) ?? normalizedQuestions.find((question) => question.id === activeQuestionTile.questionId) ?? fallbackQuestions[0] : null);
   const exploreDiscount = Math.min(exploreCost, Math.round(buffAmount(state, "explore_discount")));
   const currentExploreCost = Math.max(0, exploreCost - exploreDiscount);
   const admin = isAdminUser(user ?? null);
@@ -1024,6 +1027,18 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
 
   function openQuestion(tileId: string) {
     setActiveQuestionTileId(tileId);
+    setActiveCanvasQuestion(null);
+    setActiveCanvasQuestionTile(null);
+    setSelectedOptionIndex(null);
+    setAnswerResult(null);
+  }
+
+  function openCanvasQuestion(tile: TerritoryCanvasTile) {
+    const question = pickQuestion(state);
+    setState((current) => ({ ...current, usedQuestionIds: [...current.usedQuestionIds, question.id] }));
+    setActiveCanvasQuestion(question);
+    setActiveCanvasQuestionTile(tile);
+    setActiveQuestionTileId(null);
     setSelectedOptionIndex(null);
     setAnswerResult(null);
   }
@@ -1036,6 +1051,61 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
 
   function applyQuestionOutcome() {
     if (!activeQuestion || !activeQuestionTile || !answerResult) return;
+    if (activeCanvasQuestionTile) {
+      const result = battlefieldRef.current?.applyQuestionResult(activeCanvasQuestionTile.id, answerResult.correct);
+      setState((current) => {
+        let resources = current.resources + (answerResult.correct ? 60 : 15);
+        let baseHpPlayer = current.baseHpPlayer;
+        const rewardCoins = answerResult.correct ? 60 : 15;
+        let temporaryBuffs = current.temporaryBuffs;
+        let logs = current.logs;
+        const subject = activeQuestion.subject;
+        if (answerResult.correct) {
+          if (subject === "history") {
+            temporaryBuffs = [...temporaryBuffs, addTimedBuff(current, "unit_attack", 0.08, 20, "历史线索：单位攻击 +8%")];
+            logs = pushLog(logs, "你答对了历史题，获得 60 知识币！历史线索清晰，伙伴攻击提升。");
+          } else if (subject === "politics") {
+            baseHpPlayer = Math.min(140, baseHpPlayer + 15);
+            logs = pushLog(logs, "你答对了政治题，获得 60 知识币！学习基地获得护盾。");
+          } else if (subject === "geography") {
+            temporaryBuffs = [...temporaryBuffs, { amount: 20, id: `explore-${current.tick}`, label: "地形判断：下一次探索费用 -20", type: "explore_discount", uses: 1 }];
+            logs = pushLog(logs, "你答对了地理题，获得 60 知识币！探索效率提升。");
+          } else if (subject === "english") {
+            temporaryBuffs = [...temporaryBuffs, addTimedBuff(current, "spawn_speed", 0.15, 20, "表达流畅：出兵速度 +15%")];
+            logs = pushLog(logs, "你答对了英语题，获得 60 知识币！伙伴行动加快。");
+          } else if (subject === "math") {
+            temporaryBuffs = [...temporaryBuffs, addTimedBuff(current, "resource_income", 0.1, 20, "精准计算：资源产出 +10%")];
+            logs = pushLog(logs, "你答对了数学题，获得 60 知识币！资源产出提升。");
+          } else {
+            temporaryBuffs = [...temporaryBuffs, addTimedBuff(current, "unit_attack", 0.05, 15, "知识共鸣：单位攻击 +5%")];
+            logs = pushLog(logs, `你答对了${subjectLabels[subject]}题，获得 60 知识币！`);
+          }
+        } else {
+          temporaryBuffs = [...temporaryBuffs, addTimedBuff(current, "enemy_attack", 0.05, 15, "敌方趁势：敌方攻击 +5%")];
+          logs = pushLog(logs, "答错了，但仍获得 15 知识币。题目格可稍后再次挑战。");
+        }
+        if (result?.message) logs = pushLog(logs, result.message);
+        return {
+          ...current,
+          baseHpPlayer,
+          logs,
+          resources,
+          stats: {
+            ...current.stats,
+            coinsEarned: current.stats.coinsEarned + rewardCoins,
+            correctAnswers: current.stats.correctAnswers + (answerResult.correct ? 1 : 0),
+            questionsAnswered: current.stats.questionsAnswered + 1
+          },
+          temporaryBuffs
+        };
+      });
+      setActiveQuestionTileId(null);
+      setActiveCanvasQuestion(null);
+      setActiveCanvasQuestionTile(null);
+      setSelectedOptionIndex(null);
+      setAnswerResult(null);
+      return;
+    }
     setState((current) => {
       let resources = current.resources + (answerResult.correct ? 60 : 15);
       let baseHpPlayer = current.baseHpPlayer;
@@ -1088,6 +1158,8 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
       };
     });
     setActiveQuestionTileId(null);
+    setActiveCanvasQuestion(null);
+    setActiveCanvasQuestionTile(null);
     setSelectedOptionIndex(null);
     setAnswerResult(null);
   }
@@ -1162,6 +1234,10 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
     runCanvasAction(50, () => battlefieldRef.current?.buildMineOnSelectedTile() ?? { message: "战场尚未初始化。", ok: false });
   }
 
+  function buildCanvasTower() {
+    runCanvasAction(120, () => battlefieldRef.current?.buildTowerOnSelectedTile() ?? { message: "战场尚未初始化。", ok: false });
+  }
+
   function upgradeCanvasBuilding() {
     runCanvasAction(250, () => battlefieldRef.current?.upgradeSelectedBuilding() ?? { message: "战场尚未初始化。", ok: false });
   }
@@ -1190,6 +1266,18 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
     setCanvasBattleStats(stats);
   }
 
+  function handleCanvasResourceDelta(amount: number, reason: string) {
+    setState((current) => ({
+      ...current,
+      logs: pushLog(current.logs, `${reason}：知识币 +${amount}。`),
+      resources: current.resources + amount,
+      stats: {
+        ...current.stats,
+        coinsEarned: current.stats.coinsEarned + amount
+      }
+    }));
+  }
+
   function handleCanvasBattleEnd(status: "victory" | "defeat", hp: TerritoryCanvasBaseHp, stats: TerritoryCanvasBattleStats) {
     setCanvasBattleStats(stats);
     setState((current) => {
@@ -1208,6 +1296,26 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
         status
       };
     });
+  }
+
+  function skillCooldownForPet(petId: string) {
+    if (petId === "cloud_beast") return 30;
+    if (petId === "fire_fox" || petId === "grass_dragon") return 35;
+    return 40;
+  }
+
+  function useCanvasSkill(petId: string) {
+    const now = Date.now();
+    if ((skillCooldowns[petId] ?? 0) > now || state.status !== "playing") return;
+    const result = battlefieldRef.current?.useExpeditionSkill(petId) ?? { message: "战场尚未初始化。", ok: false };
+    pushCanvasLog(result.message);
+    if (result.ok) {
+      setSkillCooldowns((current) => ({ ...current, [petId]: now + skillCooldownForPet(petId) * 1000 }));
+    }
+  }
+
+  function skillCooldownRemaining(petId: string) {
+    return Math.max(0, Math.ceil(((skillCooldowns[petId] ?? 0) - Date.now()) / 1000));
   }
 
   if (state.scene === "chapters") {
@@ -1508,11 +1616,13 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
 
           <PhaserTerritoryWarCanvas
             battleActive={state.status === "playing" && state.scene === "map"}
+            bossName={currentChapter.bossName}
             enemyBaseHp={state.baseHpEnemy}
             expeditionPartnerIds={expeditionPartnerIds}
             onBaseHpChanged={handleCanvasBaseHpChanged}
             onBattleEnd={handleCanvasBattleEnd}
             onBattleStatsChanged={handleCanvasStatsChanged}
+            onResourceDelta={handleCanvasResourceDelta}
             ref={battlefieldRef}
             onLog={pushCanvasLog}
             onTileSelected={setSelectedBattleTile}
@@ -1580,7 +1690,7 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
             {selectedBattleTile && (
               <div className="mt-3 grid gap-2 text-xs font-black text-ink/58">
                 <span className="rounded-full bg-ink/5 px-3 py-2">类型：{canvasTileTypeLabel(selectedBattleTile.type)}</span>
-                <span className="rounded-full bg-ink/5 px-3 py-2">建筑：{selectedBattleTile.building ? `${selectedBattleTile.building === "camp" ? "伙伴营地" : "知识矿点"} Lv.${selectedBattleTile.buildingLevel ?? 1}` : "无"}</span>
+                <span className="rounded-full bg-ink/5 px-3 py-2">建筑：{selectedBattleTile.building ? `${selectedBattleTile.building === "camp" ? "伙伴营地" : selectedBattleTile.building === "mine" ? "知识矿点" : "防御塔"} Lv.${selectedBattleTile.buildingLevel ?? 1}` : "无"}</span>
                 <span className="rounded-full bg-ink/5 px-3 py-2">价格：{selectedBattleTile.cost || 0}</span>
               </div>
             )}
@@ -1593,9 +1703,32 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
               <ActionButton disabled={!selectedBattleTile || selectedBattleTile.owner === "player" || selectedBattleTile.type === "water" || selectedBattleTile.type === "enemy_base" || state.status !== "playing"} icon={<Flag className="size-4" />} onClick={occupyCanvasTile}>占领地块 · {selectedBattleTile?.type === "resource" ? 50 : 25}</ActionButton>
               <ActionButton disabled={!selectedBattleTile || selectedBattleTile.owner !== "player" || Boolean(selectedBattleTile.building) || selectedBattleTile.type === "player_base" || selectedBattleTile.type === "enemy_base" || state.resources < 100 || state.status !== "playing"} icon={<Tent className="size-4" />} onClick={buildCanvasCamp}>建造伙伴据点 · 100</ActionButton>
               <ActionButton disabled={!selectedBattleTile || selectedBattleTile.owner !== "player" || selectedBattleTile.type !== "resource" || Boolean(selectedBattleTile.building) || state.resources < 50 || state.status !== "playing"} icon={<Gem className="size-4" />} onClick={buildCanvasMine}>建造知识矿点 · 50</ActionButton>
+              <ActionButton disabled={!selectedBattleTile || selectedBattleTile.owner !== "player" || selectedBattleTile.type !== "buildable" || Boolean(selectedBattleTile.building) || state.resources < 120 || state.status !== "playing"} icon={<Shield className="size-4" />} onClick={buildCanvasTower}>建造防御塔 · 120</ActionButton>
               <ActionButton disabled={!selectedBattleTile?.building || state.resources < 250 || state.status !== "playing"} icon={<Zap className="size-4" />} onClick={upgradeCanvasBuilding}>升级建筑 · 250</ActionButton>
-              <ActionButton disabled={selectedBattleTile?.type !== "question" || state.status !== "playing"} icon={<HelpCircle className="size-4" />} onClick={() => pushCanvasLog("知识挑战按钮已保留：下一步会把 Phaser 题目点接入现有答题弹窗。")}>开始知识挑战</ActionButton>
+              <ActionButton disabled={selectedBattleTile?.type !== "question" || selectedBattleTile.owner === "player" || state.status !== "playing"} icon={<HelpCircle className="size-4" />} onClick={() => selectedBattleTile && openCanvasQuestion(selectedBattleTile)}>开始知识挑战</ActionButton>
               <ActionButton icon={<RefreshCw className="size-4" />} onClick={resetCanvasBattlefield}>重置 Phaser 战场</ActionButton>
+            </div>
+          </GameCard>
+
+          <GameCard className="bg-white/72">
+            <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Pet Skills</p>
+            <h3 className="mt-1 text-xl font-black text-ink">远征技能</h3>
+            <div className="mt-3 grid gap-2">
+              {expeditionPartners.map((partner) => {
+                const remaining = skillCooldownRemaining(partner.id);
+                return (
+                  <button
+                    className="flex min-h-12 items-center justify-between gap-3 rounded-2xl bg-tide px-3 text-left text-sm font-black text-white shadow-[0_12px_24px_rgba(21,156,168,0.14)] transition hover:-translate-y-0.5 disabled:bg-ink/10 disabled:text-ink/36 disabled:shadow-none"
+                    disabled={remaining > 0 || state.status !== "playing"}
+                    key={partner.id}
+                    onClick={() => useCanvasSkill(partner.id)}
+                    type="button"
+                  >
+                    <span>{getPartnerSkill(partner.id).name}</span>
+                    <span className="rounded-full bg-white/20 px-2 py-1 text-xs">{remaining > 0 ? `${remaining}s` : "可用"}</span>
+                  </button>
+                );
+              })}
             </div>
           </GameCard>
 
@@ -1657,7 +1790,7 @@ export function TerritoryWarPage({ questions = [], user }: { questions?: QuizQue
                 <h3 className="mt-1 text-2xl font-black text-ink">知识挑战</h3>
                 <p className="mt-2 text-sm font-bold text-ink/54">{subjectLabels[activeQuestion.subject]} · {activeQuestion.chapter} · {activeQuestion.difficulty}</p>
               </div>
-              <button className="rounded-2xl bg-ink/6 px-4 py-2 text-sm font-black text-ink/58 hover:bg-ink/10" onClick={() => setActiveQuestionTileId(null)} type="button">返回地图</button>
+              <button className="rounded-2xl bg-ink/6 px-4 py-2 text-sm font-black text-ink/58 hover:bg-ink/10" onClick={() => { setActiveQuestionTileId(null); setActiveCanvasQuestion(null); setActiveCanvasQuestionTile(null); }} type="button">返回地图</button>
             </div>
 
             <p className="mt-5 rounded-[1.4rem] bg-white/76 p-4 text-base font-black leading-7 text-ink shadow-[0_10px_22px_rgba(16,36,63,0.06)]">{activeQuestion.question}</p>
@@ -1753,6 +1886,8 @@ function canvasTileLabel(tile: TerritoryCanvasTile) {
   if (tile.type === "resource") return tile.building === "mine" ? "知识矿点" : "知识矿脉";
   if (tile.type === "question") return "知识挑战";
   if (tile.building === "camp") return `伙伴营地 Lv.${tile.buildingLevel ?? 1}`;
+  if (tile.building === "tower") return `知识防御塔 Lv.${tile.buildingLevel ?? 1}`;
+  if (tile.building === "mine") return `知识矿点 Lv.${tile.buildingLevel ?? 1}`;
   return tile.owner === "player" ? "我方领地" : tile.owner === "enemy" ? "敌方领地" : "中立地块";
 }
 

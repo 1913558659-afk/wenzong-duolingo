@@ -512,6 +512,51 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
     }
   }
 
+  function updateTerritoryStateForAdmin(updater: (state: Record<string, unknown>) => Record<string, unknown>, message: string) {
+    try {
+      const raw = window.localStorage.getItem("sayhi_territory_war_state");
+      const state = raw ? JSON.parse(raw) as Record<string, unknown> : {};
+      window.localStorage.setItem("sayhi_territory_war_state", JSON.stringify(updater(state)));
+      setNotice(message);
+    } catch {
+      setNotice("当前局存档读取失败。");
+    }
+  }
+
+  function forceTerritoryWarState(status: "defeat" | "victory") {
+    updateTerritoryStateForAdmin((state) => ({
+      ...state,
+      baseHpEnemy: status === "victory" ? 0 : state.baseHpEnemy,
+      baseHpPlayer: status === "defeat" ? 0 : state.baseHpPlayer,
+      logs: [status === "victory" ? "Debug：已设置为立即胜利。" : "Debug：已设置为立即失败。", ...((state.logs as string[] | undefined) ?? [])].slice(0, 10),
+      scene: "result",
+      status
+    }), status === "victory" ? "已将知识领地战当前局设置为胜利。" : "已将知识领地战当前局设置为失败。");
+  }
+
+  function addTerritoryQuestionTile() {
+    updateTerritoryStateForAdmin((state) => {
+      const tiles = Array.isArray(state.tiles) ? state.tiles as Array<Record<string, unknown>> : [];
+      const target = tiles.find((tile) => tile.type === "plain" && tile.ownedBy !== "player") ?? tiles[0];
+      return {
+        ...state,
+        logs: ["Debug：已生成题目格。", ...((state.logs as string[] | undefined) ?? [])].slice(0, 10),
+        tiles: tiles.map((tile) => tile.id === target?.id ? { ...tile, ownedBy: "neutral", revealed: true, solved: false, type: "question" } : tile)
+      };
+    }, "已在当前局存档中生成一个知识挑战格。刷新 /territory-war 后生效。");
+  }
+
+  function markTerritoryBossEvent() {
+    updateTerritoryStateForAdmin((state) => ({
+      ...state,
+      logs: ["Debug：Boss 事件已标记，进入战场后可用页面内按钮或等待事件。", ...((state.logs as string[] | undefined) ?? [])].slice(0, 10)
+    }), "已写入 Boss 事件测试日志。");
+  }
+
+  function clearTerritoryUnits() {
+    updateTerritoryStateForAdmin((state) => ({ ...state, units: [] }), "已清空旧版单位字段；Phaser 当前场景单位需在页面内重置战场。");
+  }
+
   const tabs: Array<{ id: DebugTab; label: string }> = [
     { id: "challenge", label: "闯关测试" },
     { id: "pets", label: "宠物测试" },
@@ -755,6 +800,11 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
               <button className={buttonClass()} onClick={() => simulateTerritoryResult(true)} type="button">模拟章节胜利</button>
               <button className={buttonClass()} onClick={() => simulateTerritoryResult(false)} type="button">模拟章节失败</button>
               <button className={buttonClass()} onClick={addTerritoryStateResources} type="button">本局知识币 +500</button>
+              <button className={buttonClass()} onClick={() => forceTerritoryWarState("victory")} type="button">当前局立即胜利</button>
+              <button className={buttonClass()} onClick={() => forceTerritoryWarState("defeat")} type="button">当前局立即失败</button>
+              <button className={buttonClass()} onClick={addTerritoryQuestionTile} type="button">生成题目格</button>
+              <button className={buttonClass()} onClick={markTerritoryBossEvent} type="button">触发 Boss 事件标记</button>
+              <button className={buttonClass()} onClick={clearTerritoryUnits} type="button">清除旧版单位字段</button>
               <button className={buttonClass()} onClick={() => { window.localStorage.removeItem("sayhi_territory_war_state"); window.localStorage.removeItem("sayhi-territory-war-mvp"); setNotice("已清空知识领地战当前局 state。"); }} type="button">清空当前局 state</button>
               <button className={buttonClass("danger")} onClick={resetTerritoryProgress} type="button">清空长期 progress</button>
             </div>

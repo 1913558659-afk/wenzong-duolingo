@@ -13,7 +13,7 @@ export type TerritoryCanvasTileType =
 
 export type TerritoryCanvasTile = {
   blocked: boolean;
-  building?: "camp" | "mine";
+  building?: "camp" | "mine" | "tower";
   buildingLevel?: number;
   col: number;
   cost: number;
@@ -48,9 +48,14 @@ export type TerritoryCanvasBattleStats = {
 export type PhaserTerritoryWarCanvasHandle = {
   buildCampOnSelectedTile: () => TerritoryCanvasActionResult;
   buildMineOnSelectedTile: () => TerritoryCanvasActionResult;
+  buildTowerOnSelectedTile: () => TerritoryCanvasActionResult;
+  clearUnits: () => void;
+  debugTriggerBossEvent: () => void;
+  applyQuestionResult: (tileId: string, correct: boolean) => TerritoryCanvasActionResult;
   occupySelectedTile: () => TerritoryCanvasActionResult;
   resetBattlefield: () => void;
   resetView: () => void;
+  useExpeditionSkill: (petId: string) => TerritoryCanvasActionResult;
   upgradeSelectedBuilding: () => TerritoryCanvasActionResult;
   zoomIn: () => void;
   zoomOut: () => void;
@@ -58,10 +63,13 @@ export type PhaserTerritoryWarCanvasHandle = {
 
 type PhaserTerritoryWarCanvasProps = {
   battleActive?: boolean;
+  bossName?: string;
   enemyBaseHp?: number;
   expeditionPartnerIds?: string[];
   onBaseHpChanged?: (hp: TerritoryCanvasBaseHp) => void;
   onBattleEnd?: (status: "victory" | "defeat", hp: TerritoryCanvasBaseHp, stats: TerritoryCanvasBattleStats) => void;
+  onQuestionTileRequested?: (tile: TerritoryCanvasTile) => void;
+  onResourceDelta?: (amount: number, reason: string) => void;
   onBattleStatsChanged?: (stats: TerritoryCanvasBattleStats) => void;
   onLog?: (message: string) => void;
   playerBaseHp?: number;
@@ -73,6 +81,7 @@ const cols = 12;
 const occupyCost = 25;
 const campCost = 100;
 const mineCost = 50;
+const towerCost = 120;
 const upgradeCost = 250;
 const playerBaseTileId = tileId(8, 1);
 const enemyBaseTileId = tileId(1, 10);
@@ -95,6 +104,12 @@ type TerritoryBattleUnit = {
   targetHexId?: string;
   x: number;
   y: number;
+};
+
+type TemporaryBattleBuff = {
+  expiresAt: number;
+  type: "boss_damage" | "player_attack" | "player_heal" | "spawn_speed";
+  value: number;
 };
 
 function tileId(row: number, col: number) {
@@ -208,8 +223,12 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
   private baseHp: TerritoryCanvasBaseHp;
   private baseHpMax: TerritoryCanvasBaseHp;
   private battlefieldStartedAt = 0;
+  private bossName = "迷雾核心";
   private buildingSpawnTimes = new Map<string, number>();
+  private buildingAttackTimes = new Map<string, number>();
   private expeditionPartnerIds: string[];
+  private lastBossAttackBuffAt = 0;
+  private lastBossWaveAt = 0;
   private lastEnemyBaseSpawn = 0;
   private lastMineIncomeAt = 0;
   private lastPlayerBaseSpawn = 0;
@@ -220,6 +239,8 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
   private onBattleEnd?: (status: "victory" | "defeat", hp: TerritoryCanvasBaseHp, stats: TerritoryCanvasBattleStats) => void;
   private onBattleStatsChanged?: (stats: TerritoryCanvasBattleStats) => void;
   private onLog?: (message: string) => void;
+  private onQuestionTileRequested?: (tile: TerritoryCanvasTile) => void;
+  private onResourceDelta?: (amount: number, reason: string) => void;
   private onTileSelected?: (tile: TerritoryCanvasTile) => void;
   private radius = 42;
   private selectedTileId = playerBaseTileId;
@@ -232,6 +253,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     playerUnitsLost: 0
   };
   private stopped = false;
+  private temporaryBuffs: TemporaryBattleBuff[] = [];
   private tiles: TerritoryCanvasTile[] = createBattlefieldTiles();
   private unitViews = new Map<string, Phaser.GameObjects.Container>();
   private units: TerritoryBattleUnit[] = [];
@@ -239,6 +261,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
   constructor(options: PhaserTerritoryWarCanvasProps) {
     super("TerritoryWarBattlefieldScene");
     this.battleActive = options.battleActive ?? true;
+    this.bossName = options.bossName ?? this.bossName;
     this.baseHp = {
       enemy: options.enemyBaseHp ?? 120,
       player: options.playerBaseHp ?? 110
@@ -249,6 +272,8 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     this.onBattleEnd = options.onBattleEnd;
     this.onBattleStatsChanged = options.onBattleStatsChanged;
     this.onLog = options.onLog;
+    this.onQuestionTileRequested = options.onQuestionTileRequested;
+    this.onResourceDelta = options.onResourceDelta;
     this.onTileSelected = options.onTileSelected;
   }
 
@@ -317,17 +342,46 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     return { cost: mineCost, message: "激活了知识矿点。", ok: true, tile: cloneTile(tile) };
   }
 
+  buildTowerOnSelectedTile(): TerritoryCanvasActionResult {
+    const tile = this.getSelectedTile();
+    if (!tile) return { message: "请先选择地块。", ok: false };
+    if (tile.owner !== "player" || tile.blocked || tile.type !== "buildable") return { message: "只能在己方普通地块建造防御塔。", ok: false, tile: cloneTile(tile) };
+    if (tile.building) return { message: "该地块已有建筑。", ok: false, tile: cloneTile(tile) };
+    tile.building = "tower";
+    tile.buildingLevel = 1;
+    this.draw();
+    this.onTileSelected?.(cloneTile(tile));
+    return { cost: towerCost, message: "建造了知识防御塔。", ok: true, tile: cloneTile(tile) };
+  }
+
   occupySelectedTile(): TerritoryCanvasActionResult {
     const tile = this.getSelectedTile();
     if (!tile) return { message: "请先选择地块。", ok: false };
     if (tile.blocked || tile.type === "water") return { message: "水域无法占领。", ok: false, tile: cloneTile(tile) };
     if (tile.type === "enemy_base") return { message: "迷雾核心不能直接占领。", ok: false, tile: cloneTile(tile) };
+    if (tile.type === "question") return { message: "知识挑战格需要先答题，答对后才能占领。", ok: false, tile: cloneTile(tile) };
     if (tile.owner === "player") return { message: "这片地块已经属于我方。", ok: false, tile: cloneTile(tile) };
     if (!isAdjacentToPlayer(this.tiles, tile)) return { message: "只能占领相邻我方领地的地块。", ok: false, tile: cloneTile(tile) };
     tile.owner = "player";
     this.draw();
     this.onTileSelected?.(cloneTile(tile));
     return { cost: tile.type === "resource" ? mineCost : occupyCost, message: `占领了 ${tileName(tile)}。`, ok: true, tile: cloneTile(tile) };
+  }
+
+  applyQuestionResult(tileIdValue: string, correct: boolean): TerritoryCanvasActionResult {
+    const tile = this.tiles.find((item) => item.id === tileIdValue);
+    if (!tile || tile.type !== "question") return { message: "没有找到对应的知识挑战格。", ok: false };
+    if (correct) {
+      tile.owner = "player";
+      tile.cost = 0;
+      this.showFloatingText(this.tileCenter(tile).x, this.tileCenter(tile).y - 30, "+60", "#159ca8");
+      this.draw();
+      this.onTileSelected?.(cloneTile(tile));
+      return { message: "答题成功，知识挑战格已归入我方领地。", ok: true, tile: cloneTile(tile) };
+    }
+    this.temporaryBuffs.push({ expiresAt: this.time.now + 15000, type: "player_attack", value: -0.05 });
+    this.showFloatingText(this.tileCenter(tile).x, this.tileCenter(tile).y - 30, "迷雾增强", "#7b4bd6");
+    return { message: "答错了，题目格暂未占领，迷雾短暂压制我方攻击。", ok: true, tile: cloneTile(tile) };
   }
 
   resetBattlefield() {
@@ -337,6 +391,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     this.unitViews.forEach((view) => view.destroy());
     this.unitViews.clear();
     this.buildingSpawnTimes.clear();
+    this.buildingAttackTimes.clear();
     this.nextUnitId = 1;
     this.stopped = false;
     this.baseHp = { ...this.baseHpMax };
@@ -351,14 +406,30 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     this.battlefieldStartedAt = this.time.now;
     this.lastPlayerBaseSpawn = this.time.now - 1200;
     this.lastEnemyBaseSpawn = this.time.now - 300;
+    this.lastBossWaveAt = this.time.now;
+    this.lastBossAttackBuffAt = this.time.now;
     this.lastMineIncomeAt = this.time.now;
     this.lastRabbitHealAt = this.time.now;
+    this.temporaryBuffs = [];
     this.draw();
     this.fitView();
     this.notifyBaseHp();
     this.notifyStats();
     const selected = this.getSelectedTile();
     if (selected) this.onTileSelected?.(cloneTile(selected));
+  }
+
+  clearUnits() {
+    this.units = [];
+    this.unitViews.forEach((view) => view.destroy());
+    this.unitViews.clear();
+    this.notifyStats();
+  }
+
+  debugTriggerBossEvent() {
+    this.spawnUnit("enemy", enemyBaseTileId);
+    this.spawnUnit("enemy", enemyBaseTileId);
+    this.onLog?.(`${this.bossName} 立刻召唤了一波迷雾单位。`);
   }
 
   resetView() {
@@ -388,13 +459,53 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     this.setZoom(this.cameras.main.zoom - 0.14);
   }
 
-  updateRuntimeOptions(options: Pick<PhaserTerritoryWarCanvasProps, "battleActive" | "enemyBaseHp" | "expeditionPartnerIds" | "onBaseHpChanged" | "onBattleEnd" | "onBattleStatsChanged" | "onLog" | "onTileSelected" | "playerBaseHp">) {
+  useExpeditionSkill(petId: string): TerritoryCanvasActionResult {
+    const now = this.time.now;
+    if (petId === "cloud_beast") {
+      this.baseHp.player = Math.min(this.baseHpMax.player + 20, this.baseHp.player + 20);
+      this.notifyBaseHp();
+      this.draw();
+      return { message: "云盾守护生效：学习基地护盾 +20。", ok: true };
+    }
+    if (petId === "fire_fox") {
+      this.temporaryBuffs.push({ expiresAt: now + 12000, type: "player_attack", value: 0.15 });
+      return { message: "星火冲锋生效：我方单位攻击 +15%，持续 12 秒。", ok: true };
+    }
+    if (petId === "grass_dragon") {
+      for (const unit of this.units.filter((item) => item.side === "player")) {
+        unit.hp = Math.min(unit.maxHp, unit.hp + 6);
+      }
+      this.temporaryBuffs.push({ expiresAt: now + 10000, type: "player_heal", value: 0.35 });
+      return { message: "根系庇护生效：伙伴小队持续恢复。", ok: true };
+    }
+    if (petId === "focus-rabbit-01") {
+      this.baseHp.player = Math.min(this.baseHpMax.player, this.baseHp.player + 12);
+      this.notifyBaseHp();
+      this.draw();
+      return { message: "静心恢复生效：学习基地 HP +12。", ok: true };
+    }
+    if (petId === "focus-crow-01") {
+      this.temporaryBuffs.push({ expiresAt: now + 12000, type: "boss_damage", value: 0.2 });
+      return { message: "题眼锁定生效：对 Boss 伤害 +20%，持续 12 秒。", ok: true };
+    }
+    if (petId === "focus-octopus-01") {
+      this.temporaryBuffs.push({ expiresAt: now + 12000, type: "spawn_speed", value: 0.2 });
+      return { message: "队列整理生效：伙伴据点出兵速度 +20%，持续 12 秒。", ok: true };
+    }
+    this.temporaryBuffs.push({ expiresAt: now + 10000, type: "player_attack", value: 0.08 });
+    return { message: "伙伴协力生效：我方单位攻击 +8%，持续 10 秒。", ok: true };
+  }
+
+  updateRuntimeOptions(options: Pick<PhaserTerritoryWarCanvasProps, "battleActive" | "bossName" | "enemyBaseHp" | "expeditionPartnerIds" | "onBaseHpChanged" | "onBattleEnd" | "onBattleStatsChanged" | "onLog" | "onQuestionTileRequested" | "onResourceDelta" | "onTileSelected" | "playerBaseHp">) {
     this.battleActive = options.battleActive ?? this.battleActive;
+    this.bossName = options.bossName ?? this.bossName;
     this.expeditionPartnerIds = options.expeditionPartnerIds ?? this.expeditionPartnerIds;
     this.onBaseHpChanged = options.onBaseHpChanged;
     this.onBattleEnd = options.onBattleEnd;
     this.onBattleStatsChanged = options.onBattleStatsChanged;
     this.onLog = options.onLog;
+    this.onQuestionTileRequested = options.onQuestionTileRequested;
+    this.onResourceDelta = options.onResourceDelta;
     this.onTileSelected = options.onTileSelected;
     if (!this.units.length && !this.stopped) {
       this.baseHp = {
@@ -411,9 +522,13 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
 
   private runBattleTick(delta: number) {
     const now = this.time.now;
+    this.temporaryBuffs = this.temporaryBuffs.filter((buff) => buff.expiresAt > now);
     this.spawnUnits(now);
+    this.applyBossEvents(now);
     this.applyMineIncome(now);
     this.applyRabbitHeal(now);
+    this.applyTowerAttacks(now);
+    this.applyPlayerRegen(delta);
     for (const unit of [...this.units]) {
       if (unit.hp <= 0) continue;
       this.updateUnit(unit, delta);
@@ -425,6 +540,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
 
   private spawnUnits(now: number) {
     const elapsed = now - this.battlefieldStartedAt;
+    const spawnBuff = this.buffAmount("spawn_speed");
     const enemyDelayBonus = this.hasPartner("forget_shadow") ? 1.1 : 1;
     const earlyRushBonus = this.hasPartner("anxiety_beast") && elapsed <= 20000 ? 0.85 : 1;
     const playerBaseInterval = 4000 * earlyRushBonus;
@@ -443,7 +559,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
       if (tile.building !== "camp" || tile.owner !== "player") continue;
       const level = tile.buildingLevel ?? 1;
       const octopusBonus = this.hasPartner("focus-octopus-01") ? 0.92 : 1;
-      const interval = (level === 2 ? 2600 : 3500) * octopusBonus;
+      const interval = (level === 2 ? 2600 : 3500) * octopusBonus * Math.max(0.65, 1 - spawnBuff);
       const last = this.buildingSpawnTimes.get(tile.id) ?? now;
       if (!this.buildingSpawnTimes.has(tile.id)) this.buildingSpawnTimes.set(tile.id, now - 900);
       if (now - last >= interval) {
@@ -454,11 +570,31 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     }
   }
 
+  private applyBossEvents(now: number) {
+    if (now - this.lastBossWaveAt >= 20000) {
+      this.lastBossWaveAt = now;
+      this.spawnUnit("enemy", enemyBaseTileId);
+      this.spawnUnit("enemy", enemyBaseTileId);
+      this.onLog?.(`${this.bossName} 召唤一波迷雾单位。`);
+    }
+    if (now - this.lastBossAttackBuffAt >= 35000) {
+      this.lastBossAttackBuffAt = now;
+      this.temporaryBuffs.push({ expiresAt: now + 10000, type: "player_attack", value: -0.1 });
+      this.onLog?.(`${this.bossName} 激活迷雾压制，我方攻击短暂下降。`);
+    }
+  }
+
   private applyMineIncome(now: number) {
-    if (now - this.lastMineIncomeAt < 3000) return;
+    if (now - this.lastMineIncomeAt < 2000) return;
     this.lastMineIncomeAt = now;
-    const activeMines = this.tiles.filter((tile) => tile.owner === "player" && tile.building === "mine").length;
-    if (activeMines) this.showFloatingText(80, 56, `知识币 +${activeMines * 2}`, "#a15c00");
+    const activeMines = this.tiles.filter((tile) => tile.owner === "player" && tile.building === "mine");
+    const amount = activeMines.reduce((total, tile) => total + ((tile.buildingLevel ?? 1) >= 2 ? 5 : 3), 0);
+    if (!amount) return;
+    this.onResourceDelta?.(amount, "知识矿点产出");
+    for (const tile of activeMines) {
+      const center = this.tileCenter(tile);
+      this.showFloatingText(center.x, center.y - 35, `+${(tile.buildingLevel ?? 1) >= 2 ? 5 : 3}`, "#a15c00");
+    }
   }
 
   private applyRabbitHeal(now: number) {
@@ -471,11 +607,44 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     this.notifyBaseHp();
   }
 
+  private applyTowerAttacks(now: number) {
+    for (const tile of this.tiles.filter((item) => item.owner === "player" && item.building === "tower")) {
+      const level = tile.buildingLevel ?? 1;
+      const interval = level === 2 ? 1200 : 1500;
+      const last = this.buildingAttackTimes.get(tile.id) ?? 0;
+      if (now - last < interval) continue;
+      const center = this.tileCenter(tile);
+      const target = this.units
+        .filter((unit) => unit.side === "enemy" && unit.hp > 0 && Phaser.Math.Distance.Between(center.x, center.y, unit.x, unit.y) <= this.radius * 2.5)
+        .sort((left, right) => Phaser.Math.Distance.Between(center.x, center.y, left.x, left.y) - Phaser.Math.Distance.Between(center.x, center.y, right.x, right.y))[0];
+      if (!target) continue;
+      const damage = level === 2 ? 8 : 5;
+      this.buildingAttackTimes.set(tile.id, now);
+      target.hp = Math.max(0, target.hp - damage);
+      const beam = this.add.line(0, 0, center.x, center.y, target.x, target.y, 0x159ca8, 0.82).setLineWidth(3);
+      this.tweens.add({ alpha: 0, duration: 220, onComplete: () => beam.destroy(), targets: beam });
+      this.showFloatingText(target.x, target.y - 34, `-${damage}`, "#159ca8");
+      this.flashUnit(target.id);
+      if (target.hp <= 0) {
+        this.removeUnitView(target.id);
+        this.stats.enemiesDefeated += 1;
+        this.onLog?.("知识防御塔击退了一名迷雾小怪。");
+      }
+    }
+  }
+
+  private applyPlayerRegen(delta: number) {
+    if (this.buffAmount("player_heal") <= 0) return;
+    for (const unit of this.units.filter((item) => item.side === "player" && item.hp > 0)) {
+      unit.hp = Math.min(unit.maxHp, unit.hp + delta * 0.0012);
+    }
+  }
+
   private spawnUnit(side: BattleUnitSide, hexId: string) {
     const center = this.tileCenterById(hexId);
     if (!center) return;
     const attackMultiplier = side === "player"
-      ? (this.hasPartner("fire_fox") ? 1.1 : 1)
+      ? Math.max(0.35, (this.hasPartner("fire_fox") ? 1.1 : 1) + this.buffAmount("player_attack"))
       : (this.hasPartner("careless_beast") ? 0.92 : 1);
     const hpMultiplier = side === "player" && this.hasPartner("grass_dragon") ? 1.12 : 1;
     const baseHp = side === "player" ? 24 : 22;
@@ -548,7 +717,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     unit.currentCooldown -= delta;
     if (unit.currentCooldown > 0) return;
     unit.currentCooldown = unit.attackCooldown;
-    const damage = Math.max(1, Math.round(unit.attack * (unit.side === "player" && this.hasPartner("focus-crow-01") ? 1.1 : 1)));
+    const damage = Math.max(1, Math.round(unit.attack * (unit.side === "player" && this.hasPartner("focus-crow-01") ? 1.1 : 1) * (1 + (unit.side === "player" ? this.buffAmount("boss_damage") : 0))));
     const target = unit.side === "player" ? "enemy" : "player";
     this.baseHp[target] = Math.max(0, this.baseHp[target] - damage);
     const baseCenter = this.tileCenterById(target === "enemy" ? enemyBaseTileId : playerBaseTileId);
@@ -630,6 +799,10 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
     return this.expeditionPartnerIds.includes(id);
   }
 
+  private buffAmount(type: TemporaryBattleBuff["type"]) {
+    return this.temporaryBuffs.filter((buff) => buff.type === type).reduce((total, buff) => total + buff.value, 0);
+  }
+
   private draw() {
     this.unitViews.forEach((view) => view.destroy());
     this.unitViews.clear();
@@ -665,7 +838,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
         const baseColor = tile.type === "player_base" ? 0x159ca8 : 0x6d4ed6;
         this.add.circle(x, y - 9, this.radius * 0.34, baseColor, 1).setStrokeStyle(3, 0xffffff, 0.9);
         this.add.rectangle(x, y + 12, this.radius * 0.85, this.radius * 0.42, baseColor, 1).setStrokeStyle(3, 0xffffff, 0.9);
-        this.add.text(x, y + 42, tile.type === "player_base" ? "学习基地" : "迷雾核心", { color: "#10233f", fontSize: "11px", fontStyle: "bold" }).setOrigin(0.5);
+        this.add.text(x, y + 42, tile.type === "player_base" ? "学习基地" : this.bossName, { color: "#10233f", fontSize: "11px", fontStyle: "bold" }).setOrigin(0.5);
         const key = tile.type === "player_base" ? "player" : "enemy";
         const maxHp = Math.max(1, this.baseHpMax[key]);
         const hpWidth = Phaser.Math.Clamp((this.baseHp[key] / maxHp) * 68, 0, 68);
@@ -675,13 +848,13 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
 
       if (tile.type === "resource") {
         this.add.circle(x, y - 6, this.radius * 0.22, 0xf1b84b, 1).setStrokeStyle(3, 0xffffff, 0.9);
-        this.add.text(x, y + 16, tile.building ? "矿 Lv." + (tile.buildingLevel ?? 1) : "50", { color: "#a15c00", fontSize: "15px", fontStyle: "bold" }).setOrigin(0.5);
+        this.add.text(x, y + 16, tile.building ? `+${(tile.buildingLevel ?? 1) >= 2 ? 5 : 3}/2s` : "50", { color: "#a15c00", fontSize: "15px", fontStyle: "bold" }).setOrigin(0.5);
       }
 
       if (tile.type === "question") {
         this.add.circle(x, y - 2, this.radius * 0.28, 0x6d8df6, 1).setStrokeStyle(3, 0xffffff, 0.92);
         this.add.text(x, y - 5, "?", { color: "#ffffff", fontSize: "24px", fontStyle: "bold" }).setOrigin(0.5);
-        if (tile.owner !== "player") this.add.text(x, y + 22, "25", { color: "#cc3d2f", fontSize: "15px", fontStyle: "bold" }).setOrigin(0.5);
+        this.add.text(x, y + 27, tile.owner === "player" ? "已解答" : "知识挑战", { color: tile.owner === "player" ? "#159ca8" : "#3554a4", fontSize: "10px", fontStyle: "bold" }).setOrigin(0.5);
       }
 
       if (tile.type === "buildable" && tile.owner !== "player" && tile.owner !== "enemy") {
@@ -696,6 +869,12 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
         this.add.circle(x, y - 9, this.radius * 0.22, 0xffffff, 0.96).setStrokeStyle(4, 0x159ca8, 0.9);
         this.add.rectangle(x, y + 10, this.radius * 0.52, this.radius * 0.36, 0x159ca8, 0.92).setStrokeStyle(2, 0xffffff, 0.9);
         this.add.text(x, y + 34, `营地 Lv.${tile.buildingLevel ?? 1}`, { color: "#10233f", fontSize: "11px", fontStyle: "bold" }).setOrigin(0.5);
+      }
+
+      if (tile.building === "tower") {
+        this.add.triangle(x, y - 11, 0, 24, 15, -8, 30, 24, 0xffffff, 0.96).setStrokeStyle(4, 0x159ca8, 0.9);
+        this.add.rectangle(x, y + 12, this.radius * 0.44, this.radius * 0.3, 0x246a86, 0.92).setStrokeStyle(2, 0xffffff, 0.9);
+        this.add.text(x, y + 34, `塔 Lv.${tile.buildingLevel ?? 1}`, { color: "#10233f", fontSize: "11px", fontStyle: "bold" }).setOrigin(0.5);
       }
 
       if (tile.owner === "enemy" && tile.type !== "enemy_base") {
@@ -813,7 +992,7 @@ class TerritoryWarBattlefieldScene extends Phaser.Scene {
 }
 
 export const PhaserTerritoryWarCanvas = forwardRef<PhaserTerritoryWarCanvasHandle, PhaserTerritoryWarCanvasProps>(
-  function PhaserTerritoryWarCanvas({ battleActive, enemyBaseHp, expeditionPartnerIds, onBaseHpChanged, onBattleEnd, onBattleStatsChanged, onLog, onTileSelected, playerBaseHp }, ref) {
+  function PhaserTerritoryWarCanvas({ battleActive, bossName, enemyBaseHp, expeditionPartnerIds, onBaseHpChanged, onBattleEnd, onBattleStatsChanged, onLog, onQuestionTileRequested, onResourceDelta, onTileSelected, playerBaseHp }, ref) {
     const containerRef = useRef<HTMLDivElement | null>(null);
     const gameRef = useRef<Phaser.Game | null>(null);
     const sceneRef = useRef<TerritoryWarBattlefieldScene | null>(null);
@@ -821,20 +1000,29 @@ export const PhaserTerritoryWarCanvas = forwardRef<PhaserTerritoryWarCanvasHandl
     const battleEndRef = useRef(onBattleEnd);
     const statsRef = useRef(onBattleStatsChanged);
     const logRef = useRef(onLog);
+    const questionRef = useRef(onQuestionTileRequested);
+    const resourceRef = useRef(onResourceDelta);
     const selectRef = useRef(onTileSelected);
 
     baseHpRef.current = onBaseHpChanged;
     battleEndRef.current = onBattleEnd;
     statsRef.current = onBattleStatsChanged;
     logRef.current = onLog;
+    questionRef.current = onQuestionTileRequested;
+    resourceRef.current = onResourceDelta;
     selectRef.current = onTileSelected;
 
     useImperativeHandle(ref, () => ({
       buildCampOnSelectedTile: () => sceneRef.current?.buildCampOnSelectedTile() ?? { message: "战场尚未初始化。", ok: false },
       buildMineOnSelectedTile: () => sceneRef.current?.buildMineOnSelectedTile() ?? { message: "战场尚未初始化。", ok: false },
+      buildTowerOnSelectedTile: () => sceneRef.current?.buildTowerOnSelectedTile() ?? { message: "战场尚未初始化。", ok: false },
+      clearUnits: () => sceneRef.current?.clearUnits(),
+      debugTriggerBossEvent: () => sceneRef.current?.debugTriggerBossEvent(),
+      applyQuestionResult: (tileIdValue, correct) => sceneRef.current?.applyQuestionResult(tileIdValue, correct) ?? { message: "战场尚未初始化。", ok: false },
       occupySelectedTile: () => sceneRef.current?.occupySelectedTile() ?? { message: "战场尚未初始化。", ok: false },
       resetBattlefield: () => sceneRef.current?.resetBattlefield(),
       resetView: () => sceneRef.current?.resetView(),
+      useExpeditionSkill: (petId) => sceneRef.current?.useExpeditionSkill(petId) ?? { message: "战场尚未初始化。", ok: false },
       upgradeSelectedBuilding: () => sceneRef.current?.upgradeSelectedBuilding() ?? { message: "战场尚未初始化。", ok: false },
       zoomIn: () => sceneRef.current?.zoomIn(),
       zoomOut: () => sceneRef.current?.zoomOut()
@@ -844,12 +1032,15 @@ export const PhaserTerritoryWarCanvas = forwardRef<PhaserTerritoryWarCanvasHandl
       if (!containerRef.current || gameRef.current) return;
       const scene = new TerritoryWarBattlefieldScene({
         battleActive,
+        bossName,
         enemyBaseHp,
         expeditionPartnerIds,
         onBaseHpChanged: (hp) => baseHpRef.current?.(hp),
         onBattleEnd: (status, hp, stats) => battleEndRef.current?.(status, hp, stats),
         onBattleStatsChanged: (stats) => statsRef.current?.(stats),
         onLog: (message) => logRef.current?.(message),
+        onQuestionTileRequested: (tile) => questionRef.current?.(tile),
+        onResourceDelta: (amount, reason) => resourceRef.current?.(amount, reason),
         onTileSelected: (tile) => selectRef.current?.(tile),
         playerBaseHp
       });
@@ -877,16 +1068,19 @@ export const PhaserTerritoryWarCanvas = forwardRef<PhaserTerritoryWarCanvasHandl
     useEffect(() => {
       sceneRef.current?.updateRuntimeOptions({
         battleActive,
+        bossName,
         enemyBaseHp,
         expeditionPartnerIds,
         onBaseHpChanged: (hp) => baseHpRef.current?.(hp),
         onBattleEnd: (status, hp, stats) => battleEndRef.current?.(status, hp, stats),
         onBattleStatsChanged: (stats) => statsRef.current?.(stats),
         onLog: (message) => logRef.current?.(message),
+        onQuestionTileRequested: (tile) => questionRef.current?.(tile),
+        onResourceDelta: (amount, reason) => resourceRef.current?.(amount, reason),
         onTileSelected: (tile) => selectRef.current?.(tile),
         playerBaseHp
       });
-    }, [battleActive, enemyBaseHp, expeditionPartnerIds, playerBaseHp]);
+    }, [battleActive, bossName, enemyBaseHp, expeditionPartnerIds, playerBaseHp]);
 
     return (
       <div className="h-[56vh] min-h-[420px] overflow-hidden rounded-[1.5rem] border border-white/80 bg-[#f7f3e7] shadow-[0_18px_50px_rgba(16,35,63,0.12)] md:h-[620px] lg:h-[calc(100vh-250px)] lg:min-h-[560px]">
