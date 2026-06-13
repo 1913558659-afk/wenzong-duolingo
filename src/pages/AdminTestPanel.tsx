@@ -1,8 +1,10 @@
 import { useMemo, useState } from "react";
 import { AlertTriangle, CheckCircle2, Copy, Database, FlaskConical, Lock, RotateCcw, ShieldCheck, Wrench } from "lucide-react";
+import { EvolutionAnimationOverlay } from "@/components/petBattle/EvolutionAnimationOverlay";
 import { enemies, pets } from "@/data/petBattleData";
-import { petSpeciesMasterData } from "@/data/petSpeciesMasterData";
+import { getLevelGrowthWeight, getPetSpeciesStatsAtLevel, petSpeciesMasterData } from "@/data/petSpeciesMasterData";
 import { getSpeciesSkillTemplate } from "@/data/petTrainingSkills";
+import { calculateSkillDamage } from "@/utils/petBattle";
 import { SUBJECT_CONFIGS } from "@/lib/subjects";
 import { isAdminUser } from "@/config/admin";
 import { addPetExp, getPetLevelInfo, loadPartnerChessSave, partnerChessLevelCap, partnerChessSaveKey, savePartnerChessSave } from "@/utils/partnerChessSave";
@@ -125,6 +127,20 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
   const [exportText, setExportText] = useState("");
   const [importText, setImportText] = useState("");
   const [checks, setChecks] = useState<CheckRow[]>([]);
+  const [damageAttackerId, setDamageAttackerId] = useState("cloud_beast");
+  const [damageDefenderId, setDamageDefenderId] = useState("careless_beast");
+  const [damageAttackerLevel, setDamageAttackerLevel] = useState(60);
+  const [damageDefenderLevel, setDamageDefenderLevel] = useState(10);
+  const [damageAttackerStage, setDamageAttackerStage] = useState<1 | 2 | 3>(1);
+  const [damageDefenderStage, setDamageDefenderStage] = useState<1 | 2 | 3>(1);
+  const [previewEvolution, setPreviewEvolution] = useState<null | {
+    currentImage: string;
+    currentName: string;
+    level: number;
+    nextImage: string;
+    nextName: string;
+    nextStage: number;
+  }>(null);
 
   const chapters = useMemo(() => subjectChapters(questions, selectedSubject), [questions, selectedSubject]);
   const activeChapter = selectedChapter || chapters[0] || "";
@@ -141,6 +157,29 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
   const selectedTemplate = getSpeciesSkillTemplate(selectedPet);
   const learned = save.petLearnedSkillIds[selectedPetId] ?? [];
   const equipped = save.petEquippedSkillIds[selectedPetId] ?? [];
+  const damageAttackerPet = getTrainingPetById(damageAttackerId);
+  const damageDefenderEnemy = enemies.find((enemy) => enemy.id === damageDefenderId) ?? enemies[0];
+  const damageSkill = getSpeciesSkillTemplate(damageAttackerPet).find((skill) => skill.power > 0) ?? getSpeciesSkillTemplate(damageAttackerPet)[0];
+  const damageAttackerStats = getPetSpeciesStatsAtLevel(damageAttackerId, damageAttackerLevel, damageAttackerStage) ?? damageAttackerPet.baseStats;
+  const damageDefenderStats = getPetSpeciesStatsAtLevel(damageDefenderId, damageDefenderLevel, damageDefenderStage) ?? damageDefenderEnemy.stats;
+  const damageLow = damageSkill ? calculateSkillDamage({
+    attackerAttack: damageAttackerStats.attack,
+    attackerLevel: damageAttackerLevel,
+    defenderDefense: damageDefenderStats.defense,
+    enemyType: damageDefenderEnemy.type,
+    pet: damageAttackerPet,
+    randomMultiplier: 0.92,
+    skill: damageSkill
+  }).totalDamage : 0;
+  const damageHigh = damageSkill ? calculateSkillDamage({
+    attackerAttack: damageAttackerStats.attack,
+    attackerLevel: damageAttackerLevel,
+    defenderDefense: damageDefenderStats.defense,
+    enemyType: damageDefenderEnemy.type,
+    pet: damageAttackerPet,
+    randomMultiplier: 1.08,
+    skill: damageSkill
+  }).totalDamage : 0;
 
   function refresh(message?: string) {
     setSave(ensurePetCollection(loadPartnerChessSave()));
@@ -326,6 +365,18 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
     const bossOpen = petSpeciesMasterData.filter((species) => species.rarity === "boss" && species.evolutionLine.stages.some((stage) => stage.stage > 1 && stage.canEvolve));
     rows.push({ name: "Boss 普通进化开放", status: bossOpen.length ? "错误" : "通过", detail: bossOpen.map((item) => item.name).join(", ") || "Boss 均为碎片预留", suggestion: "Boss 二三阶段 canEvolve 应为 false。" });
 
+    const missingLv100 = petSpeciesMasterData.filter((species) => !species.level100Stats || Object.values(species.level100Stats).some((value) => !Number.isFinite(value)));
+    rows.push({ name: "Lv.100 targetStats", status: missingLv100.length ? "错误" : "通过", detail: missingLv100.map((item) => item.id).join(", ") || "全部存在", suggestion: "补齐 level100Stats，成长曲线依赖该字段。" });
+
+    const nanStats = petSpeciesMasterData.filter((species) => [1, 30, 60, 100].some((level) => {
+      const stats = getPetSpeciesStatsAtLevel(species.id, level, 3);
+      return !stats || Object.values(stats).some((value) => !Number.isFinite(value));
+    }));
+    rows.push({ name: "属性 NaN 检查", status: nanStats.length ? "错误" : "通过", detail: nanStats.map((item) => item.id).join(", ") || "所有关键等级属性正常", suggestion: "检查 baseStats / level100Stats / growthRate。" });
+
+    const missingStageCompat = current.ownedPets.filter((petId) => !current.petEvolutionStage[petId] || !current.petCurrentSpeciesId[petId]);
+    rows.push({ name: "旧存档进化字段兼容", status: missingStageCompat.length ? "警告" : "通过", detail: missingStageCompat.join(", ") || "ownedPets 均有 evolutionStage/currentSpeciesId", suggestion: "调用 ensurePetCollection 后会自动补齐。" });
+
     const overEquipped = Object.entries(current.petEquippedSkillIds).filter(([, ids]) => ids.length > 4);
     rows.push({ name: "携带技能超过 4", status: overEquipped.length ? "错误" : "通过", detail: overEquipped.map(([petId]) => petId).join(", ") || "全部正常", suggestion: "使用清理非法技能修复。" });
 
@@ -487,26 +538,73 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
           )}
 
           {tab === "evolution" && (
-            <Card title="进化测试" icon={<ShieldCheck className="size-5" />}>
-              <div className="grid gap-3 md:grid-cols-3">
-                {selectedSpecies?.evolutionLine.stages.map((stage) => (
-                  <div className="rounded-2xl border border-white/70 bg-white/70 p-3" key={stage.stage}>
-                    <img alt={stage.name} className="mx-auto h-24 object-contain" src={stage.image} />
-                    <p className="mt-2 text-center text-sm font-black text-[#10233f]">{stage.stage} 阶 · {stage.name}</p>
-                    <p className="text-center text-xs font-bold text-[#667085]">{stage.evolveLevel ? `Lv.${stage.evolveLevel}` : "初始形态"} {stage.canEvolve ? "" : "· 碎片预留"}</p>
+            <>
+              <Card title="进化测试" icon={<ShieldCheck className="size-5" />}>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {selectedSpecies?.evolutionLine.stages.map((stage) => (
+                    <div className="rounded-2xl border border-white/70 bg-white/70 p-3" key={stage.stage}>
+                      <img alt={stage.name} className="mx-auto h-24 object-contain" src={stage.image} />
+                      <p className="mt-2 text-center text-sm font-black text-[#10233f]">{stage.stage} 阶 · {stage.name}</p>
+                      <p className="text-center text-xs font-bold text-[#667085]">{stage.evolveLevel ? `Lv.${stage.evolveLevel}` : "初始形态"} {stage.canEvolve ? "" : "· 碎片预留"}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-bold text-[#667085]">当前判断：{selectedEvolution.reason}</div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {[10, 30, 60, 100].map((level) => <button className={buttonClass()} key={level} onClick={() => setSelectedPetLevel(level)} type="button">升到 Lv.{level}</button>)}
+                  <button
+                    className={buttonClass("primary")}
+                    onClick={() => {
+                      const current = getTrainingPetDisplayById(selectedPetId, save);
+                      const target = selectedEvolution.nextStage ?? selectedSpecies?.evolutionLine.stages[Math.min(2, getPetEvolutionStageValue(save, selectedPetId))];
+                      if (target) setPreviewEvolution({ currentImage: current.image, currentName: current.name, level: selectedLevelInfo.level, nextImage: target.image, nextName: target.name, nextStage: target.stage });
+                    }}
+                    type="button"
+                  >
+                    仅播放动画
+                  </button>
+                  <button className={buttonClass("primary")} onClick={() => { const result = evolvePet(save, selectedPetId); savePartnerChessSave(result.save); refresh(result.message); }} type="button">写入存档并进化</button>
+                  <button className={buttonClass()} onClick={() => forceStage(2)} type="button">强制二阶段</button>
+                  <button className={buttonClass()} onClick={() => forceStage(3)} type="button">强制三阶段</button>
+                  <button className={buttonClass("danger")} onClick={() => forceStage(1)} type="button">重置为一阶段</button>
+                </div>
+              </Card>
+              <Card title="成长曲线测试" icon={<Database className="size-5" />}>
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] border-separate border-spacing-y-2 text-sm">
+                    <thead className="text-left text-xs font-black uppercase tracking-[0.14em] text-[#667085]"><tr><th>等级</th><th>成长权重</th><th>一阶段</th><th>二阶段</th><th>三阶段</th></tr></thead>
+                    <tbody>
+                      {[1, 10, 30, 31, 60, 61, 100].map((level) => {
+                        const fmt = (stage: 1 | 2 | 3) => {
+                          const stats = getPetSpeciesStatsAtLevel(selectedPetId, level, stage);
+                          return stats ? `HP ${stats.hp} / 攻 ${stats.attack} / 防 ${stats.defense} / 速 ${stats.speed}` : "-";
+                        };
+                        return <tr className="bg-white/72" key={level}><td className="rounded-l-2xl px-3 py-3 font-black text-[#10233f]">Lv.{level}</td><td className="px-3 py-3 font-semibold text-[#667085]">{getLevelGrowthWeight(level).toFixed(2)}</td><td className="px-3 py-3 font-semibold text-[#667085]">{fmt(1)}</td><td className="px-3 py-3 font-semibold text-[#667085]">{fmt(2)}</td><td className="rounded-r-2xl px-3 py-3 font-semibold text-[#667085]">{fmt(3)}</td></tr>;
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+              <Card title="伤害测试" icon={<FlaskConical className="size-5" />}>
+                <div className="grid gap-3 md:grid-cols-3">
+                  <select className="rounded-2xl border border-white/70 bg-white/80 px-3 py-2 font-bold" value={damageAttackerId} onChange={(event) => setDamageAttackerId(event.target.value)}>{getAllCollectiblePets().map((pet) => <option key={pet.id} value={pet.id}>{pet.name} · {pet.id}</option>)}</select>
+                  <select className="rounded-2xl border border-white/70 bg-white/80 px-3 py-2 font-bold" value={damageDefenderId} onChange={(event) => setDamageDefenderId(event.target.value)}>{enemies.map((enemy) => <option key={enemy.id} value={enemy.id}>{enemy.name} · {enemy.id}</option>)}</select>
+                  <div className="grid grid-cols-4 gap-2">
+                    <input className="rounded-2xl border border-white/70 bg-white/80 px-3 py-2 font-bold" max={100} min={1} type="number" value={damageAttackerLevel} onChange={(event) => setDamageAttackerLevel(Number(event.target.value))} />
+                    <select className="rounded-2xl border border-white/70 bg-white/80 px-2 py-2 font-bold" value={damageAttackerStage} onChange={(event) => setDamageAttackerStage(Number(event.target.value) as 1 | 2 | 3)}><option value={1}>我1</option><option value={2}>我2</option><option value={3}>我3</option></select>
+                    <input className="rounded-2xl border border-white/70 bg-white/80 px-3 py-2 font-bold" max={100} min={1} type="number" value={damageDefenderLevel} onChange={(event) => setDamageDefenderLevel(Number(event.target.value))} />
+                    <select className="rounded-2xl border border-white/70 bg-white/80 px-2 py-2 font-bold" value={damageDefenderStage} onChange={(event) => setDamageDefenderStage(Number(event.target.value) as 1 | 2 | 3)}><option value={1}>敌1</option><option value={2}>敌2</option><option value={3}>敌3</option></select>
                   </div>
-                ))}
-              </div>
-              <div className="mt-4 rounded-2xl bg-white/70 p-4 text-sm font-bold text-[#667085]">当前判断：{selectedEvolution.reason}</div>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button className={buttonClass()} onClick={() => setSelectedPetLevel(30)} type="button">升到二阶段等级 Lv.30</button>
-                <button className={buttonClass()} onClick={() => setSelectedPetLevel(60)} type="button">升到三阶段等级 Lv.60</button>
-                <button className={buttonClass("primary")} onClick={() => { const result = evolvePet(save, selectedPetId); savePartnerChessSave(result.save); refresh(result.message); }} type="button">按正式规则进化</button>
-                <button className={buttonClass()} onClick={() => forceStage(2)} type="button">强制二阶段</button>
-                <button className={buttonClass()} onClick={() => forceStage(3)} type="button">强制三阶段</button>
-                <button className={buttonClass("danger")} onClick={() => forceStage(1)} type="button">重置为一阶段</button>
-              </div>
-            </Card>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <Info label="技能" value={`${damageSkill?.name ?? "-"} · 威力 ${damageSkill?.power ?? 0}`} />
+                  <Info label="攻击/防御" value={`${damageAttackerStats.attack} / ${damageDefenderStats.defense}`} />
+                  <Info label="levelPower" value={(1 + damageAttackerLevel * 0.006).toFixed(3)} />
+                  <Info label="预计伤害" value={`${damageLow} - ${damageHigh}`} />
+                </div>
+                <p className="mt-3 rounded-2xl bg-white/70 px-4 py-3 text-sm font-bold text-[#667085]">公式：技能威力 × 攻击 / (防御 × 0.55 + 12) × levelPower × 属性倍率 × 0.92—1.08。当前不使用强等级差倍率。</p>
+              </Card>
+            </>
           )}
 
           {tab === "skills" && (
@@ -598,6 +696,19 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
             </table>
           </div>
         </Card>
+      )}
+      {previewEvolution && (
+        <EvolutionAnimationOverlay
+          currentImage={previewEvolution.currentImage}
+          currentName={previewEvolution.currentName}
+          level={previewEvolution.level}
+          nextImage={previewEvolution.nextImage}
+          nextName={previewEvolution.nextName}
+          nextStage={previewEvolution.nextStage}
+          onCancel={() => setPreviewEvolution(null)}
+          onFinish={() => setPreviewEvolution(null)}
+          statSummary="这是管理员动画预览，不写入存档。"
+        />
       )}
     </div>
   );

@@ -3,6 +3,7 @@ import { BookOpen, HeartPulse, Lock, LogOut, Package, PawPrint, RotateCcw, Shiel
 import { GameCard } from "@/components/GameCard";
 import { PageHeader } from "@/components/PageHeader";
 import { DailyTrainingRewardPanel } from "@/components/petBattle/DailyTrainingRewardPanel";
+import { EvolutionAnimationOverlay } from "@/components/petBattle/EvolutionAnimationOverlay";
 import { ManualBattleStage, type ManualBattleAction } from "@/components/petBattle/ManualBattleStage";
 import { PetBagPanel } from "@/components/petBattle/PetBagPanel";
 import { PetOwnedBadge } from "@/components/petBattle/PetOwnedBadge";
@@ -11,11 +12,12 @@ import { PetTeamBar, type PetBattleTeamMember } from "@/components/petBattle/Pet
 import { SkillUnlockHint } from "@/components/petBattle/SkillUnlockHint";
 import { enemies, pets } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats, EnemyType, PetAttribute } from "@/data/petBattleData";
-import { getPetSpeciesMasterData, getPetSpeciesStatsAtLevel } from "@/data/petSpeciesMasterData";
+import { evolutionStatMultipliers, getLevelGrowthWeight, getPetSpeciesMasterData, getPetSpeciesStatsAtLevel } from "@/data/petSpeciesMasterData";
 import { getTrainingSkillsForPet, trainingSkillCountersEnemy, type PetTrainingSkill } from "@/data/petTrainingSkills";
 import type { BattleStatusEffect, BattleStatusType } from "@/data/petTrainingStatuses";
 import {
   calculateEnemyDamage,
+  calculateSkillDamage,
   chooseEnemySkill,
   clampHp,
   getPetStatsAtLevel,
@@ -76,6 +78,18 @@ type BattleEffects = {
   nextAttackMultiplier: number;
   nextDamageMultiplier: number;
   shieldReduction: number;
+};
+
+type PendingEvolution = {
+  currentImage: string;
+  currentName: string;
+  level: number;
+  nextImage: string;
+  nextName: string;
+  nextStage: number;
+  petId: string;
+  statSummary: string;
+  unlockedSkillNames: string[];
 };
 
 type PetBattleTab = "training" | "growth" | "bag" | "storage" | "archive";
@@ -146,16 +160,25 @@ function getBaseEnemyForStage(stage: number) {
 
 function getScaledEnemy(stage: number): BattleEnemy {
   const baseEnemy = getBaseEnemyForStage(stage);
+  const speciesStats = getPetSpeciesStatsAtLevel(baseEnemy.id, stage, 1);
+  const fallbackStats = {
+    hp: baseEnemy.stats.hp + stage * 8,
+    attack: baseEnemy.stats.attack + stage * 2,
+    defense: baseEnemy.stats.defense + Math.floor(stage / 2),
+    speed: baseEnemy.stats.speed + Math.floor(stage / 3)
+  };
+  const scaledStats = speciesStats ?? fallbackStats;
+  const boss = isBossEnemy(baseEnemy);
   return {
     ...baseEnemy,
     level: stage,
     rewardExp: baseEnemy.rewardExp + stage * 5,
     rewardTrainingExp: baseEnemy.rewardTrainingExp ?? 10 + Math.floor(stage / 2) * 2,
     stats: {
-      hp: baseEnemy.stats.hp + stage * 8,
-      attack: baseEnemy.stats.attack + stage * 2,
-      defense: baseEnemy.stats.defense + Math.floor(stage / 2),
-      speed: baseEnemy.stats.speed + Math.floor(stage / 3)
+      hp: boss ? Math.round(scaledStats.hp * 2) : scaledStats.hp,
+      attack: scaledStats.attack,
+      defense: scaledStats.defense,
+      speed: scaledStats.speed
     }
   };
 }
@@ -264,11 +287,15 @@ function getTrainingBattleStats(pet: BattlePet, level: number): BattleStats {
   };
 }
 
+function getTrainingBattleStatsForSave(pet: BattlePet, level: number, save: PartnerChessSave): BattleStats {
+  return getPetSpeciesStatsAtLevel(pet.id, level, getPetEvolutionStageValue(save, pet.id)) ?? getTrainingBattleStats(pet, level);
+}
+
 function createTeamHp(save: PartnerChessSave) {
   const normalized = ensurePetCollection(save);
   return Object.fromEntries(normalized.activeTrainingTeam.map((petId, index) => {
     const pet = getTrainingPetById(petId);
-    const stats = getTrainingBattleStats(pet, getPartnerPetLevel(save, petId));
+    const stats = getTrainingBattleStatsForSave(pet, getPartnerPetLevel(save, petId), save);
     return [getPlayerBattleUnitId(index, petId), stats.hp];
   }));
 }
@@ -361,6 +388,11 @@ function ProgressBar({ percent, tone = "tide" }: { percent: number; tone?: "tide
   );
 }
 
+function statDeltaSummary(before: BattleStats | null, after: BattleStats | null) {
+  if (!before || !after) return "进化后基础属性获得阶段加成，等级、经验和技能配置全部保留。";
+  return `属性提升：HP +${Math.max(0, after.hp - before.hp)}，攻击 +${Math.max(0, after.attack - before.attack)}，防御 +${Math.max(0, after.defense - before.defense)}，速度 +${Math.max(0, after.speed - before.speed)}。`;
+}
+
 function EvolutionRoutePreview({
   currentStage,
   currentLevel,
@@ -385,6 +417,8 @@ function EvolutionRoutePreview({
   const requiredLevel = nextStage?.evolveLevel ?? 0;
   const meetsLevel = Boolean(currentLevel && nextStage && currentLevel >= requiredLevel);
   const canEvolve = Boolean(nextStage?.canEvolve && meetsLevel && onEvolve);
+  const beforeStats = currentLevel ? getPetSpeciesStatsAtLevel(sourceId, currentLevel, stageValue) : null;
+  const afterStats = currentLevel && nextStage ? getPetSpeciesStatsAtLevel(sourceId, currentLevel, nextStage.stage) : null;
 
   return (
     <div className={`rounded-[1.4rem] border border-ink/8 bg-white/58 ${compact ? "mt-3 p-3" : "mt-4 p-4"}`}>
@@ -424,13 +458,24 @@ function EvolutionRoutePreview({
               : `当前 Lv.${currentLevel}。Lv.${requiredLevel} 可进化为 ${nextStage.name}，还差 ${requiredLevel - currentLevel} 级。`
             : `进化路线：${line.stages.map((stage) => stage.name).join(" → ")}。`}
       </p>
+      {nextStage && beforeStats && afterStats && (
+        <div className="mt-2 grid grid-cols-4 gap-1 text-center text-[10px] font-black text-ink/58">
+          <span className="rounded-xl bg-white/62 py-1">HP +{Math.max(0, afterStats.hp - beforeStats.hp)}</span>
+          <span className="rounded-xl bg-white/62 py-1">攻 +{Math.max(0, afterStats.attack - beforeStats.attack)}</span>
+          <span className="rounded-xl bg-white/62 py-1">防 +{Math.max(0, afterStats.defense - beforeStats.defense)}</span>
+          <span className="rounded-xl bg-white/62 py-1">速 +{Math.max(0, afterStats.speed - beforeStats.speed)}</span>
+        </div>
+      )}
+      <p className="mt-2 text-[11px] font-bold text-ink/42">
+        进化加成：二阶段 HP/攻/防 ×{evolutionStatMultipliers[2].hp}、速度 ×{evolutionStatMultipliers[2].speed}；三阶段 HP/攻/防 ×{evolutionStatMultipliers[3].hp}、速度 ×{evolutionStatMultipliers[3].speed}。
+      </p>
       <button
         className={`mt-3 min-h-10 w-full rounded-2xl px-3 text-xs font-black ${canEvolve ? "bg-tide text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" : "cursor-not-allowed bg-ink/6 text-ink/42"}`}
         disabled={!canEvolve}
         onClick={onEvolve}
         type="button"
       >
-        {isBoss ? "碎片进化暂未开放" : canEvolve ? `进化为 ${nextStage?.name}` : stageValue >= 3 ? "已达最终阶段" : "进化功能待达成"}
+        {isBoss ? "碎片进化暂未开放" : canEvolve ? "开始进化" : stageValue >= 3 ? "已达最终阶段" : nextStage ? `Lv.${nextStage.evolveLevel} 后可进化` : "进化功能待达成"}
       </button>
     </div>
   );
@@ -1475,12 +1520,13 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const [manualAction, setManualAction] = useState<ManualBattleAction | null>(null);
   const [isManualAnimating, setIsManualAnimating] = useState(false);
   const [notice, setNotice] = useState("");
+  const [pendingEvolution, setPendingEvolution] = useState<PendingEvolution | null>(null);
   const actionImpactRef = useRef<(() => void) | null>(null);
   const actionResolveRef = useRef<(() => void) | null>(null);
   const teamMembers = useMemo<PetBattleTeamMember[]>(() => activeTrainingTeam.map((petId, index) => {
     const pet = getTrainingPetDisplayById(petId, normalizedPartnerSave);
     const level = getPartnerPetLevel(normalizedPartnerSave, petId);
-    const stats = getTrainingBattleStats(pet, level);
+    const stats = getTrainingBattleStatsForSave(pet, level, normalizedPartnerSave);
     const battleUnitId = getPlayerBattleUnitId(index, petId);
     return {
       battleUnitId,
@@ -1496,7 +1542,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const activePetId = activeMember?.speciesId ?? activeTrainingTeam[0] ?? defaultTrainingTeamIds[0];
   const selectedPet = activeMember?.pet ?? getTrainingPetDisplayById(activePetId, normalizedPartnerSave);
   const activePetLevel = activeMember?.level ?? getPartnerPetLevel(normalizedPartnerSave, activePetId);
-  const petStats = activeMember?.stats ?? getTrainingBattleStats(selectedPet, activePetLevel);
+  const petStats = activeMember?.stats ?? getTrainingBattleStatsForSave(selectedPet, activePetLevel, normalizedPartnerSave);
   const petSkills = useMemo(() => getEquippedTrainingSkills(normalizedPartnerSave, activePetId), [activePetId, normalizedPartnerSave]);
   const petHp = activeMember?.hp ?? petStats.hp;
   const activePetLevelInfo = getPetLevelInfo(normalizedPartnerSave, activePetId);
@@ -1721,14 +1767,32 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       setNotice(status.reason);
       return;
     }
-    const currentName = getTrainingPetDisplayById(petId, normalizedPartnerSave).name;
-    if (typeof window !== "undefined" && !window.confirm(`是否将【${currentName}】进化为【${status.nextStage.name}】？进化后会保留等级、经验和技能配置。`)) {
-      return;
-    }
-    const result = evolvePet(normalizedPartnerSave, petId);
+    const currentPet = getTrainingPetDisplayById(petId, normalizedPartnerSave);
+    const beforeStats = getPetSpeciesStatsAtLevel(petId, status.level, status.currentStage);
+    const afterStats = getPetSpeciesStatsAtLevel(petId, status.level, status.nextStage.stage);
+    const unlockedSkillNames = getTrainingSkillsForPet(getTrainingPetById(petId))
+      .filter((skill) => skill.unlockLevel === status.level)
+      .map((skill) => skill.displayName);
+    setPendingEvolution({
+      currentImage: currentPet.image,
+      currentName: currentPet.name,
+      level: status.level,
+      nextImage: status.nextStage.image,
+      nextName: status.nextStage.name,
+      nextStage: status.nextStage.stage,
+      petId,
+      statSummary: statDeltaSummary(beforeStats, afterStats),
+      unlockedSkillNames
+    });
+  }
+
+  function finishPendingEvolution() {
+    if (!pendingEvolution) return;
+    const result = evolvePet(normalizedPartnerSave, pendingEvolution.petId);
     const synced = ensurePetCollection(result.save);
     savePartnerChessSave(synced);
     setPartnerSave(synced);
+    setPendingEvolution(null);
     setNotice(result.message);
     pushLogs([result.message]);
   }
@@ -1776,8 +1840,10 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     let nextPetStatuses = [...petStatuses];
     const enemyDamage = calculateEnemyDamage({
       attackerAttack: enemy.stats.attack + effects.enemyAttackBonus,
+      attackerLevel: enemy.level,
       defenderDefense: petStats.defense + effects.petDefenseBonus,
       skill: enemySkill,
+      randomMultiplier: 1,
       statusMultiplier: (1 - effects.shieldReduction) * (levelPressure ? 1.08 : 1)
     });
     const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
@@ -1999,8 +2065,17 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
       const anxietyMultiplier = nextPetStatuses.some((status) => status.type === "anxietyDown") ? 0.8 : 1;
       const counterMultiplier = trainingSkillCountersEnemy(skill, enemy.type) ? 1.35 : 1;
       const levelPressureDamageMultiplier = levelPressure ? 0.88 : 1;
-      const baseDamage = Math.max(1, skillForDamage.power + petStats.attack + nextEffects.petAttackBonus - enemy.stats.defense - nextEffects.enemyDefenseBonus);
-      const totalDamage = Math.max(1, Math.round(baseDamage * counterMultiplier * anxietyMultiplier * levelPressureDamageMultiplier * nextEffects.nextDamageMultiplier));
+      const damageResult = calculateSkillDamage({
+        attackerAttack: petStats.attack + nextEffects.petAttackBonus,
+        attackerLevel: activePetLevel,
+        defenderDefense: Math.max(1, enemy.stats.defense + nextEffects.enemyDefenseBonus),
+        enemyType: enemy.type,
+        pet: selectedPet,
+        randomMultiplier: 1,
+        skill: skillForDamage,
+        statusMultiplier: anxietyMultiplier * levelPressureDamageMultiplier * nextEffects.nextDamageMultiplier * (isBossEnemy(enemy) ? 0.85 : 1)
+      });
+      const totalDamage = damageResult.totalDamage;
       const shielded = applyShield(nextEnemyStatuses, totalDamage);
       nextEnemyStatuses = shielded.statuses;
       nextEnemyHp = clampHp(nextEnemyHp - shielded.damage, enemy.stats.hp);
@@ -2092,8 +2167,10 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           const shieldMultiplier = 1 - nextEffects.shieldReduction;
           const enemyDamage = calculateEnemyDamage({
             attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
+            attackerLevel: enemy.level,
             defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
             skill: enemySkill,
+            randomMultiplier: 1,
             statusMultiplier: shieldMultiplier * (levelPressure ? 1.08 : 1)
           });
           const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
@@ -2114,8 +2191,10 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         const shieldMultiplier = 1 - nextEffects.shieldReduction;
         const enemyDamage = calculateEnemyDamage({
           attackerAttack: enemy.stats.attack + nextEffects.enemyAttackBonus,
+          attackerLevel: enemy.level,
           defenderDefense: petStats.defense + nextEffects.petDefenseBonus,
           skill: enemySkill,
+          randomMultiplier: 1,
           statusMultiplier: shieldMultiplier * (levelPressure ? 1.08 : 1)
         });
         const shielded = applyShield(nextPetStatuses, enemyDamage.totalDamage);
@@ -2298,7 +2377,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           getLevelInfo={(petId) => getPetLevelInfo(normalizedPartnerSave, petId)}
           getSkills={getTrainingSkillsForPet}
           getSourceLabel={petSourceLabel}
-          getStats={getTrainingBattleStats}
+          getStats={(pet, level) => getTrainingBattleStatsForSave(pet, level, normalizedPartnerSave)}
           onReplaceSlot={replaceTrainingTeamSlot}
           ownedPets={normalizedPartnerSave.ownedPets.map((petId) => getTrainingPetDisplayById(petId, normalizedPartnerSave))}
           petShards={normalizedPartnerSave.petShards}
@@ -2312,6 +2391,21 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         <Trophy className="size-5 shrink-0 text-gold" />
         <p className="text-sm font-semibold leading-6 text-ink/62">提示：伙伴岛数据保存在当前浏览器 localStorage。伙伴训练经验来自闯关、答题和训练胜利，不会消耗原有学习 XP。</p>
       </GameCard>
+      {pendingEvolution && (
+        <EvolutionAnimationOverlay
+          currentImage={pendingEvolution.currentImage}
+          currentName={pendingEvolution.currentName}
+          level={pendingEvolution.level}
+          nextImage={pendingEvolution.nextImage}
+          nextName={pendingEvolution.nextName}
+          nextStage={pendingEvolution.nextStage}
+          onCancel={() => setPendingEvolution(null)}
+          onFinish={finishPendingEvolution}
+          petId={pendingEvolution.petId}
+          statSummary={pendingEvolution.statSummary}
+          unlockedSkillNames={pendingEvolution.unlockedSkillNames}
+        />
+      )}
     </div>
   );
 }

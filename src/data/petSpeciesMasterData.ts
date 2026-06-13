@@ -96,11 +96,17 @@ export const petSpeciesLevelCap = 100;
 export const petSpeciesSkillLevels = [1, 1, 5, 10, 16, 22, 30, 40, 52, 65, 80, 95] as const;
 
 export const petDamageFormulaConfig = {
-  base: "skillPower * attack / (defense + 20)",
-  levelModifier: "1 + level * 0.012",
+  base: "skillPower * attack / (defense * 0.55 + 12)",
+  levelModifier: "1 + level * 0.006",
   minimumDamage: 1,
   randomRange: [0.92, 1.08],
-  typeModifier: [0.85, 1, 1.25, 1.35]
+  typeModifier: [0.75, 1, 1.35]
+} as const;
+
+export const evolutionStatMultipliers = {
+  1: { attack: 1, defense: 1, hp: 1, speed: 1 },
+  2: { attack: 1.08, defense: 1.08, hp: 1.08, speed: 1.05 },
+  3: { attack: 1.2, defense: 1.2, hp: 1.2, speed: 1.12 }
 } as const;
 
 const elementAttributeMap: Record<PetSpeciesElement, PetAttribute> = {
@@ -414,12 +420,22 @@ function anxietySkillSeeds(name: string): [SkillSeed, SkillSeed, SkillSeed, Skil
   ];
 }
 
+export function getLevelGrowthWeight(level: number) {
+  const lv = Math.max(1, Math.min(100, Math.round(level)));
+  const early = Math.max(0, Math.min(lv, 30) - 1) * 1;
+  const mid = Math.max(0, Math.min(lv, 60) - 30) * 1.65;
+  const late = Math.max(0, lv - 60) * 2.35;
+  return early + mid + late;
+}
+
+export const maxLevelGrowthWeight = getLevelGrowthWeight(100);
+
 function getGrowthRate(baseStats: BattleStats, level100Stats: BattleStats): BattleStats {
   return {
-    attack: (level100Stats.attack - baseStats.attack) / 99,
-    defense: (level100Stats.defense - baseStats.defense) / 99,
-    hp: (level100Stats.hp - baseStats.hp) / 99,
-    speed: (level100Stats.speed - baseStats.speed) / 99
+    attack: (level100Stats.attack - baseStats.attack) / maxLevelGrowthWeight,
+    defense: (level100Stats.defense - baseStats.defense) / maxLevelGrowthWeight,
+    hp: (level100Stats.hp - baseStats.hp) / maxLevelGrowthWeight,
+    speed: (level100Stats.speed - baseStats.speed) / maxLevelGrowthWeight
   };
 }
 
@@ -586,15 +602,17 @@ export function getPetEvolutionStage(id: string, stage: number) {
   return line.stages[safeStage - 1] ?? null;
 }
 
-export function getPetSpeciesStatsAtLevel(id: string, level: number): BattleStats | null {
+export function getPetSpeciesStatsAtLevel(id: string, level: number, evolutionStage = 1): BattleStats | null {
   const species = getPetSpeciesMasterData(id);
   if (!species) return null;
   const safeLevel = Math.max(1, Math.min(species.levelCap, Math.round(level)));
-  const growthTimes = safeLevel - 1;
+  const growthWeight = getLevelGrowthWeight(safeLevel);
+  const stage = Math.max(1, Math.min(3, Math.round(evolutionStage))) as 1 | 2 | 3;
+  const multiplier = evolutionStatMultipliers[stage];
   return {
-    attack: Math.round(species.baseStats.attack + species.growthRate.attack * growthTimes),
-    defense: Math.round(species.baseStats.defense + species.growthRate.defense * growthTimes),
-    hp: Math.round(species.baseStats.hp + species.growthRate.hp * growthTimes),
-    speed: Math.round(species.baseStats.speed + species.growthRate.speed * growthTimes)
+    attack: Math.max(1, Math.round((species.baseStats.attack + species.growthRate.attack * growthWeight) * multiplier.attack)),
+    defense: Math.max(1, Math.round((species.baseStats.defense + species.growthRate.defense * growthWeight) * multiplier.defense)),
+    hp: Math.max(1, Math.round((species.baseStats.hp + species.growthRate.hp * growthWeight) * multiplier.hp)),
+    speed: Math.max(1, Math.round((species.baseStats.speed + species.growthRate.speed * growthWeight) * multiplier.speed))
   };
 }

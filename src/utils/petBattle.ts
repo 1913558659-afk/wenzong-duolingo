@@ -1,6 +1,6 @@
 import { battleSkills, counterBonus } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, BattleSkill, BattleStats, EnemyType } from "@/data/petBattleData";
-import { getPetSpeciesStatsAtLevel } from "@/data/petSpeciesMasterData";
+import { getPetSpeciesStatsAtLevel, petDamageFormulaConfig } from "@/data/petSpeciesMasterData";
 
 export type DamageResult = {
   baseDamage: number;
@@ -15,8 +15,8 @@ export function getRequiredPetExp(currentLevel: number) {
   return Math.max(1, currentLevel) * 100;
 }
 
-export function getPetStatsAtLevel(pet: BattlePet, level: number): BattleStats {
-  const speciesStats = getPetSpeciesStatsAtLevel(pet.id, level);
+export function getPetStatsAtLevel(pet: BattlePet, level: number, evolutionStage = 1): BattleStats {
+  const speciesStats = getPetSpeciesStatsAtLevel(pet.id, level, evolutionStage);
   if (speciesStats) return speciesStats;
 
   const safeLevel = Math.max(1, level);
@@ -46,23 +46,29 @@ export function getCounterMultiplier({
 
 export function calculateSkillDamage({
   attackerAttack,
+  attackerLevel = 1,
   defenderDefense,
   enemyType,
   pet,
   skill,
-  statusMultiplier = 1
+  statusMultiplier = 1,
+  randomMultiplier = 1
 }: {
   attackerAttack: number;
+  attackerLevel?: number;
   defenderDefense: number;
   pet: Pick<BattlePet, "counters">;
   enemyType: EnemyType;
   skill: BattleSkill;
+  randomMultiplier?: number;
   statusMultiplier?: number;
 }): DamageResult {
   const hits = skill.hits ?? 1;
-  const baseDamage = Math.max(1, skill.power + attackerAttack - defenderDefense);
+  const baseDamage = Math.max(1, skill.power * attackerAttack / (defenderDefense * 0.55 + 12));
   const counterMultiplier = getCounterMultiplier({ enemyType, pet, skill });
-  const hitDamage = Math.max(1, Math.round(baseDamage * counterMultiplier * statusMultiplier));
+  const levelPower = 1 + Math.max(1, attackerLevel) * 0.006;
+  const safeRandom = Math.max(petDamageFormulaConfig.randomRange[0], Math.min(petDamageFormulaConfig.randomRange[1], randomMultiplier));
+  const hitDamage = Math.max(1, Math.round(baseDamage * levelPower * counterMultiplier * statusMultiplier * safeRandom));
 
   return {
     baseDamage,
@@ -76,18 +82,24 @@ export function calculateSkillDamage({
 
 export function calculateEnemyDamage({
   attackerAttack,
+  attackerLevel = 1,
   defenderDefense,
   skill,
-  statusMultiplier = 1
+  statusMultiplier = 1,
+  randomMultiplier = 1
 }: {
   attackerAttack: number;
+  attackerLevel?: number;
   defenderDefense: number;
   skill: BattleSkill;
+  randomMultiplier?: number;
   statusMultiplier?: number;
 }): DamageResult {
   const hits = skill.hits ?? 1;
-  const baseDamage = Math.max(1, skill.power + attackerAttack - defenderDefense);
-  const hitDamage = Math.max(1, Math.round(baseDamage * statusMultiplier));
+  const baseDamage = Math.max(1, skill.power * attackerAttack / (defenderDefense * 0.55 + 12));
+  const levelPower = 1 + Math.max(1, attackerLevel) * 0.006;
+  const safeRandom = Math.max(petDamageFormulaConfig.randomRange[0], Math.min(petDamageFormulaConfig.randomRange[1], randomMultiplier));
+  const hitDamage = Math.max(1, Math.round(baseDamage * levelPower * statusMultiplier * safeRandom));
 
   return {
     baseDamage,
