@@ -30,6 +30,20 @@ export type PetEvolutionPlan = {
   stageNames: [string, string, string];
 };
 
+export type PetEvolutionStage = {
+  canEvolve: boolean;
+  evolveLevel?: number;
+  image: string;
+  name: string;
+  speciesId: string;
+  stage: 1 | 2 | 3;
+};
+
+export type PetEvolutionLine = {
+  lineId: string;
+  stages: [PetEvolutionStage, PetEvolutionStage, PetEvolutionStage];
+};
+
 export type PetSpeciesMasterData = {
   baseStats: BattleStats;
   damageFormula: typeof petDamageFormulaConfig;
@@ -48,6 +62,7 @@ export type PetSpeciesMasterData = {
   rarity: PetSpeciesRarity;
   role: string[];
   speciesId: string;
+  evolutionLine: PetEvolutionLine;
   skillTemplate: PetSpeciesSkillDefinition[];
 };
 
@@ -72,6 +87,7 @@ type SpeciesSeed = {
   role: string[];
   skills: [SkillSeed, SkillSeed, SkillSeed, SkillSeed];
   speciesId: string;
+  stageImages: [string, string, string];
   stageNames: [string, string, string];
 };
 
@@ -118,6 +134,7 @@ const speciesSeeds: SpeciesSeed[] = [
       { baseSkillId: "star_heal", cooldown: 3, description: "恢复自身生命。", name: "星点治愈", power: 0, type: "heal" }
     ],
     speciesId: "cloud-beast",
+    stageImages: ["/pet-battle/pets/cloud-beast.png", "/pet-battle/evolutions/cloud-gale-beast-stage2.png", "/pet-battle/evolutions/nebula-guardian-beast-stage3.png"],
     stageNames: ["云团兽", "云岚兽", "星云守护兽"]
   },
   {
@@ -135,6 +152,7 @@ const speciesSeeds: SpeciesSeed[] = [
       { baseSkillId: "heat_boost", cooldown: 3, description: "提升下一次伤害。", name: "疾行动能", power: 0, type: "buff" }
     ],
     speciesId: "starfire-fox",
+    stageImages: ["/pet-battle/pets/starfire-fox.png", "/pet-battle/evolutions/flame-star-fox-stage2.png", "/pet-battle/evolutions/starflame-spirit-fox-stage3.png"],
     stageNames: ["星火狐", "炎星狐", "星焰灵狐"]
   },
   {
@@ -152,6 +170,7 @@ const speciesSeeds: SpeciesSeed[] = [
       { baseSkillId: "memory_roots", cooldown: 3, description: "恢复自身生命。", name: "根系恢复", power: 0, type: "heal" }
     ],
     speciesId: "sprout-dragon",
+    stageImages: ["/pet-battle/pets/sprout-dragon.png", "/pet-battle/evolutions/vine-sprout-dragon-stage2.png", "/pet-battle/evolutions/forest-crown-dragon-stage3.png"],
     stageNames: ["草芽龙", "藤芽龙", "森冠龙"]
   },
   {
@@ -164,6 +183,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["interfere"],
     skills: carelessSkillSeeds("粗心兽"),
     speciesId: "careless-beast",
+    stageImages: ["/pet-battle/enemies/careless-beast.png", "/pet-battle/evolutions/chaos-careless-beast-stage2.png", "/pet-battle/evolutions/wrong-question-rage-beast-stage3.png"],
     stageNames: ["粗心兽", "粗乱兽", "错题暴兽"]
   },
   {
@@ -176,6 +196,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["interfere", "control"],
     skills: forgetSkillSeeds("遗忘怪"),
     speciesId: "forget-shadow",
+    stageImages: ["/pet-battle/enemies/forget-wraith.png", "/pet-battle/evolutions/broken-memory-spirit-stage2.png", "/pet-battle/evolutions/blank-ghost-king-stage3.png"],
     stageNames: ["遗忘怪", "断忆灵", "空白幽王"]
   },
   {
@@ -188,6 +209,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["pressure", "speed"],
     skills: anxietySkillSeeds("焦虑兽"),
     speciesId: "anxiety-beast",
+    stageImages: ["/pet-battle/enemies/anxiety-fang.png", "/pet-battle/evolutions/heart-pressure-beast-stage2.png", "/pet-battle/evolutions/panic-pressure-fiend-stage3.png"],
     stageNames: ["焦虑兽", "压心兽", "惊压魔兽"]
   },
   {
@@ -200,6 +222,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["attack", "speed"],
     skills: carelessSkillSeeds("漏题鲨"),
     speciesId: "careless-shark",
+    stageImages: ["/pet-battle/enemies/careless-shark.png", "/pet-battle/evolutions/mistake-wave-shark-stage2.png", "/pet-battle/evolutions/missing-paper-giant-shark-stage3.png"],
     stageNames: ["漏题鲨", "错浪鲨", "漏卷巨鲨"]
   },
   {
@@ -212,6 +235,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["multi_attack"],
     skills: carelessSkillSeeds("马虎虎"),
     speciesId: "careless-tiger",
+    stageImages: ["/pet-battle/enemies/careless-tiger.png", "/pet-battle/evolutions/chaos-stripe-tiger-stage2.png", "/pet-battle/evolutions/wrong-claw-mighty-tiger-stage3.png"],
     stageNames: ["马虎虎", "乱纹虎", "错爪猛虎"]
   },
   {
@@ -224,6 +248,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["defense", "attack"],
     skills: carelessSkillSeeds("粗撞犀"),
     speciesId: "careless-rhino",
+    stageImages: ["/pet-battle/enemies/careless-rhino.png", "/pet-battle/evolutions/reckless-rhino-stage2.png", "/pet-battle/evolutions/broken-question-steel-rhino-stage3.png"],
     stageNames: ["粗撞犀", "莽撞犀", "断题钢犀"]
   },
   {
@@ -236,6 +261,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["control"],
     skills: forgetSkillSeeds("忘影蜥"),
     speciesId: "forget-lizard-01",
+    stageImages: ["/pet-battle/enemies/forget-lizard-01.png", "/pet-battle/evolutions/broken-memory-lizard-stage2.png", "/pet-battle/evolutions/phantom-memory-drake-lizard-stage3.png"],
     stageNames: ["忘影蜥", "断忆蜥", "迷影龙蜥"]
   },
   {
@@ -248,6 +274,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["group_debuff"],
     skills: forgetSkillSeeds("记空蚁"),
     speciesId: "forget-ant-02",
+    stageImages: ["/pet-battle/enemies/forget-ant-02.png", "/pet-battle/evolutions/empty-nest-ant-stage2.png", "/pet-battle/evolutions/fragment-ant-king-stage3.png"],
     stageNames: ["记空蚁", "空巢蚁", "断片蚁王"]
   },
   {
@@ -261,6 +288,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["boss", "control"],
     skills: forgetSkillSeeds("忆迷鸡"),
     speciesId: "forget-chicken-03",
+    stageImages: ["/pet-battle/enemies/forget-chicken-03.png", "/pet-battle/evolutions/confusion-scroll-chicken-stage2.png", "/pet-battle/evolutions/broken-memory-phoenix-stage3.png"],
     stageNames: ["忆迷鸡", "迷卷鸡", "断忆玄凤"]
   },
   {
@@ -273,6 +301,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["speed", "interfere"],
     skills: anxietySkillSeeds("惊惶犬"),
     speciesId: "anxiety-dog-01",
+    stageImages: ["/pet-battle/enemies/jinghuangquan.png", "/pet-battle/evolutions/panic-rush-dog-stage2.png", "/pet-battle/evolutions/anxious-heart-hound-stage3.png"],
     stageNames: ["惊惶犬", "急乱犬", "惶心猎犬"]
   },
   {
@@ -285,6 +314,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["control", "interfere"],
     skills: anxietySkillSeeds("疑影猫"),
     speciesId: "anxiety-cat-02",
+    stageImages: ["/pet-battle/enemies/yiyingmao.png", "/pet-battle/evolutions/mist-doubt-cat-stage2.png", "/pet-battle/evolutions/phantom-doubt-spirit-cat-stage3.png"],
     stageNames: ["疑影猫", "疑雾猫", "影疑灵猫"]
   },
   {
@@ -298,6 +328,7 @@ const speciesSeeds: SpeciesSeed[] = [
     role: ["boss", "tank"],
     skills: anxietySkillSeeds("重压熊"),
     speciesId: "anxiety-bear-03",
+    stageImages: ["/pet-battle/enemies/zhongyaxiong.png", "/pet-battle/evolutions/heart-pressure-bear-stage2.png", "/pet-battle/evolutions/mountain-pressure-bear-king-stage3.png"],
     stageNames: ["重压熊", "压心熊", "山压熊王"]
   },
   {
@@ -315,6 +346,7 @@ const speciesSeeds: SpeciesSeed[] = [
       { baseSkillId: "flow_settle", cooldown: 3, description: "恢复自身生命并清除轻度负面状态。", name: "心流安定", power: 0, type: "heal" }
     ],
     speciesId: "focus-rabbit-01",
+    stageImages: ["/pet-battle/pets/focus-rabbit-01.png", "/pet-battle/evolutions/quiet-moon-rabbit-stage2.png", "/pet-battle/evolutions/flow-moon-rabbit-stage3.png"],
     stageNames: ["聆心兔", "静月兔", "心流月兔"]
   },
   {
@@ -332,6 +364,7 @@ const speciesSeeds: SpeciesSeed[] = [
       { baseSkillId: "insight_storm", cooldown: 3, description: "对焦虑型或遗忘型敌人有额外伤害。", name: "洞察风暴", power: 16, type: "power_attack" }
     ],
     speciesId: "focus-crow-01",
+    stageImages: ["/pet-battle/pets/focus-crow-01.png", "/pet-battle/evolutions/insight-crow-stage2.png", "/pet-battle/evolutions/deep-insight-raven-stage3.png"],
     stageNames: ["识光鸦", "明察鸦", "洞察玄鸦"]
   },
   {
@@ -349,6 +382,7 @@ const speciesSeeds: SpeciesSeed[] = [
       { baseSkillId: "knowledge_echo", cooldown: 3, description: "恢复自身生命，并略微提升防御。", name: "知识回响", power: 0, type: "heal" }
     ],
     speciesId: "focus-octopus-01",
+    stageImages: ["/pet-battle/pets/focus-octopus-01.png", "/pet-battle/evolutions/summary-octopus-stage2.png", "/pet-battle/evolutions/order-sea-spirit-stage3.png"],
     stageNames: ["理序章", "归纳章", "理序海灵"]
   }
 ];
@@ -487,6 +521,34 @@ function createSpecies(seed: SpeciesSeed): PetSpeciesMasterData {
       stage: 1,
       stageNames: seed.stageNames
     },
+    evolutionLine: {
+      lineId: `${seed.id}_line`,
+      stages: [
+        {
+          canEvolve: true,
+          image: seed.stageImages[0],
+          name: seed.stageNames[0],
+          speciesId: seed.id,
+          stage: 1
+        },
+        {
+          canEvolve: seed.rarity !== "boss",
+          evolveLevel: 30,
+          image: seed.stageImages[1],
+          name: seed.stageNames[1],
+          speciesId: `${seed.id}_stage2`,
+          stage: 2
+        },
+        {
+          canEvolve: seed.rarity !== "boss",
+          evolveLevel: 60,
+          image: seed.stageImages[2],
+          name: seed.stageNames[2],
+          speciesId: `${seed.id}_stage3`,
+          stage: 3
+        }
+      ]
+    },
     growthRate: getGrowthRate(seed.baseStats, seed.level100Stats),
     id: seed.id,
     image: seed.image,
@@ -511,6 +573,17 @@ export function getPetSpeciesMasterData(id: string) {
 
 export function getPetSpeciesSkillTemplate(id: string) {
   return getPetSpeciesMasterData(id)?.skillTemplate ?? null;
+}
+
+export function getPetEvolutionLine(id: string) {
+  return getPetSpeciesMasterData(id)?.evolutionLine ?? null;
+}
+
+export function getPetEvolutionStage(id: string, stage: number) {
+  const line = getPetEvolutionLine(id);
+  if (!line) return null;
+  const safeStage = Math.max(1, Math.min(3, Math.round(stage))) as 1 | 2 | 3;
+  return line.stages[safeStage - 1] ?? null;
 }
 
 export function getPetSpeciesStatsAtLevel(id: string, level: number): BattleStats | null {

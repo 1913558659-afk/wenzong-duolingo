@@ -3,6 +3,7 @@ import { Navbar } from "@/components/Navbar";
 import { quizQuestions as localQuizQuestions } from "@/data/questions";
 import { About } from "@/pages/About";
 import { AdminQuestionBank } from "@/pages/AdminQuestionBank";
+import { AdminTestPanel } from "@/pages/AdminTestPanel";
 import { AIPrompts } from "@/pages/AIPrompts";
 import { Auth } from "@/pages/Auth";
 import { ChallengeMap } from "@/pages/ChallengeMap";
@@ -55,6 +56,12 @@ export default function App() {
       });
   }, []);
 
+  useEffect(() => {
+    if (window.location.pathname === "/admin-test" || window.location.pathname === "/debug-lab") {
+      setPage("adminTest");
+    }
+  }, []);
+
   function startPractice(levelId: string) {
     setSelectedLevelId(levelId);
     setPage("quiz");
@@ -103,6 +110,7 @@ export default function App() {
         {page === "partnerChess" && <PartnerChessPage goPetBattle={() => setPage("petBattle")} questions={questions} />}
         {page === "profile" && <Profile navigate={navigate} stats={stats} syncError={statsSyncError} user={auth.user} />}
         {page === "adminQuestions" && <AdminQuestionBank token={auth.token} user={auth.user} />}
+        {page === "adminTest" && <AdminTestPanel onNavigateHome={() => setPage("home")} onStartPractice={startPractice} questions={questions} user={auth.user} />}
         {page === "auth" && <Auth login={auth.login} onDone={() => setPage("home")} register={auth.register} />}
         {page === "about" && <About resetStats={resetStats} />}
       </main>

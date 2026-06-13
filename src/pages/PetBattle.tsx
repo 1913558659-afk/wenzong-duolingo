@@ -27,12 +27,16 @@ import { addPetExp, getPetLevelInfo, loadPartnerChessSave, savePartnerChessSave 
 import type { PartnerChessSave } from "@/utils/partnerChessSave";
 import {
   addPetToCollection,
+  canEvolvePet,
   defaultTrainingTeamIds,
   ensurePetCollection,
+  evolvePet,
   forgetLearnedSkill,
   getEquippedSkillIds,
   getEquippedTrainingSkills,
   getLearnedSkillIds,
+  getPetEvolutionStageValue,
+  getTrainingPetDisplayById,
   getTrainingPetById,
   isBossPet,
   isCapturablePet,
@@ -61,6 +65,7 @@ import {
   type CaptureBallId,
   type PetTrainingItemInventory
 } from "@/utils/petTrainingItems";
+import { loadAdminDebugSettings } from "@/utils/debugAdmin";
 
 type BattleEffects = {
   enemyAttackBonus: number;
@@ -128,6 +133,10 @@ const counterMessages: Record<EnemyType, string> = {
   focus: "专注型野生宠物擅长稳定节奏，当前无固定克制加成。"
 };
 function getBaseEnemyForStage(stage: number) {
+  const debugEnemyId = loadAdminDebugSettings().nextTrainingEnemyId;
+  if (debugEnemyId) {
+    return enemies.find((enemy) => enemy.id === debugEnemyId) ?? enemies[0];
+  }
   const safeStage = Math.max(1, stage);
   const enemyId = safeStage <= openingEnemyCycle.length
     ? openingEnemyCycle[safeStage - 1]
@@ -353,49 +362,55 @@ function ProgressBar({ percent, tone = "tide" }: { percent: number; tone?: "tide
 }
 
 function EvolutionRoutePreview({
+  currentStage,
   currentLevel,
-  image,
+  onEvolve,
   sourceId,
   tone = "card"
 }: {
+  currentStage?: number;
   currentLevel?: number;
-  image?: string;
+  onEvolve?: () => void;
   sourceId: string;
   tone?: "card" | "compact";
 }) {
   const species = getPetSpeciesMasterData(sourceId);
-  if (!species) return null;
+  const line = species?.evolutionLine;
+  if (!species || !line) return null;
 
-  const [stage1, stage2, stage3] = species.evolution.stageNames;
   const isBoss = species.rarity === "boss";
-  const route = [
-    { label: "一阶段", level: 1, name: stage1, open: true },
-    { label: "二阶段", level: 30, name: stage2, open: false },
-    { label: "三阶段", level: 60, name: stage3, open: false }
-  ];
   const compact = tone === "compact";
+  const stageValue = currentStage ?? 1;
+  const nextStage = stageValue < 3 ? line.stages[stageValue] : null;
+  const requiredLevel = nextStage?.evolveLevel ?? 0;
+  const meetsLevel = Boolean(currentLevel && nextStage && currentLevel >= requiredLevel);
+  const canEvolve = Boolean(nextStage?.canEvolve && meetsLevel && onEvolve);
 
   return (
     <div className={`rounded-[1.4rem] border border-ink/8 bg-white/58 ${compact ? "mt-3 p-3" : "mt-4 p-4"}`}>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-xs font-black uppercase tracking-[0.16em] text-tide">Evolution</p>
-        <span className="rounded-full bg-ink/6 px-3 py-1 text-[11px] font-black text-ink/48">功能暂未开放</span>
+        <span className={`rounded-full px-3 py-1 text-[11px] font-black ${canEvolve ? "bg-leaf/10 text-leaf ring-1 ring-leaf/20" : "bg-ink/6 text-ink/48"}`}>
+          {isBoss ? "碎片玩法预留" : canEvolve ? "可进化" : stageValue >= 3 ? "最终阶段" : "进化预留"}
+        </span>
       </div>
       <div className={`mt-3 grid gap-2 ${compact ? "grid-cols-3" : "sm:grid-cols-3"}`}>
-        {route.map((stage, index) => {
-          const reached = currentLevel ? currentLevel >= stage.level : index === 0;
+        {line.stages.map((stage, index) => {
+          const ownedStage = stage.stage <= stageValue;
+          const reachableLevel = currentLevel ? currentLevel >= (stage.evolveLevel ?? 1) : index === 0;
           return (
-            <div className={`relative rounded-2xl border p-3 text-center ${stage.open ? "border-tide/20 bg-tide/8" : reached ? "border-gold/24 bg-gold/8" : "border-ink/8 bg-ink/5"}`} key={stage.label}>
+            <div className={`relative rounded-2xl border p-3 text-center ${ownedStage ? "border-tide/20 bg-tide/8" : reachableLevel ? "border-gold/24 bg-gold/8" : "border-ink/8 bg-ink/5"}`} key={stage.speciesId}>
               <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-white/70 ring-1 ring-white/80">
-                {stage.open && image ? (
-                  <img alt={stage.name} className={`max-h-10 max-w-10 object-contain [image-rendering:pixelated] ${petSpriteFacingClass(sourceId, "right")}`} src={image} />
-                ) : (
-                  <Lock className="size-5 text-ink/32" />
-                )}
+                <img
+                  alt={stage.name}
+                  className={`max-h-10 max-w-10 object-contain [image-rendering:pixelated] ${ownedStage ? "" : "opacity-45 grayscale"} ${petSpriteFacingClass(sourceId, "right")}`}
+                  src={stage.image}
+                />
+                {!ownedStage && <Lock className="absolute right-3 top-3 size-4 rounded-full bg-white/80 p-0.5 text-ink/42" />}
               </div>
-              <p className="mt-2 text-[11px] font-black text-ink/42">{stage.label}</p>
+              <p className="mt-2 text-[11px] font-black text-ink/42">{stage.stage === 1 ? "一阶段" : stage.stage === 2 ? "二阶段" : "三阶段"}</p>
               <p className="mt-0.5 truncate text-sm font-black text-ink">{stage.name}</p>
-              <p className="mt-1 text-[11px] font-bold text-ink/52">{stage.level === 1 ? "当前形态" : `Lv.${stage.level} 预留`}</p>
+              <p className="mt-1 text-[11px] font-bold text-ink/52">{stage.stage === 1 ? "初始形态" : `Lv.${stage.evolveLevel} 进化`}</p>
             </div>
           );
         })}
@@ -403,12 +418,19 @@ function EvolutionRoutePreview({
       <p className="mt-3 rounded-2xl bg-ink/5 px-3 py-2 text-xs font-bold leading-5 text-ink/52">
         {isBoss
           ? `${species.name} 为 Boss 分支，未来通过碎片玩法解锁进化路线。`
-          : currentLevel
-            ? `当前 Lv.${currentLevel}。Lv.30 可进化为 ${stage2}，Lv.60 可进化为 ${stage3}，功能暂未开放。`
-            : `进化路线：${stage1} → ${stage2} → ${stage3}。Lv.30 / Lv.60 功能暂未开放。`}
+          : currentLevel && nextStage
+            ? currentLevel >= requiredLevel
+              ? `当前 Lv.${currentLevel}，可进化为 ${nextStage.name}。进化后保留等级、经验和技能配置。`
+              : `当前 Lv.${currentLevel}。Lv.${requiredLevel} 可进化为 ${nextStage.name}，还差 ${requiredLevel - currentLevel} 级。`
+            : `进化路线：${line.stages.map((stage) => stage.name).join(" → ")}。`}
       </p>
-      <button className="mt-3 min-h-10 w-full cursor-not-allowed rounded-2xl bg-ink/6 px-3 text-xs font-black text-ink/42" disabled type="button">
-        进化功能即将开放
+      <button
+        className={`mt-3 min-h-10 w-full rounded-2xl px-3 text-xs font-black ${canEvolve ? "bg-tide text-white shadow-insetGame transition hover:-translate-y-0.5 hover:bg-ink" : "cursor-not-allowed bg-ink/6 text-ink/42"}`}
+        disabled={!canEvolve}
+        onClick={onEvolve}
+        type="button"
+      >
+        {isBoss ? "碎片进化暂未开放" : canEvolve ? `进化为 ${nextStage?.name}` : stageValue >= 3 ? "已达最终阶段" : "进化功能待达成"}
       </button>
     </div>
   );
@@ -660,7 +682,7 @@ function TabButton({ active, children, onClick }: { active: boolean; children: R
   );
 }
 
-function PetSelectCard({ active, onSelect, pet }: { active: boolean; onSelect: (pet: BattlePet) => void; pet: BattlePet }) {
+function PetSelectCard({ active, currentStage, onSelect, pet }: { active: boolean; currentStage?: number; onSelect: (pet: BattlePet) => void; pet: BattlePet }) {
   return (
     <button className="group h-full text-left" onClick={() => onSelect(pet)} type="button">
       <GameCard className={`h-full overflow-hidden transition group-hover:-translate-y-0.5 ${active ? "ring-2 ring-tide" : ""}`}>
@@ -681,7 +703,7 @@ function PetSelectCard({ active, onSelect, pet }: { active: boolean; onSelect: (
           <StatItem label="防御" value={pet.baseStats.defense} />
           <StatItem label="速度" value={pet.baseStats.speed} />
         </div>
-        <EvolutionRoutePreview image={pet.image} sourceId={pet.id} tone="compact" />
+        <EvolutionRoutePreview currentStage={currentStage} sourceId={pet.id} tone="compact" />
         <span className="mt-4 flex min-h-11 items-center justify-center rounded-2xl bg-ink text-sm font-black text-white shadow-insetGame transition group-hover:bg-tide">
           {active ? "当前伙伴" : "选择伙伴"}
         </span>
@@ -1119,6 +1141,7 @@ function GrowthRoom({
   petStats,
   selectedSkillPetId,
   setSelectedSkillPetId,
+  onEvolvePet,
   trainStat,
   training
 }: {
@@ -1134,6 +1157,7 @@ function GrowthRoom({
   petStats: BattleStats;
   selectedSkillPetId: string;
   setSelectedSkillPetId: (petId: string) => void;
+  onEvolvePet: (petId: string) => void;
   trainStat: (key: keyof PetTrainingStats, label: string, value: number) => void;
   training: PetTrainingStats;
 }) {
@@ -1172,7 +1196,12 @@ function GrowthRoom({
           <StatItem label="防御" value={petStats.defense} />
           <StatItem label="速度" value={petStats.speed} />
         </div>
-        <EvolutionRoutePreview currentLevel={petLevel} image={pet.image} sourceId={pet.id} />
+        <EvolutionRoutePreview
+          currentLevel={petLevel}
+          currentStage={getPetEvolutionStageValue(partnerSave, pet.id)}
+          onEvolve={() => onEvolvePet(pet.id)}
+          sourceId={pet.id}
+        />
       </GameCard>
 
       <GameCard className="bg-white/68">
@@ -1279,10 +1308,12 @@ function ArchiveCard({
 
 function CompanionArchive({
   ownedPetIds,
+  partnerSave,
   selectedPetId,
   selectPet
 }: {
   ownedPetIds: string[];
+  partnerSave: PartnerChessSave;
   selectedPetId: string;
   selectPet: (pet: BattlePet) => void;
 }) {
@@ -1303,7 +1334,12 @@ function CompanionArchive({
         <div className="mt-3 grid gap-4 lg:grid-cols-3">
           {pets.map((pet) => (
             <div key={pet.id}>
-              <PetSelectCard active={pet.id === selectedPetId} onSelect={selectPet} pet={pet} />
+              <PetSelectCard
+                active={pet.id === selectedPetId}
+                currentStage={ownedPetIds.includes(pet.id) ? getPetEvolutionStageValue(partnerSave, pet.id) : undefined}
+                onSelect={selectPet}
+                pet={ownedPetIds.includes(pet.id) ? getTrainingPetDisplayById(pet.id, partnerSave) : pet}
+              />
             </div>
           ))}
         </div>
@@ -1323,7 +1359,7 @@ function CompanionArchive({
               text={enemy.description ?? counterMessages[enemy.type]}
               tone="enemy"
             >
-              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+              <EvolutionRoutePreview currentStage={ownedPetIds.includes(enemy.id) ? getPetEvolutionStageValue(partnerSave, enemy.id) : undefined} sourceId={enemy.id} tone="compact" />
             </ArchiveCard>
           ))}
         </div>
@@ -1343,7 +1379,7 @@ function CompanionArchive({
               text={enemy.description ?? "粗心型进阶敌人。"}
               tone="enemy"
             >
-              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+              <EvolutionRoutePreview currentStage={ownedPetIds.includes(enemy.id) ? getPetEvolutionStageValue(partnerSave, enemy.id) : undefined} sourceId={enemy.id} tone="compact" />
             </ArchiveCard>
           ))}
         </div>
@@ -1363,7 +1399,7 @@ function CompanionArchive({
               text={enemy.description ?? "遗忘型进阶敌人。"}
               tone="enemy"
             >
-              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+              <EvolutionRoutePreview currentStage={ownedPetIds.includes(enemy.id) ? getPetEvolutionStageValue(partnerSave, enemy.id) : undefined} sourceId={enemy.id} tone="compact" />
             </ArchiveCard>
           ))}
         </div>
@@ -1383,7 +1419,7 @@ function CompanionArchive({
               text={enemy.description ?? "焦虑型进阶敌人。"}
               tone="enemy"
             >
-              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+              <EvolutionRoutePreview currentStage={ownedPetIds.includes(enemy.id) ? getPetEvolutionStageValue(partnerSave, enemy.id) : undefined} sourceId={enemy.id} tone="compact" />
             </ArchiveCard>
           ))}
         </div>
@@ -1403,7 +1439,7 @@ function CompanionArchive({
               text={enemy.description ?? "专注型野生宠物，捕捉后可加入宠物仓库。"}
               tone="enemy"
             >
-              <EvolutionRoutePreview image={enemy.image} sourceId={enemy.id} tone="compact" />
+              <EvolutionRoutePreview currentStage={ownedPetIds.includes(enemy.id) ? getPetEvolutionStageValue(partnerSave, enemy.id) : undefined} sourceId={enemy.id} tone="compact" />
             </ArchiveCard>
           ))}
         </div>
@@ -1442,7 +1478,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   const actionImpactRef = useRef<(() => void) | null>(null);
   const actionResolveRef = useRef<(() => void) | null>(null);
   const teamMembers = useMemo<PetBattleTeamMember[]>(() => activeTrainingTeam.map((petId, index) => {
-    const pet = getTrainingPetById(petId);
+    const pet = getTrainingPetDisplayById(petId, normalizedPartnerSave);
     const level = getPartnerPetLevel(normalizedPartnerSave, petId);
     const stats = getTrainingBattleStats(pet, level);
     const battleUnitId = getPlayerBattleUnitId(index, petId);
@@ -1458,7 +1494,7 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
   }), [activeTrainingTeam, normalizedPartnerSave, teamHp]);
   const activeMember = teamMembers.find((member) => member.battleUnitId === activeUnitId) ?? teamMembers[0];
   const activePetId = activeMember?.speciesId ?? activeTrainingTeam[0] ?? defaultTrainingTeamIds[0];
-  const selectedPet = activeMember?.pet ?? getTrainingPetById(activePetId);
+  const selectedPet = activeMember?.pet ?? getTrainingPetDisplayById(activePetId, normalizedPartnerSave);
   const activePetLevel = activeMember?.level ?? getPartnerPetLevel(normalizedPartnerSave, activePetId);
   const petStats = activeMember?.stats ?? getTrainingBattleStats(selectedPet, activePetLevel);
   const petSkills = useMemo(() => getEquippedTrainingSkills(normalizedPartnerSave, activePetId), [activePetId, normalizedPartnerSave]);
@@ -1679,6 +1715,24 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     pushLogs([message]);
   }
 
+  function handleEvolvePet(petId: string) {
+    const status = canEvolvePet(normalizedPartnerSave, petId);
+    if (!status.canEvolve || !status.nextStage) {
+      setNotice(status.reason);
+      return;
+    }
+    const currentName = getTrainingPetDisplayById(petId, normalizedPartnerSave).name;
+    if (typeof window !== "undefined" && !window.confirm(`是否将【${currentName}】进化为【${status.nextStage.name}】？进化后会保留等级、经验和技能配置。`)) {
+      return;
+    }
+    const result = evolvePet(normalizedPartnerSave, petId);
+    const synced = ensurePetCollection(result.save);
+    savePartnerChessSave(synced);
+    setPartnerSave(synced);
+    setNotice(result.message);
+    pushLogs([result.message]);
+  }
+
   function petSourceLabel(petId: string) {
     if (isInitialPet(petId)) return "获取方式：初始伙伴";
     if (normalizedPartnerSave.capturedAt[petId]) return "获取方式：捕捉获得";
@@ -1767,7 +1821,8 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
     savePetTrainingItemInventory(consumedInventory);
     setItemInventory(consumedInventory);
     const ballName = captureBallConfigs.find((ball) => ball.id === ballId)?.name ?? "伙伴球";
-    const success = Math.random() * 100 < rate.finalRate;
+    const debugCaptureAlwaysSuccess = loadAdminDebugSettings().captureAlwaysSuccess;
+    const success = debugCaptureAlwaysSuccess || Math.random() * 100 < rate.finalRate;
     if (success) {
       const collection = addPetToCollection(normalizedPartnerSave, enemy.id);
       const captureLog = collection.alreadyOwned
@@ -2210,8 +2265,9 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
         <GrowthRoom
           companionTrainingExp={saveState.companionTrainingExp}
           notice={notice}
+          onEvolvePet={handleEvolvePet}
           onSkillSave={applySkillSave}
-          ownedPets={normalizedPartnerSave.ownedPets.map(getTrainingPetById)}
+          ownedPets={normalizedPartnerSave.ownedPets.map((petId) => getTrainingPetDisplayById(petId, normalizedPartnerSave))}
           partnerSave={normalizedPartnerSave}
           pet={selectedPet}
           petExp={activePetLevelInfo.exp}
@@ -2244,13 +2300,13 @@ export function PetBattle({ openPartnerChess }: { openPartnerChess?: () => void 
           getSourceLabel={petSourceLabel}
           getStats={getTrainingBattleStats}
           onReplaceSlot={replaceTrainingTeamSlot}
-          ownedPets={normalizedPartnerSave.ownedPets.map(getTrainingPetById)}
+          ownedPets={normalizedPartnerSave.ownedPets.map((petId) => getTrainingPetDisplayById(petId, normalizedPartnerSave))}
           petShards={normalizedPartnerSave.petShards}
           selectedSlot={selectedTeamSlot}
         />
       )}
 
-      {activeTab === "archive" && <CompanionArchive ownedPetIds={normalizedPartnerSave.ownedPets} selectPet={selectPet} selectedPetId={selectedPet.id} />}
+      {activeTab === "archive" && <CompanionArchive ownedPetIds={normalizedPartnerSave.ownedPets} partnerSave={normalizedPartnerSave} selectPet={selectPet} selectedPetId={selectedPet.id} />}
 
       <GameCard className="flex items-center gap-3 bg-white/64">
         <Trophy className="size-5 shrink-0 text-gold" />

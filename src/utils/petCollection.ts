@@ -1,6 +1,6 @@
 import { enemies, pets } from "@/data/petBattleData";
 import type { BattleEnemy, BattlePet, EnemyType, PetAttribute } from "@/data/petBattleData";
-import { getPetSpeciesMasterData } from "@/data/petSpeciesMasterData";
+import { getPetEvolutionLine, getPetEvolutionStage, getPetSpeciesMasterData } from "@/data/petSpeciesMasterData";
 import { getSpeciesSkillTemplate, getSkillsByIdsForPet } from "@/data/petTrainingSkills";
 import type { PartnerChessSave } from "@/utils/partnerChessSave";
 
@@ -60,6 +60,27 @@ export function getTrainingPetById(petId: string): BattlePet {
   return enemy ? enemyToPet(enemy) : pets[0];
 }
 
+export function getPetEvolutionStageValue(save: PartnerChessSave, petId: string) {
+  const line = getPetEvolutionLine(petId);
+  const rawStage = save.petEvolutionStage?.[petId] ?? 1;
+  const safeStage = Math.max(1, Math.min(3, Math.round(rawStage)));
+  if (!line) return 1;
+  return safeStage;
+}
+
+export function getTrainingPetDisplayById(petId: string, save?: PartnerChessSave): BattlePet {
+  const basePet = getTrainingPetById(petId);
+  if (!save) return basePet;
+  const stage = getPetEvolutionStageValue(save, petId);
+  const evolutionStage = getPetEvolutionStage(petId, stage);
+  if (!evolutionStage) return basePet;
+  return {
+    ...basePet,
+    image: evolutionStage.image,
+    name: evolutionStage.name
+  };
+}
+
 export function getAllCollectiblePets(): BattlePet[] {
   return [...pets, ...enemies.map(enemyToPet)];
 }
@@ -95,13 +116,23 @@ export function normalizeActiveTrainingTeam(save: PartnerChessSave) {
 export function ensurePetCollection(save: PartnerChessSave): PartnerChessSave {
   const ownedPets = normalizeOwnedPets(save);
   const activeTrainingTeam = normalizeActiveTrainingTeam({ ...save, ownedPets });
+  const petEvolutionStage = { ...Object.fromEntries(ownedPets.map((petId) => [petId, 1])), ...(save.petEvolutionStage ?? {}) };
+  const petCurrentSpeciesId = {
+    ...Object.fromEntries(ownedPets.map((petId) => {
+      const stage = Math.max(1, Math.min(3, Math.round(petEvolutionStage[petId] ?? 1)));
+      return [petId, getPetEvolutionStage(petId, stage)?.speciesId ?? petId];
+    })),
+    ...(save.petCurrentSpeciesId ?? {})
+  };
   return syncPetSkillState({
     ...save,
     activeTrainingTeam,
     capturedAt: save.capturedAt ?? {},
     ownedPets,
+    petCurrentSpeciesId,
     petExp: { ...Object.fromEntries(ownedPets.map((petId) => [petId, 0])), ...save.petExp },
     petEquippedSkillIds: save.petEquippedSkillIds ?? {},
+    petEvolutionStage,
     petForgottenSkillIds: save.petForgottenSkillIds ?? {},
     petLearnedSkillIds: save.petLearnedSkillIds ?? {},
     petLevel: { ...Object.fromEntries(ownedPets.map((petId) => [petId, 1])), ...save.petLevel },
@@ -137,9 +168,61 @@ export function addPetToCollection(save: PartnerChessSave, petId: string) {
       ...normalized,
       capturedAt: { ...normalized.capturedAt, [petId]: new Date().toISOString() },
       ownedPets: [...normalized.ownedPets, petId],
+      petCurrentSpeciesId: { ...normalized.petCurrentSpeciesId, [petId]: petId },
       petExp: { ...normalized.petExp, [petId]: 0 },
+      petEvolutionStage: { ...normalized.petEvolutionStage, [petId]: 1 },
       petLevel: { ...normalized.petLevel, [petId]: 1 }
     })
+  };
+}
+
+export function getNextEvolutionStage(save: PartnerChessSave, petId: string) {
+  const line = getPetEvolutionLine(petId);
+  if (!line) return null;
+  const currentStage = getPetEvolutionStageValue(save, petId);
+  if (currentStage >= 3) return null;
+  return line.stages[currentStage] ?? null;
+}
+
+export function canEvolvePet(save: PartnerChessSave, petId: string) {
+  const species = getPetSpeciesMasterData(petId);
+  const nextStage = getNextEvolutionStage(save, petId);
+  const currentStage = getPetEvolutionStageValue(save, petId);
+  const level = save.petLevel[petId] ?? 1;
+  if (!species || !nextStage) {
+    return { canEvolve: false, currentStage, level, nextStage, reason: "没有进化路线。" };
+  }
+  if (species.rarity === "boss" || !nextStage.canEvolve) {
+    return { canEvolve: false, currentStage, level, nextStage, reason: "Boss 暂不开放普通进化，未来走碎片玩法。" };
+  }
+  const requiredLevel = nextStage.evolveLevel ?? 999;
+  if (level < requiredLevel) {
+    return { canEvolve: false, currentStage, level, nextStage, reason: `距离进化还差 ${requiredLevel - level} 级。` };
+  }
+  return { canEvolve: true, currentStage, level, nextStage, reason: "满足进化条件。" };
+}
+
+export function evolvePet(save: PartnerChessSave, petId: string) {
+  const normalized = ensurePetCollection(save);
+  const status = canEvolvePet(normalized, petId);
+  if (!status.canEvolve || !status.nextStage) {
+    return { message: status.reason, save: normalized, success: false };
+  }
+  const nextStageNumber = status.nextStage.stage;
+  return {
+    message: `${getTrainingPetDisplayById(petId, normalized).name} 进化为 ${status.nextStage.name}！`,
+    save: ensurePetCollection({
+      ...normalized,
+      petCurrentSpeciesId: {
+        ...normalized.petCurrentSpeciesId,
+        [petId]: status.nextStage.speciesId
+      },
+      petEvolutionStage: {
+        ...normalized.petEvolutionStage,
+        [petId]: nextStageNumber
+      }
+    }),
+    success: true
   };
 }
 
@@ -195,6 +278,8 @@ export function syncPetSkillState(save: PartnerChessSave): PartnerChessSave {
   return {
     ...save,
     ownedPets,
+    petCurrentSpeciesId: save.petCurrentSpeciesId ?? {},
+    petEvolutionStage: save.petEvolutionStage ?? {},
     petEquippedSkillIds: equipped,
     petForgottenSkillIds: forgotten,
     petLearnedSkillIds: learned

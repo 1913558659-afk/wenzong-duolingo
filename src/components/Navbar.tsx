@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Crown, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PawPrint, PenSquare, Shield, Swords, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Crown, FlaskConical, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PawPrint, PenSquare, Shield, Swords, UserRound, X } from "lucide-react";
+import { isAdminUser } from "@/config/admin";
 import type { AuthUser, PageId } from "@/types";
 
 type NavItem = {
@@ -26,6 +27,7 @@ const items: NavItem[] = [
   { id: "auth", label: "登录", icon: LogIn, guestOnly: true, mobilePrimary: true },
   { id: "profile", label: "我的", icon: UserRound, authOnly: true, mobilePrimary: true },
   { id: "adminQuestions", label: "题库管理", icon: Shield, adminOnly: true },
+  { id: "adminTest", label: "测试台", icon: FlaskConical, adminOnly: true },
   { id: "about", label: "关于", icon: Compass }
 ];
 
@@ -41,7 +43,7 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
   const navItems = items.filter((item) => {
     if (item.authOnly && !user) return false;
     if (item.guestOnly && user) return false;
-    if (item.adminOnly && user?.role !== "admin") return false;
+    if (item.adminOnly && !isAdminUser(user)) return false;
     return true;
   });
   const mobilePrimary = navItems.slice(0, 5);

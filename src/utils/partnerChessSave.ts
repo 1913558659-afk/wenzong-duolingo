@@ -11,10 +11,12 @@ export type PartnerChessSave = {
   activeTrainingTeam: string[];
   capturedAt: Record<string, string>;
   coins: number;
+  petCurrentSpeciesId: Record<string, string>;
   petExp: Record<string, number>;
   petEquippedSkillIds: Record<string, string[]>;
   petLearnedSkillIds: Record<string, string[]>;
   petForgottenSkillIds: Record<string, string[]>;
+  petEvolutionStage: Record<string, number>;
   petLevel: Record<string, number>;
   petShards: Record<string, number>;
   shards: Record<string, number>;
@@ -57,8 +59,10 @@ export function defaultPartnerChessSave(): PartnerChessSave {
     capturedAt: {},
     clearedStages: {},
     coins: 0,
+    petCurrentSpeciesId: {},
     petExp: initialPetExp(),
     petEquippedSkillIds: {},
+    petEvolutionStage: {},
     petForgottenSkillIds: {},
     petLearnedSkillIds: {},
     petLevel: initialPetLevel(),
@@ -95,6 +99,8 @@ export function loadPartnerChessSave(): PartnerChessSave {
     const activeTrainingTeam = normalizeTrainingTeam(parsed.activeTrainingTeam, ownedPets);
     const initialLevels = Object.fromEntries(ownedPets.map((petId) => [petId, 1]));
     const initialExp = Object.fromEntries(ownedPets.map((petId) => [petId, 0]));
+    const initialEvolutionStage = Object.fromEntries(ownedPets.map((petId) => [petId, 1]));
+    const initialCurrentSpeciesId = Object.fromEntries(ownedPets.map((petId) => [petId, petId]));
 
     return {
       activeTrainingTeam,
@@ -102,8 +108,10 @@ export function loadPartnerChessSave(): PartnerChessSave {
       clearedStages: parsed.clearedStages ?? fallback.clearedStages,
       coins: parsed.coins ?? fallback.coins,
       ownedPets,
+      petCurrentSpeciesId: { ...fallback.petCurrentSpeciesId, ...initialCurrentSpeciesId, ...(parsed.petCurrentSpeciesId ?? {}) },
       petExp: { ...fallback.petExp, ...initialExp, ...(parsed.petExp ?? {}) },
       petEquippedSkillIds: parsed.petEquippedSkillIds ?? fallback.petEquippedSkillIds,
+      petEvolutionStage: { ...fallback.petEvolutionStage, ...initialEvolutionStage, ...(parsed.petEvolutionStage ?? {}) },
       petForgottenSkillIds: parsed.petForgottenSkillIds ?? fallback.petForgottenSkillIds,
       petLearnedSkillIds: parsed.petLearnedSkillIds ?? fallback.petLearnedSkillIds,
       petLevel: { ...fallback.petLevel, ...initialLevels, ...(parsed.petLevel ?? {}) },
