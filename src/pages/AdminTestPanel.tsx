@@ -140,6 +140,7 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
     nextImage: string;
     nextName: string;
     nextStage: number;
+    petId: string;
   }>(null);
 
   const chapters = useMemo(() => subjectChapters(questions, selectedSubject), [questions, selectedSubject]);
@@ -557,7 +558,7 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
                     onClick={() => {
                       const current = getTrainingPetDisplayById(selectedPetId, save);
                       const target = selectedEvolution.nextStage ?? selectedSpecies?.evolutionLine.stages[Math.min(2, getPetEvolutionStageValue(save, selectedPetId))];
-                      if (target) setPreviewEvolution({ currentImage: current.image, currentName: current.name, level: selectedLevelInfo.level, nextImage: target.image, nextName: target.name, nextStage: target.stage });
+                      if (target) setPreviewEvolution({ currentImage: current.image, currentName: current.name, level: selectedLevelInfo.level, nextImage: target.image, nextName: target.name, nextStage: target.stage, petId: selectedPetId });
                     }}
                     type="button"
                   >
@@ -707,6 +708,7 @@ export function AdminTestPanel({ onNavigateHome, onStartPractice, questions, use
           nextStage={previewEvolution.nextStage}
           onCancel={() => setPreviewEvolution(null)}
           onFinish={() => setPreviewEvolution(null)}
+          petId={previewEvolution.petId}
           statSummary="这是管理员动画预览，不写入存档。"
         />
       )}

@@ -183,18 +183,18 @@ export function EvolutionAnimationOverlay({
           <div className={`evolution-wave ${phase >= 3 ? "evolution-wave-active" : ""}`} />
           <img
             alt={currentName}
-            className={`absolute z-10 h-52 object-contain [image-rendering:pixelated] sm:h-60 ${petSpriteFacingClass("", "right")} ${showNext ? "evolution-old-out" : phase === 2 ? "evolution-silhouette" : "evolution-charge"}`}
+            className={`absolute z-10 h-52 object-contain [image-rendering:pixelated] sm:h-60 ${petSpriteFacingClass(petId ?? "", "right")} ${showNext ? "evolution-old-out" : phase === 2 ? "evolution-silhouette" : "evolution-charge"}`}
             src={currentImage}
           />
           <img
             alt=""
             aria-hidden="true"
-            className={`absolute z-20 h-56 object-contain opacity-0 [image-rendering:pixelated] sm:h-64 ${petSpriteFacingClass("", "right")} ${phase === 2 ? "evolution-morph-glow" : ""}`}
+            className={`absolute z-20 h-56 object-contain opacity-0 [image-rendering:pixelated] sm:h-64 ${petSpriteFacingClass(petId ?? "", "right")} ${phase === 2 ? "evolution-morph-glow" : ""}`}
             src={currentImage}
           />
           <img
             alt={nextName}
-            className={`absolute z-20 h-56 object-contain [image-rendering:pixelated] sm:h-64 ${petSpriteFacingClass("", "right")} ${showNext ? "evolution-new-in" : "opacity-0"}`}
+            className={`absolute z-20 h-56 object-contain [image-rendering:pixelated] sm:h-64 ${petSpriteFacingClass(petId ?? "", "right")} ${showNext ? "evolution-new-in" : "opacity-0"}`}
             src={nextImage}
           />
           {Array.from({ length: 24 }).map((_, index) => (
