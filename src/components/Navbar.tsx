@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Crown, Flag, FlaskConical, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PawPrint, PenSquare, Shield, Swords, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Crown, Flag, FlaskConical, GraduationCap, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PawPrint, PenSquare, School, Shield, Swords, UserRound, X } from "lucide-react";
 import { isAdminUser } from "@/config/admin";
 import type { AuthUser, PageId } from "@/types";
 
@@ -11,6 +11,7 @@ type NavItem = {
   authOnly?: boolean;
   guestOnly?: boolean;
   mobilePrimary?: boolean;
+  roleOnly?: "student" | "teacher";
 };
 
 const items: NavItem[] = [
@@ -25,6 +26,8 @@ const items: NavItem[] = [
   { id: "prompts", label: "AI学习", icon: Brain, mobilePrimary: true },
   { id: "textbook", label: "教材", icon: BookOpen },
   { id: "studyAids", label: "教辅", icon: LibraryBig },
+  { id: "student", label: "学习中心", icon: GraduationCap, authOnly: true, roleOnly: "student" },
+  { id: "teacher", label: "教师中心", icon: School, authOnly: true, roleOnly: "teacher" },
   { id: "auth", label: "登录", icon: LogIn, guestOnly: true, mobilePrimary: true },
   { id: "profile", label: "我的", icon: UserRound, authOnly: true, mobilePrimary: true },
   { id: "adminQuestions", label: "题库管理", icon: Shield, adminOnly: true },
@@ -45,6 +48,7 @@ export function Navbar({ currentPage, onLogout, onNavigate, user }: NavbarProps)
     if (item.authOnly && !user) return false;
     if (item.guestOnly && user) return false;
     if (item.adminOnly && !isAdminUser(user)) return false;
+    if (item.roleOnly && user?.role !== item.roleOnly && !isAdminUser(user)) return false;
     return true;
   });
   const mobilePrimary = navItems.slice(0, 5);

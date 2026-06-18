@@ -1,4 +1,4 @@
-import { ArrowRight, Bell, BookOpen, Brain, Calculator, CalendarDays, ClipboardList, Dna, Globe2, Landmark, Languages, LibraryBig, ScrollText, ShieldCheck } from "lucide-react";
+import { ArrowRight, Bell, BookOpen, Brain, Calculator, CalendarDays, ClipboardList, Dna, Globe2, GraduationCap, Landmark, Languages, LibraryBig, School, ScrollText, ShieldCheck } from "lucide-react";
 import biologyIllustration from "@/assets/subjects/biology.svg";
 import englishIllustration from "@/assets/subjects/english.svg";
 import geographyIllustration from "@/assets/subjects/geography.svg";
@@ -12,6 +12,7 @@ import type { AuthUser, PageId, QuizQuestion, ScheduleItem, StudyStats, Subject 
 type HomeProps = {
   isLoggedIn?: boolean;
   navigate: (page: PageId) => void;
+  openRoleLogin: (role: "student" | "teacher") => void;
   questionSourceStatus?: "loading" | "cloud" | "local";
   questions?: QuizQuestion[];
   stats: StudyStats;
@@ -219,6 +220,7 @@ function MobileProgressHero({
 export function Home({
   isLoggedIn = false,
   navigate,
+  openRoleLogin,
   questionSourceStatus = "local",
   questions = [],
   stats,
@@ -278,6 +280,33 @@ export function Home({
               今日学习报告
             </button>
           </div>
+        </section>
+
+        <section className="grid gap-3 sm:grid-cols-2">
+          <button
+            className="flex min-h-24 items-center gap-4 rounded-[1.35rem] border border-white/80 bg-white/78 p-4 text-left shadow-[0_12px_30px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5"
+            onClick={() => user?.role === "student" || user?.role === "admin" ? navigate("student") : openRoleLogin("student")}
+            type="button"
+          >
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#DFF6F1] text-[#1496A3]"><GraduationCap className="size-6" /></span>
+            <span className="min-w-0">
+              <span className="block text-base font-black text-[#10243F]">学生入口</span>
+              <span className="mt-1 block text-xs font-semibold leading-5 text-[#667085]">进入学习中心，查看任务、闯关与错题。</span>
+            </span>
+            <ArrowRight className="ml-auto size-4 shrink-0 text-[#1496A3]" />
+          </button>
+          <button
+            className="flex min-h-24 items-center gap-4 rounded-[1.35rem] border border-white/80 bg-white/78 p-4 text-left shadow-[0_12px_30px_rgba(16,36,63,0.07)] transition hover:-translate-y-0.5"
+            onClick={() => user?.role === "teacher" || user?.role === "admin" ? navigate("teacher") : openRoleLogin("teacher")}
+            type="button"
+          >
+            <span className="grid size-12 shrink-0 place-items-center rounded-2xl bg-[#10243F]/7 text-[#10243F]"><School className="size-6" /></span>
+            <span className="min-w-0">
+              <span className="block text-base font-black text-[#10243F]">教师入口</span>
+              <span className="mt-1 block text-xs font-semibold leading-5 text-[#667085]">进入教师管理中心，管理班级、课程与学情。</span>
+            </span>
+            <ArrowRight className="ml-auto size-4 shrink-0 text-[#10243F]" />
+          </button>
         </section>
 
         <MobileProgressHero

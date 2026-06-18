@@ -1,9 +1,17 @@
 import { useEffect, useState } from "react";
 import { fetchMe, loginUser, registerUser } from "@/lib/api";
 import type { AuthUser } from "@/types";
+import type { UserRole } from "@/types/education";
 
 const tokenKey = "wenzong-island-auth-token";
 const userKey = "wenzong-island-auth-user";
+const testTokenPrefix = "sayhi-test-session:";
+
+const testAccounts: Record<string, AuthUser> = {
+  "admin@test.com": { email: "admin@test.com", id: "test-admin", name: "测试管理员", role: "admin" },
+  "student@test.com": { email: "student@test.com", id: "test-student", name: "测试学生", role: "student" },
+  "teacher@test.com": { email: "teacher@test.com", id: "test-teacher", name: "测试教师", role: "teacher" }
+};
 
 function loadToken() {
   return typeof window === "undefined" ? null : window.localStorage.getItem(tokenKey);
@@ -39,6 +47,11 @@ export function useAuth() {
       return;
     }
 
+    if (savedToken.startsWith(testTokenPrefix) && savedUser) {
+      setLoading(false);
+      return;
+    }
+
     fetchMe(savedToken)
       .then((data) => {
         setUser(data.user);
@@ -53,11 +66,25 @@ export function useAuth() {
       .finally(() => setLoading(false));
   }, []);
 
-  async function login(email: string, password: string) {
+  async function login(email: string, password: string, requestedRole?: UserRole) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const testUser = testAccounts[normalizedEmail];
+    if (testUser && password === "123456") {
+      if (requestedRole && testUser.role !== requestedRole && testUser.role !== "admin") {
+        throw new Error(`该测试账号属于${testUser.role === "teacher" ? "教师" : "学生"}身份`);
+      }
+      const testToken = `${testTokenPrefix}${testUser.id}`;
+      saveSession(testToken, testUser);
+      setToken(testToken);
+      setUser(testUser);
+      return testUser;
+    }
+
     const data = await loginUser({ email, password });
     saveSession(data.token, data.user);
     setToken(data.token);
     setUser(data.user);
+    return data.user;
   }
 
   async function register(email: string, password: string, name?: string) {
@@ -65,6 +92,7 @@ export function useAuth() {
     saveSession(data.token, data.user);
     setToken(data.token);
     setUser(data.user);
+    return data.user;
   }
 
   function logout() {
