@@ -2,14 +2,16 @@ import type { Subject } from "@/types";
 
 export type UserRole = "student" | "teacher" | "admin";
 
-export type EducationUser = {
+export type EduUser = {
   avatar?: string;
-  createdAt?: string;
+  createdAt: string;
   email: string;
   id: string;
   name: string;
   role: UserRole;
 };
+
+export type EducationUser = EduUser;
 
 export type StudentProfile = {
   classIds: string[];
@@ -17,11 +19,10 @@ export type StudentProfile = {
   createdAt: string;
   displayName: string;
   grade: string;
-  guardianContact?: string;
   id: string;
-  school?: string;
+  studentNo?: string;
   tags?: string[];
-  userId: string;
+  userId?: string;
 };
 
 export type TeacherProfile = {
@@ -31,7 +32,7 @@ export type TeacherProfile = {
   displayName: string;
   id: string;
   subjectTags: Subject[];
-  userId: string;
+  userId?: string;
 };
 
 export type ClassGroup = {
@@ -41,6 +42,7 @@ export type ClassGroup = {
   inviteCode: string;
   name: string;
   studentIds: string[];
+  subjectFocus?: Subject[];
   teacherId: string;
 };
 
@@ -48,6 +50,7 @@ export type Course = {
   chapterScope?: string[];
   classId: string;
   createdAt: string;
+  description?: string;
   id: string;
   name: string;
   subject: Subject;
@@ -55,20 +58,22 @@ export type Course = {
 };
 
 export type Assignment = {
-  chapter: string;
+  chapter?: string;
   classId: string;
   courseId: string;
   createdAt: string;
   description?: string;
   dueAt?: string;
   id: string;
-  questionIds: string[];
-  status?: "draft" | "published" | "closed";
+  questionCount?: number;
+  questionIds?: string[];
+  status: "draft" | "published" | "closed";
   subject: Subject;
   title: string;
 };
 
 export type GradeRecord = {
+  classId: string;
   courseId: string;
   date: string;
   examName: string;
@@ -88,6 +93,7 @@ export type WrongQuestionStat = {
   studentIds: string[];
   subject: Subject;
   tags: string[];
+  title: string;
   wrongCount: number;
   wrongRate: number;
 };
@@ -99,10 +105,10 @@ export type LearningReport = {
   scopeId: string;
   scopeType: "student" | "class";
   strengths: string[];
-  subject: Subject;
+  subject?: Subject;
   suggestedActions: string[];
   summary: string;
-  title?: string;
+  title: string;
   weaknesses: string[];
 };
 

@@ -178,7 +178,7 @@ export default function App() {
         {page === "partnerChess" && <PartnerChessPage goPetBattle={() => setPage("petBattle")} questions={questions} />}
         {page === "territoryWar" && <TerritoryWarPage questions={questions} user={auth.user} />}
         {page === "student" && <StudentDashboard navigate={navigate} stats={stats} wrongCount={records.length} />}
-        {page === "teacher" && <TeacherDashboard navigate={navigate} />}
+        {page === "teacher" && <TeacherDashboard navigate={navigate} user={auth.user} />}
         {teacherPages.has(page) && page !== "teacher" && <TeacherSectionPage navigate={navigate} page={page} />}
         {page === "profile" && <Profile navigate={navigate} stats={stats} syncError={statsSyncError} user={auth.user} />}
         {page === "adminQuestions" && <AdminQuestionBank token={auth.token} user={auth.user} />}

@@ -41,6 +41,7 @@ export function generateLearningReport(scopeType: "student" | "class", scopeId: 
     subject: "history",
     suggestedActions: ["继续积累答题数据", "按章节复盘错题"],
     summary: "此报告为前端结构预览，尚未接入真实教学数据。",
+    title: scopeType === "class" ? "班级学情报告" : "学生学习报告",
     weaknesses: ["数据样本不足"]
   };
 }
