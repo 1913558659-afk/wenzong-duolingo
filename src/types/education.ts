@@ -59,9 +59,11 @@ export type Assignment = {
   classId: string;
   courseId: string;
   createdAt: string;
+  description?: string;
   dueAt?: string;
   id: string;
   questionIds: string[];
+  status?: "draft" | "published" | "closed";
   subject: Subject;
   title: string;
 };
@@ -100,7 +102,18 @@ export type LearningReport = {
   subject: Subject;
   suggestedActions: string[];
   summary: string;
+  title?: string;
   weaknesses: string[];
+};
+
+export type EducationDataSnapshot = {
+  assignments: Assignment[];
+  classes: ClassGroup[];
+  courses: Course[];
+  grades: GradeRecord[];
+  reports: LearningReport[];
+  students: StudentProfile[];
+  wrongQuestionStats: WrongQuestionStat[];
 };
 
 export type GradeTrendPoint = {
