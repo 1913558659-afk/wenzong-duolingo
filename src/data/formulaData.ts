@@ -17,6 +17,9 @@ export type FormulaItem = {
   steps: string[];
   subject: FormulaSubject;
   variables: FormulaVariable[];
+  imported?: boolean;
+  source?: "mineru";
+  sourceFile?: string;
 };
 
 export const formulaSubjectConfig: Record<FormulaSubject, { color: string; label: string; chapters: string[] }> = {

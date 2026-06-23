@@ -5,20 +5,25 @@ import { GameCard } from "@/components/GameCard";
 import { MarkdownContent } from "@/components/MarkdownContent";
 import { PageHeader } from "@/components/PageHeader";
 import { formulaItems, formulaSubjectConfig } from "@/data/formulaData";
+import { importedFormulaData } from "@/data/importedFormulaData";
+import { getFormulaQualityIssues, hasIncompleteVariables, hasRoughFormulaTitle } from "@/lib/formulaImportQuality";
 import type { FormulaItem, FormulaSubject } from "@/data/formulaData";
+import type { PageId } from "@/types";
 
 const subjects = Object.keys(formulaSubjectConfig) as FormulaSubject[];
+const allFormulaItems = [...formulaItems, ...importedFormulaData];
 
-export function FormulaIsland() {
+export function FormulaIsland({ navigate }: { navigate: (page: PageId) => void }) {
   const [subject, setSubject] = useState<FormulaSubject>("math");
   const [chapter, setChapter] = useState("全部章节");
   const [query, setQuery] = useState("");
   const [selectedId, setSelectedId] = useState<string | null>("math-arithmetic-term");
   const config = formulaSubjectConfig[subject];
+  const chapters = [...new Set([...config.chapters, ...allFormulaItems.filter((item) => item.subject === subject).map((item) => item.chapter)])];
 
   const filtered = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
-    return formulaItems.filter((item) => {
+    return allFormulaItems.filter((item) => {
       if (item.subject !== subject) return false;
       if (chapter !== "全部章节" && item.chapter !== chapter) return false;
       if (!normalizedQuery) return true;
@@ -37,7 +42,7 @@ export function FormulaIsland() {
   const selected = filtered.find((item) => item.id === selectedId) ?? filtered[0] ?? null;
 
   function chooseSubject(nextSubject: FormulaSubject) {
-    const firstFormula = formulaItems.find((item) => item.subject === nextSubject);
+    const firstFormula = allFormulaItems.find((item) => item.subject === nextSubject);
     setSubject(nextSubject);
     setChapter("全部章节");
     setQuery("");
@@ -87,7 +92,7 @@ export function FormulaIsland() {
         </div>
 
         <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-          {["全部章节", ...config.chapters].map((item) => (
+          {["全部章节", ...chapters].map((item) => (
             <button
               className={`min-h-9 shrink-0 rounded-full px-4 text-xs font-black transition ${chapter === item ? "bg-tide text-white" : "bg-ink/5 text-ink/58 hover:bg-tide/10 hover:text-tide"}`}
               key={item}
@@ -134,16 +139,32 @@ export function FormulaIsland() {
           )}
         </aside>
       </div>
+
+      {import.meta.env.DEV && (
+        <div className="flex justify-center pt-2">
+          <button className="text-xs font-bold text-ink/35 underline decoration-ink/20 underline-offset-4 transition hover:text-tide" onClick={() => navigate("formulaReview")} type="button">
+            开发工具：导入审核台
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 function FormulaCard({ active, index, item, onSelect }: { active: boolean; index: number; item: FormulaItem; onSelect: () => void }) {
+  const qualityIssues = item.imported ? getFormulaQualityIssues(item) : [];
+  const roughTitle = item.imported && hasRoughFormulaTitle(item.name);
+  const incompleteVariables = item.imported && hasIncompleteVariables(item);
   return (
     <button className="text-left" onClick={onSelect} type="button">
       <GameCard className={`h-full overflow-hidden transition hover:-translate-y-1 hover:shadow-[0_18px_42px_rgba(16,35,63,0.11)] ${active ? "border-tide/30 bg-tide/[0.06] ring-2 ring-tide/15" : "bg-white/78"}`}>
         <div className="flex items-center justify-between gap-3">
-          <span className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-black text-ink/48">{item.chapter}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="rounded-full bg-ink/5 px-3 py-1 text-[11px] font-black text-ink/48">{item.chapter}</span>
+            {item.imported && <span className="rounded-full bg-gold/20 px-2.5 py-1 text-[10px] font-black text-ink">MinerU 导入</span>}
+            {roughTitle && <span className="rounded-full bg-coral/10 px-2.5 py-1 text-[10px] font-black text-coral">待清洗</span>}
+            {incompleteVariables && <span className="rounded-full bg-coral/10 px-2.5 py-1 text-[10px] font-black text-coral">待补充变量解释</span>}
+          </div>
           <span className="text-xs font-black text-gold">航点 {String(index + 1).padStart(2, "0")}</span>
         </div>
         <h3 className="mt-4 text-lg font-black text-ink">{item.name}</h3>
@@ -152,7 +173,7 @@ function FormulaCard({ active, index, item, onSelect }: { active: boolean; index
         </div>
         <p className="mt-3 line-clamp-2 text-sm font-semibold leading-6 text-ink/55">{item.scenario}</p>
         <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="text-xs font-black text-coral">易错点 {item.commonMistakes.length} 个</span>
+          <span className="text-xs font-black text-coral">{qualityIssues.length ? `待整理 ${qualityIssues.length} 项` : `易错点 ${item.commonMistakes.length} 个`}</span>
           <span className="inline-flex items-center gap-1 text-xs font-black text-tide">查看详情<ChevronRight className="size-3.5" /></span>
         </div>
       </GameCard>

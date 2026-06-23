@@ -10,61 +10,124 @@
 - `mineru-output/`：MinerU 输出目录。
 - `drafts/`：导入脚本生成的草稿。
 - `import-mineru-output.js`：Markdown / JSON 扫描与公式提取脚本。
+- `export-drafts-to-formula-data.js`：把审核通过的草稿导出为公式岛数据。
 
-## 导入流程
+## 完整导入与审核流程
 
-1. 把 PDF、图片或 DOCX 放入：
-
-   ```text
-   tools/formula-importer/input/
-   ```
-
-2. 在项目根目录使用本地 MinerU 解析：
+1. 使用本地 MinerU 解析 PDF，例如：
 
    ```bash
-   mineru -p tools/formula-importer/input -o tools/formula-importer/mineru-output
+   mineru -p input/test.pdf -o output -b pipeline
    ```
 
-3. 运行导入脚本：
+2. 把 MinerU 的 `output` 内容复制到：
+
+   ```text
+   tools/formula-importer/mineru-output/
+   ```
+
+   也可以直接使用本目录作为 MinerU 输入和输出位置：
+
+   ```bash
+   mineru -p tools/formula-importer/input/test.pdf \
+     -o tools/formula-importer/mineru-output \
+     -b pipeline
+   ```
+
+3. 在项目根目录生成待审核草稿：
 
    ```bash
    node tools/formula-importer/import-mineru-output.js
    ```
 
-4. 脚本会递归扫描 `mineru-output/`。Markdown 文件优先处理，随后处理 JSON 中可读取的文本字段。
+   脚本会递归扫描 `mineru-output/`。Markdown 文件优先处理，随后处理 JSON 中可读取的文本字段。
 
-5. 脚本尝试识别：
-
-   - `$$...$$`
-   - `\[...\]`
-   - `\(...\)`
-   - 常见独立等式行，如 `v = s / t`、`S_n = n(a_1+a_n)/2`
-
-6. 输出文件：
+4. 人工打开：
 
    ```text
    tools/formula-importer/drafts/formula-drafts.json
    ```
 
-7. 人工审核草稿，补全标题、章节、适用场景、变量解释、易错点和例题后，再合并到：
+   检查公式、学科、章节、标题、场景、变量、易错点和例题。只把确认正确的条目从：
 
-   ```text
-   src/data/formulaData.ts
+   ```json
+   "status": "draft"
    ```
 
-## 草稿合并建议
+   改为：
 
-导入草稿字段与正式数据字段存在少量命名差异，合并时建议转换：
+   ```json
+   "status": "approved"
+   ```
+
+5. 导出审核通过的公式：
+
+   ```bash
+   node tools/formula-importer/export-drafts-to-formula-data.js
+   ```
+
+   输出文件：
+
+   ```text
+   src/data/importedFormulaData.ts
+   ```
+
+   导出脚本不会覆盖 `src/data/formulaData.ts`。只有 `approved` 条目会被写入；`draft` 和无法识别学科的条目不会进入公式岛。
+
+6. 启动项目：
+
+   ```bash
+   npm run dev
+   ```
+
+7. 打开公式岛查看导入公式。导入卡片会显示“MinerU 导入”标签。
+
+8. 在开发环境进入公式导入审核台：
+
+   ```text
+   http://localhost:5173/formula-review
+   ```
+
+   也可以点击公式岛页面底部的“开发工具：导入审核台”。
+
+## 发布前人工审核
+
+MinerU 导入后不要直接发布。应先进入公式导入审核台逐条检查：
+
+- 标题是否准确，避免“x 公式”“y 公式”等无意义名称
+- 学科和章节是否正确
+- LaTeX 公式是否完整，是否截断了上下文
+- 变量解释是否完整，是否仍有“待人工补充”
+- 适用场景是否是正常文本，而不是 `equation_inline` 等解析标记
+- 例题和易错点是否需要人工补充
+- `sourceFile` 是否能追溯到正确的 MinerU 输出文件
+
+审核台只提供预览、质量提示和“复制整理模板”，不会直接写回 `formula-drafts.json`。复制模板后，可以手动整理草稿，再重新运行导出脚本。
+
+## 数据转换
+
+导出脚本会自动完成：
 
 - `title` → `name`
 - `scene` → `scenario`
 - `mistakes` → `commonMistakes`
-- 保留 `latex`、`subject`、`chapter`、`variables`、`example`
-- 人工补充正式数据需要的 `keywords` 和 `steps`
-- 删除草稿专用的 `sourceFile`、`status`
-- 正式 `subject` 只接受 `math`、`physics`、`geography`；`unknown` 必须人工归类
+- 补充基础 `keywords` 和默认 `steps`
+- 添加 `source: "mineru"` 和 `imported: true`
+- 过滤非 `approved` 和空公式
+- 对 `unknown` 学科按章节、标题和来源推断；无法判断时暂按数学归类并在终端警告
 
-不要直接把全部草稿批量发布。OCR、上下文切分和等式识别都可能产生误判。
+如果没有 `approved` 草稿，脚本会提示“没有可导入的公式草稿”，正常退出并生成安全的空 `importedFormulaData.ts`。
+
+## 公式提取规则
+
+导入脚本尝试识别：
+
+- `$$...$$`
+- `\[...\]`
+- `\(...\)`
+- 常见独立等式行，如 `v = s / t`、`S_n = n(a_1+a_n)/2`
+
+不要未经审核直接批准全部草稿。OCR、上下文切分和等式识别都可能产生误判。
 
 ## 当前识别局限
 
@@ -75,4 +138,3 @@
 - 变量含义只能从附近的“变量/其中/式中”文字尝试提取，通常需要人工补充。
 - 易错点和示例题只有在附近文字包含“易错、注意、提醒、例题、示例”等提示词时才能较好识别。
 - JSON 结构因 MinerU 版本而异；脚本会递归收集字符串字段，但不会理解所有自定义结构。
-

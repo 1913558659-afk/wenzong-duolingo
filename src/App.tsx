@@ -10,6 +10,7 @@ import { Auth } from "@/pages/Auth";
 import { ChallengeMap } from "@/pages/ChallengeMap";
 import { Home } from "@/pages/Home";
 import { FormulaIsland } from "@/pages/FormulaIsland";
+import { FormulaReview } from "@/pages/FormulaReview";
 import { PetBattle } from "@/pages/PetBattle";
 import { PartnerChessPage } from "@/pages/PartnerChessPage";
 import { Profile } from "@/pages/Profile";
@@ -36,6 +37,8 @@ const pathToPage: Record<string, PageId> = {
   "/debug-lab": "adminTest",
   "/formula": "formulaIsland",
   "/formula-island": "formulaIsland",
+  "/formula-drafts": "formulaReview",
+  "/formula-review": "formulaReview",
   "/login": "auth",
   "/student": "student",
   "/teacher": "teacher",
@@ -180,7 +183,8 @@ export default function App() {
         {page === "petBattle" && <PetBattle openPartnerChess={() => setPage("partnerChess")} />}
         {page === "partnerChess" && <PartnerChessPage goPetBattle={() => setPage("petBattle")} questions={questions} />}
         {page === "territoryWar" && <TerritoryWarPage questions={questions} user={auth.user} />}
-        {page === "formulaIsland" && <FormulaIsland />}
+        {page === "formulaIsland" && <FormulaIsland navigate={navigate} />}
+        {page === "formulaReview" && <FormulaReview navigate={navigate} />}
         {page === "student" && <StudentDashboard navigate={navigate} stats={stats} wrongCount={records.length} />}
         {page === "teacher" && <TeacherDashboard navigate={navigate} user={auth.user} />}
         {teacherPages.has(page) && page !== "teacher" && <TeacherSectionPage navigate={navigate} page={page} />}
