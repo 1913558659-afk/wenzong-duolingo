@@ -1,4 +1,4 @@
-export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "petBattle" | "partnerChess" | "territoryWar" | "formulaIsland" | "formulaReview" | "formulaAdmin" | "questionReview" | "questionImportPreview" | "profile" | "adminQuestions" | "adminTest" | "auth" | "student" | "teacher" | "teacherClasses" | "teacherStudents" | "teacherCourses" | "teacherGrades" | "teacherWrongAnalytics" | "teacherReports" | "about";
+export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "petBattle" | "partnerChess" | "territoryWar" | "formulaIsland" | "formulaReview" | "formulaAdmin" | "questionReview" | "questionImportPreview" | "importedQuestionManager" | "profile" | "adminQuestions" | "adminTest" | "auth" | "student" | "teacher" | "teacherClasses" | "teacherStudents" | "teacherCourses" | "teacherGrades" | "teacherWrongAnalytics" | "teacherReports" | "about";
 
 export type Subject = "history" | "politics" | "geography" | "biology" | "math" | "english";
 
@@ -35,6 +35,7 @@ export type QuizQuestion = {
   importFingerprint?: string;
   sourceFile?: string;
   createdAt?: string;
+  analysis?: string;
 };
 
 export type StudyStats = {

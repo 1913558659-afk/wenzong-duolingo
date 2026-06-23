@@ -74,6 +74,44 @@ PDF
 
 6. 启动前端，到练习和闯关中验证导入题。题目卡片会显示“MinerU 导入”。
 
+## 网页审核台增强版
+
+1. 启动本地后台：
+
+   ```bash
+   MINERU_BIN="/Users/smllie/Documents/sayhi-mineru-test/.venv/bin/mineru" npm run formula:admin
+   ```
+
+2. 启动前端：
+
+   ```bash
+   npm run dev
+   ```
+
+3. 打开 `/formula-admin` 上传 PDF 并解析，再打开 `/question-review`。
+4. 审核台可以直接修改题干、选项、答案、分析、详解、学科、章节、题型、难度和标签。
+5. 使用“保存修改”“通过审核”“拒绝”或批量操作，不需要手动编辑 `question-drafts.json`。
+6. 点击“发布 approved 到正式题库”，系统会在确认后自动备份并追加发布；draft 和 rejected 不会进入正式题库。
+7. 发布结果会显示导入、重复、无效、跳过数量及备份路径。
+
+## 导入后的题库维护
+
+题目发布后，打开：
+
+```text
+http://localhost:5173/imported-question-manager
+```
+
+这个页面只管理 `imported: true` 或 `source: "mineru-question-import"` 的本地正式题，不会删除普通题库。
+
+- 可按 `importBatchId`、`sourceFile`、学科、章节和题型筛选
+- 可展开单题修改题干、选项、答案、分析和解析
+- 可删除单道导入题
+- 可按 `importBatchId` 删除整批导入题
+- 每次修改或删除前都会自动备份 `src/data/questions.ts`
+- 页面会列出备份文件，可选择备份执行回滚
+- 回滚前还会自动创建一份当前题库的安全备份
+
 如果没有 approved 草稿，脚本会提示“没有可导入的题目草稿”，不会备份或修改正式题库。相同 `sourceFile + stem + answer` 的题目会被判定为重复并跳过。
 
 ### 回滚

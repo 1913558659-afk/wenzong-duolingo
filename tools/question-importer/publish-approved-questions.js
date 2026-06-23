@@ -105,7 +105,8 @@ function convertDraft(draft, batchId, createdAt, existingIds) {
       question,
       options,
       answer,
-      explanation: [analysis, detail].filter(Boolean).join("\n\n") || "暂无解析。",
+      analysis,
+      explanation: detail || analysis || "暂无解析。",
       tags: [...new Set([...stringArray(draft.tags), "导入题库"])],
       source: "mineru-question-import",
       imported: true,
@@ -134,62 +135,109 @@ function insertIntoQuizQuestions(source, items) {
   return `${source.slice(0, arrayEnd)}${separator}${renderItems(items)}${source.slice(arrayEnd)}`;
 }
 
-async function main() {
-  const payload = JSON.parse(await fs.readFile(draftsFile, "utf8"));
+export async function publishApprovedQuestions(options = {}) {
+  const activeDraftsFile = options.draftsFile ? path.resolve(options.draftsFile) : draftsFile;
+  const activeQuestionBankFile = options.questionBankFile ? path.resolve(options.questionBankFile) : questionBankFile;
+  const activeBackupDir = options.backupDir ? path.resolve(options.backupDir) : backupDir;
+  const logger = options.logger ?? console;
+  const payload = JSON.parse(await fs.readFile(activeDraftsFile, "utf8"));
   const drafts = extractDrafts(payload);
   const approved = drafts.filter((draft) => draft?.status === "approved");
-  console.log(`approved 数量：${approved.length}`);
+  logger.log(`approved 数量：${approved.length}`);
 
   if (approved.length === 0) {
-    console.log("没有可导入的题目草稿");
-    return;
+    return {
+      ok: false,
+      error: "没有可发布的 approved 题目",
+      approvedCount: 0,
+      importedCount: 0,
+      skippedCount: 0,
+      duplicateCount: 0,
+      invalidCount: 0,
+      backupPath: "",
+      questionBankPath: path.relative(projectRoot, activeQuestionBankFile),
+      importBatchId: ""
+    };
   }
 
-  const source = await fs.readFile(questionBankFile, "utf8");
+  const source = await fs.readFile(activeQuestionBankFile, "utf8");
   const existingIds = new Set([...source.matchAll(/"id"\s*:\s*"([^"]+)"/g)].map((match) => match[1]));
   const existingFingerprints = new Set([...source.matchAll(/"importFingerprint"\s*:\s*"([^"]+)"/g)].map((match) => match[1]));
   const now = new Date();
   const createdAt = now.toISOString();
   const batchId = `mineru-question-${timestampForFile(now)}`;
   const items = [];
-  let skipped = 0;
+  let duplicateCount = 0;
+  let invalidCount = 0;
 
   for (const draft of approved) {
     const converted = convertDraft(draft, batchId, createdAt, existingIds);
     if (!converted.item) {
-      skipped += 1;
-      console.log(`跳过题目 ${stringValue(draft.id, "unknown")}：${converted.reason}`);
+      invalidCount += 1;
+      logger.log(`跳过题目 ${stringValue(draft.id, "unknown")}：${converted.reason}`);
       continue;
     }
     if (existingFingerprints.has(converted.fingerprint)) {
-      skipped += 1;
-      console.log(`跳过重复题目：${stringValue(draft.id, converted.item.id)}`);
+      duplicateCount += 1;
+      logger.log(`跳过重复题目：${stringValue(draft.id, converted.item.id)}`);
       continue;
     }
     existingFingerprints.add(converted.fingerprint);
     items.push(converted.item);
   }
 
+  const baseResult = {
+    ok: true,
+    approvedCount: approved.length,
+    importedCount: items.length,
+    skippedCount: duplicateCount + invalidCount,
+    duplicateCount,
+    invalidCount,
+    backupPath: "",
+    questionBankPath: path.relative(projectRoot, activeQuestionBankFile),
+    importBatchId: items.length ? batchId : ""
+  };
+
   if (items.length === 0) {
-    console.log("成功导入数量：0");
-    console.log(`跳过数量：${skipped}`);
-    console.log("没有新的题目需要写入，正式题库未修改。");
-    return;
+    logger.log("成功导入数量：0");
+    logger.log(`跳过数量：${baseResult.skippedCount}`);
+    logger.log("没有新的题目需要写入，正式题库未修改。");
+    return baseResult;
   }
 
-  await fs.mkdir(backupDir, { recursive: true });
-  const backupFile = path.join(backupDir, `questions-${timestampForFile(now)}.ts`);
-  await fs.copyFile(questionBankFile, backupFile);
-  await fs.writeFile(questionBankFile, insertIntoQuizQuestions(source, items), "utf8");
+  await fs.mkdir(activeBackupDir, { recursive: true });
+  const backupFile = path.join(activeBackupDir, `questions-${timestampForFile(now)}.ts`);
+  const nextSource = insertIntoQuizQuestions(source, items);
+  const temporaryFile = `${activeQuestionBankFile}.tmp-${Date.now()}`;
+  await fs.copyFile(activeQuestionBankFile, backupFile);
+  try {
+    await fs.writeFile(temporaryFile, nextSource, "utf8");
+    await fs.rename(temporaryFile, activeQuestionBankFile);
+  } catch (error) {
+    await fs.rm(temporaryFile, { force: true });
+    throw error;
+  }
 
-  console.log(`成功导入数量：${items.length}`);
-  console.log(`跳过数量：${skipped}`);
-  console.log(`备份文件路径：${path.relative(projectRoot, backupFile)}`);
-  console.log(`正式题库文件路径：${path.relative(projectRoot, questionBankFile)}`);
-  console.log(`导入批次：${batchId}`);
+  const result = {
+    ...baseResult,
+    backupPath: path.relative(projectRoot, backupFile)
+  };
+  logger.log(`成功导入数量：${result.importedCount}`);
+  logger.log(`跳过数量：${result.skippedCount}`);
+  logger.log(`备份文件路径：${result.backupPath}`);
+  logger.log(`正式题库文件路径：${result.questionBankPath}`);
+  logger.log(`导入批次：${result.importBatchId}`);
+  return result;
 }
 
-main().catch((error) => {
-  console.error(`正式题库发布失败：${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-});
+async function main() {
+  const result = await publishApprovedQuestions();
+  if (!result.ok) console.log("没有可导入的题目草稿");
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(`正式题库发布失败：${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
+}

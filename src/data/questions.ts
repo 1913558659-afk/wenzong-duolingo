@@ -4108,5 +4108,232 @@ export const quizQuestions: QuizQuestion[] = [
     "importFingerprint": "bf8f4cc79cc343e45cf2b625",
     "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
     "createdAt": "2026-06-23T08:48:30.920Z"
+  },
+  {
+    "id": "mineru-math-5e56fb161ac7",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "multiple_choice",
+    "questionType": "multiple_choice",
+    "difficulty": "medium",
+    "question": "(多选) 下列每组中的函数不是同一个函数的是（)",
+    "options": [
+      "$f \\left( x \\right) = \\left| x \\right| , g \\left( x \\right) = \\left( { \\sqrt { x } } \\right) ^ { 2 }$",
+      "$f \\left( t \\right) = \\left| t \\right| , g \\left( x \\right) = \\sqrt { x ^ { 2 } }$",
+      "$f { \\big ( } x { \\big ) } = { \\sqrt { - 2 x ^ { 3 } } } \\ , g { \\big ( } x { \\big ) } = { \\sqrt { - 2 x } }$",
+      "$f \\left( x \\right) = \\frac { x ^ { 2 } - 9 } { x - 3 } , ~ g \\left( x \\right) = x + 3$"
+    ],
+    "answer": "ACD",
+    "explanation": "根据相同函数的定义进行逐一判断即可.\n\n对于A，函数f(x)的定义域为R，函数g(x)的定义域为 $\\big [ 0 , + \\infty \\big )$ ，所以这两个函数不是同一个函数;\n对于B，因为 $g \\left( x \\right) = \\sqrt { x ^ { 2 } } = \\left| x \\right|$ ，且f(t)，g(x)的定义域均为R，所以这两个函数是同一个函数;\n对于C, $f \\left( x \\right) = { \\sqrt { - 2 x ^ { 3 } } } = - x { \\sqrt { - 2 x } }$ ，f(x)和g(x)的对应关系不同，所以这两个函数不是同一个函数；\n对于D，函数f(x)的定义域为 $\\{ x \\vert x \\in \\mathbf { R }$ ，且x≠3}，函数g(x)的定义域为R，所以这两个函数不是同一个函数.\n故选：ACD.",
+    "tags": [
+      "函数",
+      "多选题",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-09-55-736Z",
+    "importFingerprint": "5e56fb161ac79260b89ae5d0",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:09:55.736Z"
+  },
+  {
+    "id": "mineru-math-eb18f5ff5ffd",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "函数 $f ( x ) = { \\frac { 1 } { \\log _ { 2 } ( - x + 3 ) } }$ 的定义域为（）",
+    "options": [
+      "$( 3 , + \\infty )$",
+      "$( 3 , 4 ) \\cup ( 4 , + \\infty )$",
+      "$( - \\infty , 3 )$",
+      "$( - \\infty , 2 ) \\cup ( 2 , 3 )$"
+    ],
+    "answer": "$( - \\infty , 2 ) \\cup ( 2 , 3 )$",
+    "explanation": "根据函数解析式列出相应不等式，即可求得答案\n\n由题意得 $\\left\\{ { \\begin{array} { l } { - x + 3 > 0 } \\\\ { \\log _ { 2 } ( - x + 3 ) \\neq 0 } \\end{array} } \\right.$ 得 $x < 3 \\prod x \\neq 2$ 即函数 $f ( x ) = { \\frac { 1 } { \\log _ { 2 } ( - x + 3 ) } }$ 的定义域为 $( - \\infty , 2 ) \\cup ( 2 , 3 )$ 故选：D",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "eb18f5ff5ffda420d31905b0",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
+  },
+  {
+    "id": "mineru-math-88cb2ede462f",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "已知函数f(x+1)的定义域为[-1,3]，则 $f \\left( x ^ { 2 } \\right)$ 的定义域为（）",
+    "options": [
+      "[−2,2]",
+      "[0,4]",
+      "[1,9]",
+      "[0,8]"
+    ],
+    "answer": "[−2,2]",
+    "explanation": "通过中间函数f(x)过渡，即求出 f(x)的定义域后可求.\n\n在y=f(x+1)中，x∈[−1,3]，∴x+1∈[0,4]，\n∴ f(x)的定义域是[0,4]，\n故在 $f { \\left( x ^ { 2 } \\right) }$ 中 $0 \\leq x ^ { 2 } \\leq 4$ ，解得 $- 2 \\leq x \\leq 2$\n$\\therefore f \\left( x ^ { 2 } \\right)$ 的定义域是[-2,2].\n故选：A.",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "88cb2ede462f05fbfe34acbd",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
+  },
+  {
+    "id": "mineru-math-445c941976f9",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "已知函数 $y = f { \\bigl ( } 2 x + 1 { \\bigr ) }$ 的定义域为[-1,2]，则函数 $y = { \\frac { f \\left( x \\right) } { \\log _ { 2 } \\left( x + 2 \\right) } }$ 的定义域为（）",
+    "options": [
+      "[−1,2]",
+      "(−1,2]",
+      "[−1,5]",
+      "(−1,5]"
+    ],
+    "answer": "(−1,5]",
+    "explanation": "求出函数f(x)的定义域，根据函数解析式有意义，对于函数 $y = { \\frac { f { \\bigl ( } x { \\bigr ) } } { \\log _ { 2 } { \\bigl ( } x + 2 { \\bigr ) } } }$ 可得出关于x的不等式，即可解得函数 $y = { \\frac { f \\left( x \\right) } { \\log _ { 2 } \\left( x + 2 \\right) } }$ 的定义域.\n\n对于函数 y = f(2x +1)， $- 1 \\leq x \\leq 2$ 则 $- 1 \\leq 2 x + 1 \\leq 5$\n所以，函数f(x)的定义域[-1,5]，\n对于函数 $y = { \\frac { f \\left( x \\right) } { \\log _ { 2 } \\left( x + 2 \\right) } }$ 有 $\\left\\{ \\begin{array} { l l } { - 1 \\leq x \\leq 5 } \\\\ { x + 2 > 0 } \\\\ { \\log _ { 2 } \\left( x + 2 \\right) \\neq 0 } \\end{array} \\right.$ 即 $\\left\\{ { \\begin{array} { l } { - 1 \\leq x \\leq 5 } \\\\ { x + 2 > 0 } \\\\ { x + 2 \\neq 1 } \\end{array} } \\right.$ 解得 $- 1 < x \\leq 5$\n因此，函数 $y = { \\frac { f \\left( x \\right) } { \\log _ { 2 } \\left( x + 2 \\right) } }$ 的定义域为(-1,5].\n故选：D.",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "445c941976f98434ae7df5fd",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
+  },
+  {
+    "id": "mineru-math-4e7dd5d1f335",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "fill_blank",
+    "questionType": "fill_blank",
+    "difficulty": "medium",
+    "question": "(1) 已知f(x-1)的定义域为[2,3]，求 $f ( 3 x + 2 )$ 的定义域.\n\n(2) 求下列函数的值域:\n\n① $y = 3 x ^ { 2 } - x + 2$\n\n② $y = x + 4 { \\sqrt { 1 - x } }$",
+    "options": [],
+    "answer": "（1) $\\left[ - { \\frac { 1 } { 3 } } , 0 \\right]$ ； (2) $\\left[ { \\frac { 2 3 } { 1 2 } } , + \\infty \\right]$ ; ② $( - \\infty , 5 ]$",
+    "explanation": "解：（1）在函数f(x-1)中， $2 \\leq x \\leq 3$ 则 $1 \\leq x - 1 \\leq 2$ 因此在函数 $f ( 3 x + 2 )$ 中，$1 \\leq 3 x + 2 \\leq 2$ 解得 $- { \\frac { 1 } { 3 } } \\leq x \\leq 0$ 所以函数f(3x+2)的定义域为 $\\left[ - { \\frac { 1 } { 3 } } , 0 \\right]$\n\n(2) ①函数 $y = 3 x ^ { 2 } - x + 2$ 的定义域为R， $y = 3 { \\Bigg ( } x - { \\frac { 1 } { 6 } } { \\Bigg ) } ^ { 2 } + { \\frac { 2 3 } { 1 2 } } \\geq { \\frac { 2 3 } { 1 2 } }$ 当且仅当 $x = \\frac { 1 } { 6 }$ 时，等号成立，所以函数 $y = 3 x ^ { 2 } - x + 2$ 的值域为 $\\left[ { \\frac { 2 3 } { 1 2 } } , + \\infty \\right]$ ②函数 $y = x + 4 { \\sqrt { 1 - x } }$ 的定义域为(-∞,1], $\\gamma = - ( \\sqrt { 1 - x } ) ^ { 2 } + 4 \\sqrt { 1 - x } + 1 = - ( \\sqrt { 1 - x } - 2 ) ^ { 2 } + 5 \\leq 5$ 当且仅当x=-3时，等号成立，所以函数 $y = x + 4 { \\sqrt { 1 - x } }$ 的值域为 $( - \\infty , 5 ]$",
+    "tags": [
+      "函数",
+      "填空题",
+      "定义域",
+      "值域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "4e7dd5d1f33513dcaa78cd55",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
+  },
+  {
+    "id": "mineru-math-6a6cb93e8c74",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "“函数 $f \\left( x \\right) = { \\frac { 1 } { a x ^ { 2 } - a x + 1 } }$ 的定义域为R”是 $^ { \\cdot \\cdot } 0 < a < 4 ^ { : }$ 的（）",
+    "options": [
+      "充分不必要条件",
+      "必要不充分条件",
+      "充要条件",
+      "既不充分也不必要条件"
+    ],
+    "answer": "必要不充分条件",
+    "explanation": "由函数 $f \\left( x \\right) = { \\frac { 1 } { a x ^ { 2 } - a x + 1 } }$ 的定义域为 R，即 $a x ^ { 2 } - a x + 1 \\neq 0$ 对任意x∈R恒成立，可得a的范围，则可得“函数 $f \\left( x \\right) = { \\frac { 1 } { a x ^ { 2 } - a x + 1 } }$ 的定义域为 $\\mathrm { R } ^ { \\ast }$ 是 $\\cdot 0 < a < 4$ ”的必要不充分条件.\n\n因为函数 $f \\left( x \\right) = { \\frac { 1 } { a x ^ { 2 } - a x + 1 } }$ 的定义域为R,\n所以 $a x ^ { 2 } - a x + 1 \\neq 0$ 对任意 $x \\in \\mathbf { R }$ 恒成立，\n①当 $a = 0$ 时， $1 \\neq 0$ 对任意 $x \\in \\mathbf { R }$ 恒成立；\n②当a≠0时，只需 $\\Delta = a ^ { 2 } - 4 a < 0$ ，解得： $0 < a < 4$\n所以 $0 \\leq a < 4$\n记集合A =(0,4)，B =[0,4).\n\n因为 $A \\subseteq B$ 所以“函数 $f \\left( x \\right) = { \\frac { 1 } { a x ^ { 2 } - a x + 1 } }$ 的定义域为 $\\mathrm { R } ^ { \\ast }$ 是 $^ { \\circ } 0 < a < 4 ^ { \\circ }$ 的必要不充分条件故选：B.",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "6a6cb93e8c74a2dc17c89ffd",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
+  },
+  {
+    "id": "mineru-math-d049b20e68d8",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "已知函数 $f ( x ) = { \\sqrt { m x ^ { 2 } + m x + 1 } }$ 的定义域是R，则m的取值范围是（）",
+    "options": [
+      "$0 < m \\leq 4$",
+      "$0 \\leq m < 4$",
+      "$m \\geq 4$",
+      "$0 \\leq m \\leq 4$"
+    ],
+    "answer": "$0 \\leq m \\leq 4$",
+    "explanation": "函数 $f ( x ) = { \\sqrt { m x ^ { 2 } + m x + 1 } }$ 的定义域是R，等价于不等式 $m x ^ { 2 } + m x + 1 \\geq 0$ 对任意 $x \\in \\mathbb { R }$ 恒成立，分 m = 0和 $\\begin{array} { c } { { \\{ { m > 0 }  } } \\\\ { {  \\Delta \\leq 0 } } \\end{array}$ 两种情况求出实数m的取值范围即可.\n\n因为函数 $f ( x ) = { \\sqrt { m x ^ { 2 } + m x + 1 } }$ 的定义域是R，\n所以不等式 $m x ^ { 2 } + m x + 1 \\geq 0$ 对任意 $x \\in \\mathbb { R }$ 恒成立，\n当 $m = 0$ 时，1>0，对任意 $x \\in \\mathbb { R }$ 恒成立，符合题意;\n当 $m \\neq 0$ 时， $\\begin{array} { c } { { \\{ { m > 0 }  } } \\\\ { {  \\Delta \\leq 0 } } \\end{array}$ 即 $\\left\\{ { \\begin{array} { l } { m > 0 } \\\\ { m ^ { 2 } - 4 m \\leq 0 } \\end{array} } \\right.$ 解得： $0 < m \\leq 4$\n综上，实数m的取值范围是 $0 \\leq m \\leq 4 _ { \\cdot }$\n故选：D",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "d049b20e68d854415e69d357",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
+  },
+  {
+    "id": "mineru-math-5eb57e46bd37",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "已知函数 $f { \\bigl ( } x { \\bigr ) } = { \\sqrt { a x ^ { 2 } + 2 x + c } }$ 的定义域为R，则 $a ^ { 2 } + 4 c ^ { 2 }$ 的最小值为（）",
+    "options": [
+      "1",
+      "2",
+      "4",
+      "5"
+    ],
+    "answer": "4",
+    "explanation": "根据函数定义域求出 $a c \\ge 1$ 利用基本不等式可求答案\n\n由题可知 $a > 0$ 且 $4 { - } 4 a c \\leq 0$ ，即 $a c \\ge 1$ 所以 $a ^ { 2 } + 4 c ^ { 2 } \\geq 4 a c \\geq 4$\n当且仅当 $a = { \\sqrt { 2 } }$ $c = { \\frac { \\sqrt { 2 } } { 2 } }$ 时，等号成立，所以 $a ^ { 2 } + 4 c ^ { 2 }$ 的最小值为4.\n故选：C.",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T09-21-22-066Z",
+    "importFingerprint": "5eb57e46bd374657d6f6dfef",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T09:21:22.066Z"
   }
 ];

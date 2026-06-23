@@ -14,6 +14,7 @@ import { FormulaAdmin } from "@/pages/FormulaAdmin";
 import { FormulaReview } from "@/pages/FormulaReview";
 import { QuestionReview } from "@/pages/QuestionReview";
 import { QuestionImportPreview } from "@/pages/QuestionImportPreview";
+import { ImportedQuestionManager } from "@/pages/ImportedQuestionManager";
 import { PetBattle } from "@/pages/PetBattle";
 import { PartnerChessPage } from "@/pages/PartnerChessPage";
 import { Profile } from "@/pages/Profile";
@@ -45,6 +46,7 @@ const pathToPage: Record<string, PageId> = {
   "/formula-review": "formulaReview",
   "/question-review": "questionReview",
   "/question-import-preview": "questionImportPreview",
+  "/imported-question-manager": "importedQuestionManager",
   "/login": "auth",
   "/student": "student",
   "/teacher": "teacher",
@@ -196,6 +198,7 @@ export default function App() {
         {page === "formulaReview" && <FormulaReview navigate={navigate} />}
         {page === "questionReview" && <QuestionReview navigate={navigate} />}
         {page === "questionImportPreview" && <QuestionImportPreview navigate={navigate} />}
+        {page === "importedQuestionManager" && <ImportedQuestionManager navigate={navigate} />}
         {page === "student" && <StudentDashboard navigate={navigate} stats={stats} wrongCount={records.length} />}
         {page === "teacher" && <TeacherDashboard navigate={navigate} user={auth.user} />}
         {teacherPages.has(page) && page !== "teacher" && <TeacherSectionPage navigate={navigate} page={page} />}
