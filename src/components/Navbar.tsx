@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { BookOpen, Brain, CalendarDays, ClipboardList, Compass, Crown, Flag, FlaskConical, GraduationCap, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PawPrint, PenSquare, School, Shield, Swords, UserRound, X } from "lucide-react";
+import { BookOpen, Brain, Calculator, CalendarDays, ClipboardList, Compass, Crown, Flag, FlaskConical, GraduationCap, Home, LibraryBig, LogIn, LogOut, Map, Menu, Palmtree, PawPrint, PenSquare, School, Shield, Swords, UserRound, X } from "lucide-react";
 import { isAdminUser } from "@/config/admin";
 import type { AuthUser, PageId } from "@/types";
 
@@ -20,6 +20,7 @@ const items: NavItem[] = [
   { id: "petBattle", label: "伙伴岛", icon: PawPrint },
   { id: "partnerChess", label: "战棋场", icon: Swords },
   { id: "territoryWar", label: "知识领地战", icon: Flag },
+  { id: "formulaIsland", label: "公式岛", icon: Calculator },
   { id: "wrongBook", label: "错题本", icon: ClipboardList, mobilePrimary: true },
   { id: "quiz", label: "练习", icon: PenSquare },
   { id: "schedule", label: "课表", icon: CalendarDays },
