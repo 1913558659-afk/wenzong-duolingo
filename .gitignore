@@ -26,3 +26,11 @@ public/pet-battle/enemies/_backup-before-new-careless-sprites/
 public/pet-battle/pets/_backup-fake-transparent/
 public/pet-battle/pets/_backup-fake-transparent-batch/
 scripts/__pycache__/
+# Formula importer generated files
+tools/formula-importer/input/*
+!tools/formula-importer/input/.gitkeep
+
+tools/formula-importer/mineru-output/*
+!tools/formula-importer/mineru-output/.gitkeep
+
+tools/formula-importer/drafts/*.json
