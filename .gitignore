@@ -34,3 +34,15 @@ tools/formula-importer/mineru-output/*
 !tools/formula-importer/mineru-output/.gitkeep
 
 tools/formula-importer/drafts/*.json
+
+# Question importer generated files
+tools/question-importer/input/*
+!tools/question-importer/input/.gitkeep
+
+tools/question-importer/mineru-output/*
+!tools/question-importer/mineru-output/.gitkeep
+
+tools/question-importer/drafts/*.json
+
+tools/question-importer/backups/*
+!tools/question-importer/backups/.gitkeep

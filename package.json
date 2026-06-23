@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "formula:admin": "node tools/formula-importer/admin-server.js",
     "formula:import": "node tools/formula-importer/run-full-import.js",
+    "question:import": "node tools/question-importer/run-question-import.js",
+    "question:publish": "node tools/question-importer/publish-approved-questions.js",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

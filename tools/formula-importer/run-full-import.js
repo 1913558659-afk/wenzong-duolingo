@@ -11,7 +11,7 @@ const mineruOutputDir = path.join(scriptDir, "mineru-output");
 const draftsFile = path.join(scriptDir, "drafts", "formula-drafts.json");
 const importerScript = path.join(scriptDir, "import-mineru-output.js");
 
-async function assertPdf(sourcePath) {
+export async function assertPdf(sourcePath) {
   let stat;
   try {
     stat = await fs.stat(sourcePath);
@@ -30,7 +30,7 @@ async function assertPdf(sourcePath) {
   }
 }
 
-async function clearDirectoryPreservingGitkeep(directory) {
+export async function clearDirectoryPreservingGitkeep(directory) {
   await fs.mkdir(directory, { recursive: true });
   const entries = await fs.readdir(directory, { withFileTypes: true });
   await Promise.all(entries
@@ -38,7 +38,7 @@ async function clearDirectoryPreservingGitkeep(directory) {
     .map((entry) => fs.rm(path.join(directory, entry.name), { force: true, recursive: true })));
 }
 
-function runCommand(command, args, options = {}) {
+export function runCommand(command, args, options = {}) {
   return new Promise((resolve, reject) => {
     const child = spawn(command, args, {
       cwd: projectRoot,
@@ -71,7 +71,7 @@ function extractDrafts(parsed) {
   return [];
 }
 
-async function readImportSummary() {
+export async function readImportSummary() {
   const raw = await fs.readFile(draftsFile, "utf8");
   const parsed = JSON.parse(raw);
   const scannedFiles = Array.isArray(parsed?.scannedFiles) ? parsed.scannedFiles : [];
@@ -84,15 +84,12 @@ async function readImportSummary() {
   };
 }
 
-async function main() {
-  const sourceArgument = process.argv[2];
-  if (!sourceArgument) {
-    throw new Error('缺少 PDF 路径。用法：npm run formula:import -- "/path/to/file.pdf"');
-  }
-
+export async function runFullImport(sourceArgument, options = {}) {
+  const logger = options.logger ?? console;
+  const onStatus = options.onStatus ?? (() => {});
   const sourcePath = path.resolve(sourceArgument);
   await assertPdf(sourcePath);
-  console.log(`输入 PDF 路径：${sourcePath}`);
+  logger.log(`输入 PDF 路径：${sourcePath}`);
 
   const temporaryDir = await fs.mkdtemp(path.join(os.tmpdir(), "sayhi-formula-import-"));
   const temporaryPdf = path.join(temporaryDir, path.basename(sourcePath));
@@ -104,8 +101,9 @@ async function main() {
     await clearDirectoryPreservingGitkeep(mineruOutputDir);
     await fs.copyFile(temporaryPdf, targetPdf);
 
-    console.log("已清理旧临时文件并复制 PDF。");
-    console.log("正在运行 MinerU...");
+    logger.log("已清理旧临时文件并复制 PDF。");
+    logger.log("正在运行 MinerU...");
+    onStatus("parsing");
 
     const mineruCommand = process.env.MINERU_BIN || "mineru";
     await runCommand(mineruCommand, [
@@ -116,28 +114,48 @@ async function main() {
       "-b",
       "pipeline"
     ]);
-    console.log("MinerU 是否成功：是");
+    logger.log("MinerU 是否成功：是");
 
-    console.log("正在生成公式草稿...");
+    logger.log("正在生成公式草稿...");
+    onStatus("drafting");
     await runCommand(process.execPath, [importerScript]);
 
     const summary = await readImportSummary();
-    console.log("");
-    console.log("公式导入完成");
-    console.log(`输入 PDF 路径：${sourcePath}`);
-    console.log("MinerU 是否成功：是");
-    console.log(`扫描 Markdown 数量：${summary.markdownCount}`);
-    console.log(`扫描 JSON 数量：${summary.jsonCount}`);
-    console.log(`生成草稿数量：${summary.draftCount}`);
-    console.log(`草稿文件：${path.relative(projectRoot, draftsFile)}`);
-    console.log("下一步：打开 formula-drafts.json 审核；将确认正确的条目改为 approved 后，运行：");
-    console.log("node tools/formula-importer/export-drafts-to-formula-data.js");
+    const result = {
+      ...summary,
+      draftPath: path.relative(projectRoot, draftsFile),
+      fileName: path.basename(sourcePath),
+      inputPath: sourcePath,
+      mineruSucceeded: true
+    };
+    onStatus("completed");
+    logger.log("");
+    logger.log("公式导入完成");
+    logger.log(`输入 PDF 路径：${sourcePath}`);
+    logger.log("MinerU 是否成功：是");
+    logger.log(`扫描 Markdown 数量：${summary.markdownCount}`);
+    logger.log(`扫描 JSON 数量：${summary.jsonCount}`);
+    logger.log(`生成草稿数量：${summary.draftCount}`);
+    logger.log(`草稿文件：${result.draftPath}`);
+    logger.log("下一步：打开 formula-drafts.json 审核；将确认正确的条目改为 approved 后，运行：");
+    logger.log("node tools/formula-importer/export-drafts-to-formula-data.js");
+    return result;
   } finally {
     await fs.rm(temporaryDir, { force: true, recursive: true });
   }
 }
 
-main().catch((error) => {
-  console.error(`公式一键导入失败：${error instanceof Error ? error.message : String(error)}`);
-  process.exitCode = 1;
-});
+async function main() {
+  const sourceArgument = process.argv[2];
+  if (!sourceArgument) {
+    throw new Error('缺少 PDF 路径。用法：npm run formula:import -- "/path/to/file.pdf"');
+  }
+  await runFullImport(sourceArgument);
+}
+
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(`公式一键导入失败：${error instanceof Error ? error.message : String(error)}`);
+    process.exitCode = 1;
+  });
+}

@@ -10,7 +10,10 @@ import { Auth } from "@/pages/Auth";
 import { ChallengeMap } from "@/pages/ChallengeMap";
 import { Home } from "@/pages/Home";
 import { FormulaIsland } from "@/pages/FormulaIsland";
+import { FormulaAdmin } from "@/pages/FormulaAdmin";
 import { FormulaReview } from "@/pages/FormulaReview";
+import { QuestionReview } from "@/pages/QuestionReview";
+import { QuestionImportPreview } from "@/pages/QuestionImportPreview";
 import { PetBattle } from "@/pages/PetBattle";
 import { PartnerChessPage } from "@/pages/PartnerChessPage";
 import { Profile } from "@/pages/Profile";
@@ -36,9 +39,12 @@ const pathToPage: Record<string, PageId> = {
   "/admin-test": "adminTest",
   "/debug-lab": "adminTest",
   "/formula": "formulaIsland",
+  "/formula-admin": "formulaAdmin",
   "/formula-island": "formulaIsland",
   "/formula-drafts": "formulaReview",
   "/formula-review": "formulaReview",
+  "/question-review": "questionReview",
+  "/question-import-preview": "questionImportPreview",
   "/login": "auth",
   "/student": "student",
   "/teacher": "teacher",
@@ -80,10 +86,12 @@ export default function App() {
   useEffect(() => {
     fetchQuestions()
       .then((cloudQuestions) => {
-        setQuestions(cloudQuestions);
+        const cloudIds = new Set(cloudQuestions.map((question) => question.id));
+        const localImportedQuestions = localQuizQuestions.filter((question) => question.imported && !cloudIds.has(question.id));
+        setQuestions([...cloudQuestions, ...localImportedQuestions]);
         setQuestionSourceStatus("cloud");
         if (import.meta.env.DEV) {
-          console.log("[SayHiStudy] questions source:", "api", cloudQuestions.length);
+          console.log("[SayHiStudy] questions source:", "api+local-imported", cloudQuestions.length, localImportedQuestions.length);
         }
       })
       .catch((error) => {
@@ -184,7 +192,10 @@ export default function App() {
         {page === "partnerChess" && <PartnerChessPage goPetBattle={() => setPage("petBattle")} questions={questions} />}
         {page === "territoryWar" && <TerritoryWarPage questions={questions} user={auth.user} />}
         {page === "formulaIsland" && <FormulaIsland navigate={navigate} />}
+        {page === "formulaAdmin" && <FormulaAdmin navigate={navigate} />}
         {page === "formulaReview" && <FormulaReview navigate={navigate} />}
+        {page === "questionReview" && <QuestionReview navigate={navigate} />}
+        {page === "questionImportPreview" && <QuestionImportPreview navigate={navigate} />}
         {page === "student" && <StudentDashboard navigate={navigate} stats={stats} wrongCount={records.length} />}
         {page === "teacher" && <TeacherDashboard navigate={navigate} user={auth.user} />}
         {teacherPages.has(page) && page !== "teacher" && <TeacherSectionPage navigate={navigate} page={page} />}

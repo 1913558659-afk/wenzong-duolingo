@@ -4,6 +4,13 @@
 
 它不会运行 MinerU、不会上传资料，也不会直接修改 `src/data/formulaData.ts`。
 
+## 公式导入与题库导入
+
+- **公式导入**：适合公式表、知识讲义和以公式说明为主的资料，生成 `formula-drafts.json`。
+- **题库导入**：适合试卷、练习题和带答案解析的 PDF，生成 `question-drafts.json`。使用方法见 `tools/question-importer/README.md`。
+
+两条管线相互独立，都不会自动发布正式数据。
+
 ## 目录说明
 
 - `input/`：放置待解析的 PDF、图片或 DOCX。
@@ -49,6 +56,73 @@ node tools/formula-importer/export-drafts-to-formula-data.js
 ```bash
 MINERU_BIN="/absolute/path/to/mineru" npm run formula:import -- "/path/to/file.pdf"
 ```
+
+## V0.4 本地网页上传后台
+
+这个后台只监听 `127.0.0.1`，用于本机开发，不应部署到线上。
+
+1. 启动本地上传和 MinerU 服务：
+
+   ```bash
+   npm run formula:admin
+   ```
+
+2. 另开一个终端启动前端：
+
+   ```bash
+   npm run dev
+   ```
+
+3. 打开：
+
+   ```text
+   http://localhost:5173/formula-admin
+   ```
+
+4. 选择一个不超过 30MB 的 PDF，点击“开始 MinerU 解析”。
+
+5. 解析完成后会生成：
+
+   ```text
+   tools/formula-importer/drafts/formula-drafts.json
+   ```
+
+6. 进入审核台：
+
+   ```text
+   http://localhost:5173/formula-review
+   ```
+
+   审核台会优先通过本地后台读取刚生成的 `formula-drafts.json`；如果后台未启动，才回退显示 `src/data/importedFormulaData.ts`。
+
+7. 检查标题、学科章节、公式、变量解释、例题和易错点。确认正确后，手动把对应草稿改为：
+
+   ```json
+   "status": "approved"
+   ```
+
+8. 导出审核通过的公式：
+
+   ```bash
+   node tools/formula-importer/export-drafts-to-formula-data.js
+   ```
+
+9. 回到公式岛查看导入结果。
+
+如果 MinerU 不在 `PATH`，使用：
+
+```bash
+MINERU_BIN="/Users/smllie/Documents/sayhi-mineru-test/.venv/bin/mineru" npm run formula:admin
+```
+
+本地后台的安全限制：
+
+- 仅监听 `127.0.0.1:8787`
+- 只接受 `.pdf` 和 PDF 文件头
+- 单文件最大 30MB
+- 同一时间只允许一个导入任务
+- 参数或文件校验失败时不会清理现有 `input/`、`mineru-output/` 或草稿
+- 不会自动 approved，也不会自动运行正式数据导出
 
 ## 完整导入与审核流程
 

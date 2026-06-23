@@ -4051,5 +4051,62 @@ export const quizQuestions: QuizQuestion[] = [
       "海南自贸港",
       "南繁育种"
     ]
+  },
+  {
+    "id": "mineru-math-9ae0b8cd431c",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "下列四组函数中，两个函数表示的是同一个函数的是（）.",
+    "options": [
+      "$f \\left( x \\right) = { \\frac { x ^ { 2 } - 2 } { x - { \\sqrt { 2 } } } }$ 与 $f \\left( x \\right) = x + { \\sqrt { 2 } }$",
+      "$f \\left( x \\right) = \\frac { 1 } { 2 } \\log _ { 3 } x ^ { 2 }$ 与 $f ( x ) = \\log _ { 3 } x$",
+      "$f ( x ) = { \\sqrt { x ^ { 2 } } } \\ E \\ f ( x ) = x$",
+      "$f ( x ) = \\sqrt [ 3 ] { \\left( x - 1 \\right) ^ { 3 } }$ 与 $f ( x ) = x - 1$"
+    ],
+    "answer": "$f ( x ) = \\sqrt [ 3 ] { \\left( x - 1 \\right) ^ { 3 } }$ 与 $f ( x ) = x - 1$",
+    "explanation": "对两函数的定义域、值域、对应关系分别进行逐一判断即可得出结论.\n\n对于A，易知 $f \\left( x \\right) = { \\frac { x ^ { 2 } - 2 } { x - { \\sqrt { 2 } } } }$ 的定义域为 $\\left\\{ x \\mid x \\neq { \\sqrt { 2 } } \\right\\}$ 而 $f \\left( x \\right) = x + { \\sqrt { 2 } }$ 的定义域为R，两函数定义域不同，可知A错误;对于B，显然 $f \\left( x \\right) = \\frac { 1 } { 2 } \\log _ { 3 } x ^ { 2 }$ 的定义域为 $\\{ x | x \\neq 0 \\}$\n而函数 $f ( x ) = \\log _ { 3 } x$ 的定义域为 $\\left( 0 , + \\infty \\right)$ 两函数定义域不同，可知B错误；\n对于C，两函数定义域均为R，但 $f \\left( x \\right) = { \\sqrt { x ^ { 2 } } }$ 的值域为 $\\left[ 0 , + \\infty \\right)$\n而 $f ( x ) = x$ 的值域为R，两函数值域不同，即C错误；\n对于D，易知 $f \\left( x \\right) = \\sqrt [ 3 ] { \\left( x - 1 \\right) ^ { 3 } } = x - 1$ 与 $f ( x ) = x - 1$ 的定义域、值域、对应关系均相同，即D正确.\n故选：D",
+    "tags": [
+      "函数",
+      "选择题",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T08-38-00-835Z",
+    "importFingerprint": "9ae0b8cd431c47a864991e10",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T08:38:00.835Z"
+  },
+  {
+    "id": "mineru-math-bf8f4cc79cc3",
+    "subject": "math",
+    "chapter": "函数",
+    "type": "single_choice",
+    "questionType": "single_choice",
+    "difficulty": "medium",
+    "question": "函数 $f ( x ) = { \\sqrt { 2 x - 3 } } + { \\frac { 1 } { x - 2 } }$ 的定义域是（）",
+    "options": [
+      "$\\left[ { \\frac { 3 } { 2 } } , + \\infty \\right]$",
+      "$\\left[ { \\frac { 3 } { 2 } } , 2 \\right)$",
+      "$\\left( { \\frac { 3 } { 2 } } , 2 \\right) \\bigcup \\left( 2 , + \\infty \\right)$",
+      "$\\left[ { \\frac { 3 } { 2 } } , 2 \\right) \\bigcup ( 2 , + \\infty )$"
+    ],
+    "answer": "$\\left[ { \\frac { 3 } { 2 } } , 2 \\right) \\bigcup ( 2 , + \\infty )$",
+    "explanation": "根据函数的解析式有意义需满足的条件，解不等式组，即得答案\n\n函数 $f ( x ) = { \\sqrt { 2 x - 3 } } + { \\frac { 1 } { x - 2 } }$ 要有意义，需满足 $\\left\\{ { \\begin{array} { l } { 2 x - 3 \\geq 0 } \\\\ { x - 2 \\neq 0 } \\end{array} } \\right.$\n解得 $x \\geq \\frac { 3 } { 2 }$ 且 $x \\neq 2$ 即函数 $f ( x ) = { \\sqrt { 2 x - 3 } } + { \\frac { 1 } { x - 2 } }$ 的定义域是 $\\left[ { \\frac { 3 } { 2 } } , 2 \\right) \\bigcup \\left( 2 , + \\infty \\right)$\n故选：D",
+    "tags": [
+      "函数",
+      "选择题",
+      "定义域",
+      "导入题库"
+    ],
+    "source": "mineru-question-import",
+    "imported": true,
+    "importBatchId": "mineru-question-2026-06-23T08-48-30-920Z",
+    "importFingerprint": "bf8f4cc79cc343e45cf2b625",
+    "sourceFile": "../formula-importer/mineru-output/函数第一组/auto/函数第一组.md",
+    "createdAt": "2026-06-23T08:48:30.920Z"
   }
 ];
