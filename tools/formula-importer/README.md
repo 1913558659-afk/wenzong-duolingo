@@ -11,6 +11,44 @@
 - `drafts/`：导入脚本生成的草稿。
 - `import-mineru-output.js`：Markdown / JSON 扫描与公式提取脚本。
 - `export-drafts-to-formula-data.js`：把审核通过的草稿导出为公式岛数据。
+- `run-full-import.js`：复制 PDF、清理临时目录、运行 MinerU 并生成草稿的一键编排脚本。
+
+## 一键导入
+
+在项目根目录运行：
+
+```bash
+npm run formula:import -- "/path/to/file.pdf"
+```
+
+路径包含空格时必须保留引号。该命令会自动：
+
+1. 检查 PDF 路径是否存在且确实是 `.pdf` 文件。
+2. 清理 `input/` 和 `mineru-output/` 中的旧临时文件，同时保留 `.gitkeep`。
+3. 把 PDF 复制到 `input/`。
+4. 运行：
+
+   ```bash
+   mineru -p tools/formula-importer/input/<filename> \
+     -o tools/formula-importer/mineru-output \
+     -b pipeline
+   ```
+
+5. 运行 `import-mineru-output.js`。
+6. 生成 `drafts/formula-drafts.json`。
+7. 打印 MinerU 状态、Markdown / JSON 扫描数量和草稿数量。
+
+一键导入不会自动把草稿标记为 `approved`，也不会运行正式数据导出脚本。完成后仍需人工审核：
+
+```bash
+node tools/formula-importer/export-drafts-to-formula-data.js
+```
+
+如果终端无法找到 `mineru`，请确认 MinerU 已安装并加入 `PATH`。也可以临时指定命令路径：
+
+```bash
+MINERU_BIN="/absolute/path/to/mineru" npm run formula:import -- "/path/to/file.pdf"
+```
 
 ## 完整导入与审核流程
 
