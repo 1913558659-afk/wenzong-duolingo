@@ -482,6 +482,7 @@ function loadTerritoryWarState() {
 }
 
 function normalizeQuestion(question: QuizQuestion): TerritoryQuestion | null {
+  if ((question.questionType ?? "single_choice") !== "single_choice") return null;
   if (!question.question || !Array.isArray(question.options) || question.options.length < 2) return null;
   return {
     answer: question.answer,

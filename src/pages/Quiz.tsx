@@ -25,11 +25,13 @@ const questionsPerLevel = 10;
 const randomPracticeId = "random:true";
 
 function questionTypeText(questionType: QuizQuestion["questionType"]) {
-  return questionType === "fill_blank" ? "填空题" : "单选题";
+  if (questionType === "fill_blank") return "填空题";
+  if (questionType === "multiple_choice") return "多选题";
+  return "单选题";
 }
 
 function normalizeQuestionType(value?: string): QuestionType | undefined {
-  return value === "fill_blank" || value === "single_choice" ? value : undefined;
+  return value === "fill_blank" || value === "single_choice" || value === "multiple_choice" ? value : undefined;
 }
 
 function shuffleQuestions(questions: QuizQuestion[]) {

@@ -141,7 +141,10 @@ export function FormulaIsland({ navigate }: { navigate: (page: PageId) => void }
       </div>
 
       {import.meta.env.DEV && (
-        <div className="flex justify-center pt-2">
+        <div className="flex flex-wrap justify-center gap-4 pt-2">
+          <button className="text-xs font-bold text-ink/35 underline decoration-ink/20 underline-offset-4 transition hover:text-tide" onClick={() => navigate("formulaAdmin")} type="button">
+            开发工具：公式导入后台
+          </button>
           <button className="text-xs font-bold text-ink/35 underline decoration-ink/20 underline-offset-4 transition hover:text-tide" onClick={() => navigate("formulaReview")} type="button">
             开发工具：导入审核台
           </button>

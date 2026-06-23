@@ -1,4 +1,4 @@
-export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "petBattle" | "partnerChess" | "territoryWar" | "formulaIsland" | "formulaReview" | "profile" | "adminQuestions" | "adminTest" | "auth" | "student" | "teacher" | "teacherClasses" | "teacherStudents" | "teacherCourses" | "teacherGrades" | "teacherWrongAnalytics" | "teacherReports" | "about";
+export type PageId = "home" | "map" | "quiz" | "schedule" | "prompts" | "textbook" | "studyAids" | "studyAidDetail" | "wrongBook" | "petBattle" | "partnerChess" | "territoryWar" | "formulaIsland" | "formulaReview" | "formulaAdmin" | "questionReview" | "questionImportPreview" | "profile" | "adminQuestions" | "adminTest" | "auth" | "student" | "teacher" | "teacherClasses" | "teacherStudents" | "teacherCourses" | "teacherGrades" | "teacherWrongAnalytics" | "teacherReports" | "about";
 
 export type Subject = "history" | "politics" | "geography" | "biology" | "math" | "english";
 
@@ -6,7 +6,7 @@ export type PromptCategory = "history" | "politics" | "geography" | "wrongReview
 
 export type Difficulty = "easy" | "medium" | "hard";
 
-export type QuestionType = "single_choice" | "fill_blank";
+export type QuestionType = "single_choice" | "multiple_choice" | "fill_blank";
 
 export type ChallengeLevel = {
   id: string;
@@ -28,6 +28,13 @@ export type QuizQuestion = {
   answer: string;
   explanation: string;
   tags: string[];
+  type?: QuestionType;
+  source?: "mineru-question-import";
+  imported?: boolean;
+  importBatchId?: string;
+  importFingerprint?: string;
+  sourceFile?: string;
+  createdAt?: string;
 };
 
 export type StudyStats = {

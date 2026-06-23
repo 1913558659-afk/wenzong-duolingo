@@ -90,11 +90,13 @@ export function WrongBook({ records, questions, removeWrongAnswer, clearWrongAns
             <div className="mt-3 text-lg font-black leading-snug text-ink">
               <MarkdownContent content={questionText} />
             </div>
-            {questionType === "single_choice" && options.length > 0 ? (
+            {questionType !== "fill_blank" && options.length > 0 ? (
               <div className="mt-3 grid gap-2">
                 {options.map((option, index) => {
-                  const isSelected = option === record.selectedAnswer;
-                  const isCorrect = option === correctAnswer;
+                  const optionLetter = String.fromCharCode(65 + index);
+                  const isMultiple = questionType === "multiple_choice";
+                  const isSelected = isMultiple ? record.selectedAnswer.includes(optionLetter) : option === record.selectedAnswer;
+                  const isCorrect = isMultiple ? correctAnswer.includes(optionLetter) : option === correctAnswer;
 
                   return (
                     <div
